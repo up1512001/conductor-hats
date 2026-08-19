@@ -121,6 +121,22 @@ find "$DST/Contents/Resources/bin" -type f -perm -u+x -print0 2>/dev/null |
 codesign -f -s - --options runtime --entitlements "$ENT" "$DST"
 rm -f "$ENT"
 
+step "Clearing this copy's stale keychain items"
+# An ad-hoc signature carries no stable identity, so every rebuild looks like a
+# different application to the keychain. Items the previous build created are
+# still there, ACL'd to a code hash that no longer exists, and macOS asks for
+# the login password to hand them over. Dropping them means the copy starts
+# clean and is never in a position to ask. Only ever this copy's own service
+# name; the real Conductor's items are left alone.
+KC_SERVICE="$NEW_ID.production.settings"
+kc_removed=0
+while security delete-generic-password -s "$KC_SERVICE" >/dev/null 2>&1; do
+    kc_removed=$((kc_removed + 1))
+    [ "$kc_removed" -gt 20 ] && break
+done
+echo "    removed $kc_removed stale item(s) for $KC_SERVICE"
+echo "    left alone: com.conductor.app.production.settings"
+
 step "Clearing quarantine"
 xattr -cr "$DST" 2>/dev/null || true
 

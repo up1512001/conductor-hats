@@ -596,6 +596,53 @@ cmd_update() {
     "$proj/bin/conductor-acct" install
 }
 
+# Machine-readable state for the patched-UI panel. Hand-rolled JSON because a
+# jq dependency for four fields is not worth it.
+cmd_json() {
+    ensure_root
+    local ws agent profile label resolved current first=1
+    ws=$(current_workspace "${1:-}")
+    agent=$(agent_of "${2:-claude}")
+    if router_installed; then
+        resolved=$(router_dry_run "$agent" "$ws" || true)
+    else
+        resolved=$(repo_binding "$agent" "$(repo_root_for "$ws")" || true)
+    fi
+    current=$(profile_from_dir "$resolved")
+
+    printf '{"workspace":"%s","agent":"%s","enabled":%s,"current":"%s","accounts":[' \
+        "$(json_escape "$ws")" "$agent" \
+        "$(router_installed && echo true || echo false)" "$(json_escape "$current")"
+    for profile in $(list_profiles "$agent"); do
+        label=$(label_of "$agent" "$profile")
+        [ "$first" -eq 1 ] || printf ','
+        first=0
+        printf '{"name":"%s","email":"%s","active":%s}' \
+            "$(json_escape "$profile")" "$(json_escape "$label")" \
+            "$([ "$profile" = "$current" ] && echo true || echo false)"
+    done
+    printf ']}\n'
+}
+
+json_escape() {
+    printf '%s' "${1:-}" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+# Conductor identifies a workspace by uuid in its URL; the router keys on the
+# directory. Read-only lookup, and the panel degrades to the cwd without it.
+cmd_resolve() {
+    local id="${1:-}" db
+    [ -n "$id" ] || die "usage: conductor-acct resolve <workspace-id>"
+    case "$id" in
+        *[!a-zA-Z0-9-]*) die "not a workspace id" ;;
+    esac
+    db="${CONDUCTOR_DB:-$HOME/Library/Application Support/com.conductor.app/conductor.db}"
+    [ -f "$db" ] || die "no Conductor database at $db"
+    command -v sqlite3 >/dev/null || die "sqlite3 not found"
+    sqlite3 "file:$db?mode=ro" \
+        "select workspace_path from workspaces where id='$id' and workspace_path is not null" 2>/dev/null
+}
+
 cmd_sessions() {
     ensure_root
     if [ "${1:-}" = "clear" ]; then
@@ -905,6 +952,8 @@ conductor-acct $CONDUCTOR_ACCT_VERSION - one Claude/Codex account per Conductor 
 
   ask on|off|status [repo]         ask in the first chat of a new workspace
   check [path]                     ACCOUNT/NEEDS_ACCOUNT, for the ask prompt
+  json [path] [agent]              accounts and current selection, as JSON
+  resolve <workspace-id>           workspace id to directory, for the UI panel
 
   install                          turn the router on, add /account
   uninstall                        turn it off again
@@ -935,6 +984,8 @@ case "$cmd" in
     unassign) cmd_unassign "$@" ;;
     which) cmd_which "$@" ;;
     check) cmd_check "$@" ;;
+    json) cmd_json "$@" ;;
+    resolve) cmd_resolve "$@" ;;
     ask) cmd_ask "$@" ;;
     update) cmd_update "$@" ;;
     sessions) cmd_sessions "$@" ;;
