@@ -32,9 +32,8 @@ router_installed() {
     grep -q "claude-router" "$CONDUCTOR_SETTINGS" 2>/dev/null
 }
 
-# Runs the real router against a workspace with /usr/bin/env standing in for the
-# agent binary, and reports the config dir it would have exported. This is the
-# routing decision itself rather than a re-implementation of it.
+# The routing decision itself, not a reimplementation: runs the real router with
+# /usr/bin/env in place of the agent.
 router_dry_run() {
     local agent="$1" ws="$2" var out
     var=$(agent_home_var "$agent")
@@ -67,14 +66,9 @@ repo_binding() {
     done
 }
 
-# What this path actually ends up on, whichever mechanism gets there first.
-#
-# The router only ever exports a route, because a repository binding needs no
-# router: Conductor applies `[environment_variables]` from the repo's settings
-# itself when it spawns the agent. Reporting the dry run alone therefore told
-# you "default account" for a repository that was firmly bound, which is what
-# made the New Workspace chip read "default account" while the binding said
-# work. Ask the router, then fall back to the binding it never sees.
+# Whichever mechanism gets there first. The router never exports a repository
+# binding, because Conductor applies those itself, so the dry run alone reported
+# "default account" for a bound repository.
 effective_dir() {
     local agent="$1" ws="$2" repo="${3:-}" out
     [ -n "$repo" ] || repo=$(repo_root_for "$ws")

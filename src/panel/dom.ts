@@ -1,4 +1,4 @@
-/* Element helpers and the wording shared across views. */
+/** Element helpers and the wording shared across views. */
 
 import type { PanelState } from "./state.js";
 
@@ -17,9 +17,7 @@ export function label(text: string): HTMLDivElement {
   return el("div", "cma-head", text);
 }
 
-/* Profile names are lower case on disk, because they are typed at a CLI and used
- * as directory names. They are capitalised for display only: never feed the
- * result back to conductor-acct. */
+/** Display only. Profile names are lower case on disk; never feed this back. */
 export function cap(s: string | null | undefined): string {
   const v = String(s || "");
   return v ? v.charAt(0).toUpperCase() + v.slice(1) : v;
@@ -35,8 +33,7 @@ export const AGENT_ICON: Record<string, string> = {
   codex: "codex",
 };
 
-/* The trigger label shows Claude's account, falling back to whichever provider
- * has one, because that is the one people mean when they glance at it. */
+/** Claude's account, or whichever provider has one. */
 export function primary(state: PanelState): string {
   const providers = state.providers || [];
   const claude = providers.filter((p) => p.agent === "claude")[0];
@@ -61,7 +58,7 @@ export function footText(state: PanelState): string {
   return "Open a workspace to choose its account.";
 }
 
-/* A transient line, for a failure that does not deserve a dialog. */
+/** A transient line, for a failure that does not deserve a dialog. */
 export function note(host: Element, text: string): void {
   const n = el("div", "cma-note", text);
   host.appendChild(n);

@@ -1,4 +1,4 @@
-/* Everything the panel knows, read from conductor-acct and cached briefly. */
+/** Everything the panel knows, read from conductor-acct and cached briefly. */
 
 import { acct, q } from "./cli.js";
 
@@ -29,12 +29,11 @@ export interface PanelState {
   target: Target;
 }
 
-/* Conductor's webview runs an in-memory router, so location never changes and
- * there is no id to read. The panel works out where it is by matching what is on
- * screen against the workspaces and repositories Conductor knows about, longest
- * name first so "rio-branch" is not beaten by a repo called "rio". Cached,
- * because it is two SQLite reads, but not for ever: a workspace created after the
- * app started would otherwise never be recognised. */
+/**
+ * Conductor's webview routes in memory, so `location` carries no workspace id.
+ * Instead the on-screen chrome is matched against what Conductor knows, longest
+ * name first so `rio-branch` is not beaten by a repo called `rio`.
+ */
 const PLACES_TTL = 30_000;
 let placesCache: Target[] | null = null;
 let placesAt = 0;
@@ -61,8 +60,8 @@ function places(): Promise<Target[]> {
   });
 }
 
-/* Scoped to the app chrome: the sidebar lists every workspace by name, so
- * searching the whole document would match the wrong one constantly. */
+/** Scoped to the chrome: the sidebar names every workspace, so a document-wide
+ * search would match the wrong one. */
 function chromeText(): string {
   const bits: string[] = [document.title || ""];
   const sel = "header,[class*=titlebar],[class*=toolbar],[data-tauri-drag-region]";
@@ -91,15 +90,11 @@ function currentTarget(): Promise<Target> {
   });
 }
 
-/* Every read costs a shell out to conductor-acct, and `json` runs the router
- * twice inside itself to answer. Conductor re-renders constantly, so an uncached
- * read per render pass meant several process spawns a second, and a press's own
- * read then queued behind that backlog: the panel appeared late enough to look
- * like the press had been ignored.
- *
- * So: one in-flight read shared by every caller, and a short cache after it.
- * Anything that writes calls invalidate(), so the cache can never be the reason a
- * change fails to show. */
+/**
+ * One in-flight read shared by every caller, then a short cache. Uncached reads
+ * per render pass cost several process spawns a second, and a press's own read
+ * queued behind them. Writes call invalidate().
+ */
 const STATE_TTL = 4000;
 let stateCache: PanelState | null = null;
 let stateAt = 0;
@@ -138,9 +133,7 @@ export function loadState(fresh?: boolean): Promise<PanelState> {
   return statePending;
 }
 
-/* Inside a workspace this routes that workspace; in the New Workspace dialog
- * there is no workspace yet, so it binds the repository and the workspace you are
- * about to create starts on the account you picked. */
+/** Routes a workspace, or binds the repository when there is no workspace yet. */
 export function applyAccount(
   state: PanelState,
   agent: string,

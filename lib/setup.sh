@@ -6,14 +6,12 @@
 cmd_install() {
     ensure_root
 
-    # Deploy a copy rather than pointing Conductor at the checkout. Conductor
-    # does not check that claude_code_executable_path exists, so if that path
-    # ever disappears -- a deleted clone, or a Conductor workspace that gets
-    # archived -- every agent in the app fails to start. A copy under
-    # ~/.conductor-accounts cannot be taken away by git.
-    # Older versions symlinked this path to the checkout. Replace a symlink,
-    # keep a directory: `rm -f` on a directory fails, and under `set -e` that
-    # aborted the whole install and silently left a stale copy deployed.
+    # A copy, not the checkout: Conductor never checks that
+    # claude_code_executable_path exists, so a deleted clone or archived
+    # workspace would stop every agent starting.
+    #
+    # Replace a symlink from older versions, keep a directory: `rm -f` on a
+    # directory fails, and under `set -e` that left a stale copy deployed.
     if [ -L "$INSTALL_BIN" ]; then
         rm -f "$INSTALL_BIN"
     fi
@@ -24,8 +22,7 @@ cmd_install() {
         for f in _resolve.sh claude-router codex-router conductor-acct; do
             cp "$BIN_DIR/$f" "$INSTALL_BIN/$f"
         done
-        # conductor-acct is dispatch only, so the libraries have to travel with
-        # it. Deployed beside bin/, which is the layout the CLI looks for second.
+        # Dispatch alone is useless, so lib/ travels with it.
         rm -rf "${INSTALL_BIN:?}/lib"
         mkdir -p "$INSTALL_BIN/lib"
         cp "$LIB_DIR"/*.sh "$INSTALL_BIN/lib/"
@@ -140,8 +137,7 @@ cmd_doctor() {
                 echo "warn:     installed $f differs from this checkout, re-run install"
             fi
         done
-        # The libraries drift the same way, and a stale one is harder to spot
-        # because the CLI still starts.
+        # A stale library is harder to spot, because the CLI still starts.
         for f in "$LIB_DIR"/*.sh; do
             [ -f "$f" ] || continue
             [ "$LIB_DIR" = "$INSTALL_BIN/lib" ] && continue
@@ -167,8 +163,7 @@ cmd_doctor() {
         fi
     done
 
-    # Two profiles on one account take turns logging each other out, and the
-    # symptom is baffling: an account you signed in five minutes ago asks again.
+    # A pair sharing one address sign each other out.
     local agent seen dup
     for agent in claude codex; do
         seen=""

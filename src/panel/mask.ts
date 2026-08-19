@@ -1,25 +1,14 @@
-/* Masking addresses for anything that renders on screen.
- *
- * A recorded session or a shared screenshot should not hand out an address. Each
- * part keeps a few characters with ** between, and the domain keeps its suffix so
- * the string still reads as an email:
+/**
+ * Masking addresses so a recorded session cannot hand one out.
  *
  *   someone.long@example.com  ->  som**ong@ex**e.com
  *   joe@mail.example.com      ->  j**@m**.example.com
  *
- * Enough to tell two accounts apart at a glance, and the profile name sits right
- * underneath for when it is not. The full address is never put in a title
- * attribute either, since a tooltip is just as visible on video. Use
- * `conductor-acct list` in a terminal when you need to read it.
- *
- * This rule is duplicated in `mask_email` in bin/conductor-acct, which the chat
- * card uses and which cannot be called once per row from here. A test runs both
- * over the same cases and fails if they disagree.
+ * Duplicated as `mask_email` in lib/mask.sh, which the chat card uses. A test
+ * runs both over the same cases and fails if they disagree.
  */
 
-/* How much is revealed scales with length, so a short local part is not handed
- * over in full for want of characters to hide. Nothing shorter than three
- * characters reveals anything at all. */
+/** Reveals less of a short part, so nothing under three characters leaks. */
 function maskPart(s: string): string {
   const n = s.length;
   if (n <= 2) return "**";

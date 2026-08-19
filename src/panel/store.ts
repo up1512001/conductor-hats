@@ -1,6 +1,6 @@
-/* The open panel, the open dialog, and the two hooks that let views ask for a
- * redraw without importing the controller. Keeping the mutable bits here is what
- * stops views and controller from importing each other in a circle.
+/**
+ * The open panel and dialog, plus the hooks views use to request a redraw.
+ * Keeping the mutable state here breaks the views/controller import cycle.
  */
 
 import { invalidate, loadState } from "./state.js";
@@ -62,9 +62,7 @@ export function updateTriggers(state: PanelState): void {
   refreshTriggers(state);
 }
 
-/* Called after every write. Reads past the cache, redraws the panel in place and
- * updates both trigger labels from the same state, so a switch shows up
- * everywhere at once instead of three reads apart. */
+/** Called after every write: reads past the cache and redraws from one read. */
 export function reload(): Promise<void> {
   invalidate();
   return loadState(true).then((st) => {

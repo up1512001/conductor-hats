@@ -1,8 +1,6 @@
-/* A confirmation dialog, mounted beside the panel rather than inside it.
- *
- * Conductor's own dialog counts anything on document.body as outside itself and
- * dismisses on a pointer event there, so this goes in the same host as the panel
- * and seals its own edge.
+/**
+ * A confirmation dialog, mounted in the same host as the panel and sealing its own
+ * edge, because Conductor dismisses on pointer events it reads as outside.
  */
 
 import { el } from "./dom.js";
@@ -60,8 +58,7 @@ export function dialog(opts: DialogOptions): void {
     });
   });
 
-  /* Clicking the scrim cancels, which is the safe outcome. Clicking the dialog
-   * itself must not, so only a hit on the scrim counts. */
+  // Only a hit on the scrim itself cancels.
   scrim.addEventListener("click", (e) => {
     if (e.target === scrim) shut();
   });

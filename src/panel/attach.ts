@@ -48,14 +48,14 @@ export function mountFor(anchor: HTMLElement): HTMLElement {
   return document.body;
 }
 
-/* Placed once, when the panel opens, then left alone. Re-measuring on every
- * redraw is what made the panel jump: the provider view is a different height
- * from the root view, and clamping against the right edge moved it sideways too.
+/**
+ * Placed once on open, then left alone: re-measuring per redraw made the panel
+ * jump between views.
  *
- * position:fixed is relative to the nearest ancestor that establishes a
- * containing block, and Conductor animates its dialog with a transform, which
- * does exactly that. Rather than guess which ancestor wins, place the panel,
- * measure where it landed and correct by the difference. */
+ * Conductor animates its dialog with a transform, so position:fixed resolves
+ * against the dialog rather than the viewport. Place, measure where it landed,
+ * correct by the difference.
+ */
 export function place(node: HTMLElement, anchor: HTMLElement): void {
   if (panel && panel.pos) {
     node.style.top = panel.pos.top + "px";

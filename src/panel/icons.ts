@@ -1,16 +1,9 @@
-/* SVG marks used in the panel.
+/**
+ * SVG marks used in the panel.
  *
- * The Claude and Codex marks are Conductor's own, copied out of its frontend
- * rather than drawn by hand. Approximations read as the wrong glyph sitting two
- * rows from the real ones in the model picker. An eight-line asterisk is not the
- * Anthropic sunburst, and a ringed dot is not the OpenAI knot. Both are filled
- * paths on a 24 unit grid using currentColor, so they take the panel's text
- * colour like everything else here.
- *
- * If a release changes them, extract again:
- *   tools/extract-assets.py grep 'M22.2819'
- * That finds the Codex path. The Claude path is in the component rendered beside
- * a Claude session, in the same chunk.
+ * The Claude and Codex marks are Conductor's own, copied from its frontend rather
+ * than approximated, on a 24 unit grid using currentColor. To extract them again
+ * after a release: `hats assets` then search the renderApp chunk for the paths.
  */
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -24,9 +17,7 @@ const CODEX_MARK =
 const PATHS: Record<string, string[]> = {
   chevron: ["M6 3.5 10.5 8 6 12.5"],
   back: ["M12.5 8H4", "M7.5 4.5 4 8l3.5 3.5"],
-  /* Sign out, not a bin. The control signs the account out and leaves everything
-   * else where it was, so a bin would promise deletion it does not do. Sign in is
-   * the same arrow pointing the other way. */
+  // Sign out, not a bin: a bin would promise deletion this does not do.
   signout: ["M9.2 3.5H4.2v9h5", "M7.4 8h6.4", "M11.6 5.9 13.8 8l-2.2 2.1"],
   signin: ["M6.8 3.5h5v9h-5", "M8.6 8H2.2", "M4.4 5.9 2.2 8l2.2 2.1"],
   tick: ["M3.5 8.6 6.4 11.5 12.5 5"],

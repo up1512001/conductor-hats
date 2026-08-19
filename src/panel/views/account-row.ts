@@ -23,9 +23,7 @@ export function accountSlot(
   card.setAttribute("role", "menuitemradio");
   card.setAttribute("aria-checked", account.active ? "true" : "false");
 
-  /* Three states, because signed in and address-known are not the same thing.
-   * Credentials can be in place before the address has been written anywhere this
-   * can read it. */
+  // Three states: credentials can exist before the address is readable anywhere.
   const main = el("div", "cma-grow");
   const shown = account.email ? maskEmail(account.email) : cap(account.name);
   const line = el("div", "cma-name" + (account.email ? " cma-mask" : ""), shown);
@@ -57,8 +55,7 @@ export function accountSlot(
   }
   row.appendChild(card);
 
-  /* Whichever of the two applies. A signed-out row with no way back in is a dead
-   * end, and the row is the obvious place for the way back. */
+  // A signed-out row with no way back in is a dead end.
   if (account.signedIn) {
     const out = el("button", "cma-signout");
     out.type = "button";
@@ -83,13 +80,11 @@ export function accountSlot(
   return slot;
 }
 
-/* Signing out drops that account's credentials and nothing else. The profile
- * stays, so do its routes, its session pins and its transcripts, and it reappears
- * here as "Not signed in", ready to sign back in.
- *
- * Deleting a profile outright is `conductor-acct remove` in a terminal, on
- * purpose. It is the one irreversible operation here, and a popover you can open
- * by accident is the wrong place for it. */
+/**
+ * Signs out and nothing else: the profile, its routes, its session pins and its
+ * transcripts all stay. Deleting a profile is `conductor-acct remove` in a
+ * terminal, deliberately, since it is the one irreversible operation here.
+ */
 export function confirmSignOut(provider: Provider, account: Account): void {
   dialog({
     title: "Sign out of " + cap(account.name) + "?",

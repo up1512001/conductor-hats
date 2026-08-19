@@ -46,7 +46,7 @@ test_the_built_panel_carries_the_behaviour() {
     if [ ! -f "$UI_DIST" ]; then skip "not built"; return; fi
     local dist
     dist=$(cat "$UI_DIST")
-    contains "the guard against double injection" "$dist" "__conductorMultiAccount"
+    contains "the guard against double injection" "$dist" "__conductorHats"
     contains "compiled styles are inlined" "$dist" ".cma-panel{position:fixed"
     contains "it signs out" "$dist" "logout "
     is "and never removes" "$(printf '%s' "$dist" | grep -c 'acct(`remove \|acct("remove ')" "0"

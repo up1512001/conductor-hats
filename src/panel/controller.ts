@@ -1,4 +1,4 @@
-/* Opening, drawing and closing the panel. */
+/** Opening, drawing and closing the panel. */
 
 import { mountFor, place, seal } from "./attach.js";
 import { el } from "./dom.js";
@@ -23,9 +23,8 @@ export function closePanel(): void {
   document.removeEventListener("keydown", onDocKey, true);
 }
 
-/* A confirmation dialog is a sibling of the panel, not a descendant, so both of
- * these would otherwise treat interacting with it as clicking away and pull the
- * panel out from under it. */
+// The dialog is a sibling, not a descendant, so both handlers must ignore it.
+
 function onDocDown(e: MouseEvent): void {
   if (!panel || openDialog()) return;
   const target = e.target as Node;
@@ -65,9 +64,7 @@ function listen(): void {
   }, 0);
 }
 
-/* Opens on the first event rather than after a round trip. Waiting for the state
- * read before showing anything is what made a press look ignored, and pressing
- * again then only toggled the panel that had not appeared yet. */
+/** Opens on the first event rather than after a round trip. */
 export function togglePanel(anchor: HTMLElement): void {
   if (panel) {
     const same = panel.anchor === anchor;
@@ -98,15 +95,11 @@ export function togglePanel(anchor: HTMLElement): void {
     });
 }
 
-/* Opens on press rather than on click, for one specific reason. Conductor
- * re-renders its toolbar constantly, and when React replaces the container the
- * trigger is rebuilt with it. A rebuild landing between mousedown and mouseup
- * means the browser fires no click at all, so the press did nothing and you
- * pressed again. A single event cannot be split that way.
- *
- * This is also how native menus behave, so it feels faster besides. Click is
- * still handled for keyboard activation, guarded so a real pointer press does not
- * toggle twice. */
+/**
+ * Opens on pointerdown, not click. Conductor rebuilds its toolbar constantly, and
+ * a rebuild between mousedown and mouseup means no click is fired at all. Click is
+ * kept for keyboard activation, guarded against double-toggling.
+ */
 export function openOnPress(trigger: HTMLElement): void {
   let pressedAt = 0;
   trigger.addEventListener("pointerdown", (e) => {

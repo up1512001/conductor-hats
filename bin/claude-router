@@ -5,13 +5,11 @@
 # the agent with the workspace as cwd and passes --session-id=, so this can pick
 # an account per workspace and keep it for that session's life.
 #
-# Two properties this file must never lose, because it sits in front of every
-# agent Conductor starts:
-#
-#   1. Fail open. All decision making happens in a subshell, so a missing or
-#      broken _resolve.sh costs you the routing, not your agents.
-#   2. exec, never fork. The claude binary's background spare host and
-#      Conductor's stdio pipes both assume a direct child.
+# Two invariants, because this sits in front of every agent Conductor starts:
+#   1. Fail open. Decisions happen in a subshell, so a broken _resolve.sh costs
+#      the routing, not the agents.
+#   2. exec, never fork. The spare host and Conductor's stdio pipes both assume
+#      a direct child.
 
 SELF=$0
 case "$SELF" in
@@ -20,12 +18,9 @@ case "$SELF" in
 esac
 LIB="${SELF%/*}/_resolve.sh"
 
-# Recursion guard. It counts depth rather than testing a flag, because the
-# variable is inherited by everything the agent starts: launch Conductor from a
-# shell inside a routed session and the app inherits it, hands it to every agent
-# it spawns, and a flag-based guard refuses them all with "refusing to route
-# into itself". One stale generation is therefore tolerated; a real loop still
-# trips on the second.
+# Depth, not a flag: the variable is inherited by everything the agent starts, so
+# launching Conductor from a routed session made a flag refuse every agent. One
+# stale generation is tolerated, a real loop trips on the second.
 CONDUCTOR_ACCOUNTS_DEPTH=${CONDUCTOR_ACCOUNTS_DEPTH:-0}
 case "$CONDUCTOR_ACCOUNTS_DEPTH" in
     ''|*[!0-9]*) CONDUCTOR_ACCOUNTS_DEPTH=0 ;;

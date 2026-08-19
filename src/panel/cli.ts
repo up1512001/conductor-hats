@@ -1,9 +1,6 @@
-/* Talking to conductor-acct.
- *
- * `execute_shell_command` is one of the Tauri commands Conductor's webview can
- * invoke, and it is reachable through window.__TAURI_INTERNALS__ without the
- * invoke key. So the panel shells out to the CLI rather than keeping any state
- * of its own, and the CLI, the /account command and this panel cannot disagree.
+/**
+ * Talking to conductor-acct through Conductor's own `execute_shell_command`,
+ * which the webview can invoke without the invoke key.
  */
 
 const CLI = "$HOME/.conductor-accounts/bin/conductor-acct";
@@ -18,13 +15,13 @@ interface TauriInternals {
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: TauriInternals;
-    __conductorMultiAccount?: { version: string };
-    __conductorMultiAccountDebug?: boolean;
+    __conductorHats?: { version: string };
+    __conductorHatsDebug?: boolean;
   }
 }
 
 export function log(...parts: unknown[]): void {
-  if (window.__conductorMultiAccountDebug) {
+  if (window.__conductorHatsDebug) {
     console.log("[multi-account]", ...parts);
   }
 }
@@ -48,8 +45,7 @@ export function acct(args: string): Promise<string> {
   return sh(CLI + " " + args);
 }
 
-/* Single-quoted for the shell, with embedded quotes escaped the POSIX way.
- * Workspace paths come from Conductor's database and can contain anything. */
+/** Shell-quote a value. Workspace paths come from a database and can be anything. */
 export function q(s: string): string {
   return "'" + String(s).replace(/'/g, "'\\''") + "'";
 }

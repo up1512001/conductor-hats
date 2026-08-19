@@ -34,22 +34,15 @@ label_of() {
     read_line_from "$ACCOUNTS_ROOT/$1/$2/.label" 2>/dev/null || true
 }
 
-# Whether a profile actually holds credentials, asked of the place that holds
-# them rather than inferred from a cached label.
+# Claude Code resolves credentials as $CLAUDE_CONFIG_DIR/.credentials.json, then a
+# keychain item whose service name carries the first 8 hex of sha256 of the config
+# directory. Both are checked, in that order.
 #
-# This used to be "does .label exist", which is a cached email address written
-# after a sign-in and deleted on sign-out. It lies in the case that matters:
-# .label is only written when oauthAccount.emailAddress can be read out of
-# .claude.json, and that is not always populated the moment a sign-in finishes.
-# A profile with perfectly good credentials then read as "not signed in" for
-# ever, so the panel offered to sign an account in that was already signed in.
-#
-# Claude Code resolves credentials as $CLAUDE_CONFIG_DIR/.credentials.json, then
-# a keychain item whose service name carries the first 8 hex of sha256 of the
-# config directory. Both are checked here, in that order.
+# Not inferred from .label: that is a cached address, only written once
+# oauthAccount.emailAddress is readable, so a profile with working credentials read
+# as signed out for ever.
 keychain_service() {
-    # Claude normalises the path to NFC first. Every path under ACCOUNTS_ROOT is
-    # ASCII, where NFC is a no-op, so plain bytes are the same answer.
+    # ASCII paths only under ACCOUNTS_ROOT, where Claude's NFC pass is a no-op.
     local dir="$1" hash
     hash=$(printf '%s' "$dir" | shasum -a 256 | cut -c1-8)
     printf 'Claude Code-credentials-%s\n' "$hash"
@@ -74,10 +67,8 @@ profile_signed_in() {
     return 1
 }
 
-# Which other profile of this agent already holds an address, if any. Two
-# profiles on one account is not a second account: the provider's OAuth hands
-# out one live token per account, so signing the second one in silently revokes
-# the first, and the pair then take turns logging each other out.
+# Which other profile already holds this address. One live token per account, so a
+# pair sharing one address sign each other out.
 profile_with_email() {
     local agent="$1" email="$2" skip="${3:-}" profile
     [ -n "$email" ] || return 1

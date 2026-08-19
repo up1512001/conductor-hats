@@ -1,12 +1,11 @@
-/* Signing in from the panel, with no terminal.
+/**
+ * Signing in from the panel, no terminal.
  *
- * `claude auth login` prints a URL then blocks reading a code from stdin, so
- * `login-start` runs it with stdin on a FIFO and `login-code` feeds the answer
- * in. The browser step is the only part left, because that is what OAuth is.
+ * `claude auth login` prints a URL then blocks on stdin, so `login-start` runs it
+ * with stdin on a FIFO and `login-code` feeds the answer in.
  *
- * Two callers, one flow. "Add new account" needs a name typed. The sign-in
- * control on a signed-out row already knows which profile it is for, so it skips
- * straight to the button.
+ * Two callers: "Add new account" asks for a name, a signed-out row already knows
+ * its profile.
  */
 
 import { acct, message, q, sh } from "../cli.js";
@@ -22,9 +21,7 @@ export interface SignInOptions {
   state?: PanelState | null;
 }
 
-/* One live token per account, so two profiles on one address take turns signing
- * each other out. Said here, where it just happened, rather than left for someone
- * to work out from an account that keeps logging out. */
+/** One live token per account, so two profiles on one address sign each other out. */
 function duplicateOf(
   state: PanelState | null | undefined,
   agent: string,

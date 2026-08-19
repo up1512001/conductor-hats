@@ -1,4 +1,4 @@
-/* Level one: providers, the routing switch, and the two placeholder states. */
+/** Level one: providers, the routing switch, and the placeholder states. */
 
 import { acct, cliPath, log, message } from "../cli.js";
 import { AGENT_ICON, AGENT_LABEL, el, footText, label, note, scopeText } from "../dom.js";
@@ -63,10 +63,11 @@ export function rootView(state: PanelState, host: HTMLElement): void {
   host.appendChild(el("div", "cma-note", footText(state)));
 }
 
-/* Shown while the first read is in flight, with a placeholder row per provider so
- * the panel opens at roughly its real height. It has to be roughly right: the
- * corner is pinned on this first measurement, and a panel that opened two rows
- * tall would decide it fits below the anchor and then grow off screen. */
+/**
+ * Shown while the first read is in flight. The height has to be about right: the
+ * corner is pinned on this measurement, so a two-row panel would decide it fits
+ * below the anchor and then grow off screen.
+ */
 export function loadingView(host: HTMLElement): void {
   host.appendChild(label("Loading accounts"));
   for (const agent of ["claude", "codex"]) {
@@ -84,8 +85,7 @@ export function loadingView(host: HTMLElement): void {
   );
 }
 
-/* A dead button teaches nobody anything. Show what went wrong, in the same panel
- * the accounts would have appeared in. */
+/** A dead button teaches nobody anything: show the failure in the panel. */
 export function errorView(host: HTMLElement, e: unknown): void {
   host.appendChild(label("Accounts unavailable"));
   const n = el("div", "cma-note", message(e));

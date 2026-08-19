@@ -1,6 +1,11 @@
 #!/bin/bash
 # Masking an address for anything that renders on screen.
 #
+#   someone.long@example.com  ->  som**ong@ex**e.com
+#
+# Duplicated as maskEmail in src/panel/mask.ts, which cannot shell out per row. A
+# test asserts the two agree.
+#
 # Sourced by bin/conductor-acct. Not executable on its own.
 
 mask_part() {
@@ -30,8 +35,7 @@ mask_email() {
     printf '%s@%s%s\n' "$(mask_part "$local_part")" "$(mask_part "$host")" "$suffix"
 }
 
-# Display commands mask by default only when asked, because a terminal is where
-# you go to read the real address. The chat card passes --mask.
+# Opt in: a terminal is where you read the real address. The chat card passes it.
 label_for_display() {
     local agent="$1" profile="$2" masked="$3" label
     label=$(label_of "$agent" "$profile")

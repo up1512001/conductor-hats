@@ -1,33 +1,25 @@
 #!/bin/bash
-# Manage Conductor multi-account profiles for Claude Code and Codex.
-#
-# This file is dispatch only. Each command lives in lib/, one file per concern,
-# because a single script grew past the point where anyone could find anything in
-# it. Run `conductor-acct --help` for the commands.
+# Dispatch only. Commands live in lib/, one file per concern.
 set -euo pipefail
 
-# Kept in step with VERSION in src/panel/index.ts: the CLI and the panel ship
-# together and a mismatch between them is a bug, not a variation.
+# Must match VERSION in src/panel/index.ts; a test asserts it.
 CONDUCTOR_ACCT_VERSION=0.2.0
 
 SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 BIN_DIR=$(dirname "$SELF")
 REPO_DIR=$(dirname "$BIN_DIR")
 
-# The routers source this one directly and must keep working with no build step,
-# so it stays in bin/ beside them rather than moving to lib/.
+# In bin/ rather than lib/: the routers source it directly on every spawn.
 # shellcheck source=./_resolve.sh
 . "$BIN_DIR/_resolve.sh"
 
-# A checkout has lib/ one level up from bin/. A deployed copy may have it beside.
+# One level up in a checkout, beside bin/ in a deployed copy.
 LIB_DIR="$REPO_DIR/lib"
 [ -d "$LIB_DIR" ] || LIB_DIR="$BIN_DIR/lib"
 [ -d "$LIB_DIR" ] || { echo "conductor-acct: cannot find lib/ near $BIN_DIR" >&2; exit 1; }
 
-# Configuration shared by everything in lib/. One directive per line, because the
-# linter cannot follow the sourcing loop below and so reads each as unused here.
-# The first two are overridable so the test suite never touches a real Conductor
-# install.
+# Shared by lib/. The linter cannot follow the sourcing loop, hence the
+# directives. The first two are overridable so tests touch no real install.
 # shellcheck disable=SC2034
 CONDUCTOR_SETTINGS="${CONDUCTOR_ACCT_SETTINGS_FILE:-$HOME/.conductor/settings.toml}"
 # shellcheck disable=SC2034
@@ -37,7 +29,7 @@ SHARED_LINKS="projects skills plugins commands agents settings.json CLAUDE.md"
 # shellcheck disable=SC2034
 INSTALL_BIN="$ACCOUNTS_ROOT/bin"
 
-# Order matters only in that agents.sh defines die(), which the rest use.
+# agents.sh defines die(), which the rest use.
 for part in agents labels locate mask profiles routes report ask query login \
             settings setup usage; do
     # shellcheck source=/dev/null

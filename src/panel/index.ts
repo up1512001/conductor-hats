@@ -1,23 +1,12 @@
-/* The account panel injected into Conductor's frontend.
+/**
+ * The account panel injected into Conductor's frontend by `hats patch`.
  *
- * tools/patch-ui.py appends the built bundle to Conductor's main asset. It adds a
- * button in the workspace toolbar, next to "Open in", and a chip in the New
- * Workspace composer. Both open the same panel: providers first, then that
- * provider's accounts, each with a way to sign in or out, and one "Add new
- * account" at the foot.
+ * Adds a toolbar button and a composer chip, both opening a two-level panel:
+ * providers, then that provider's accounts.
  *
- * The panel never deletes anything. Signing out drops that account's credentials
- * and leaves its profile, routes, session pins and transcripts alone. Deleting a
- * profile is `conductor-acct remove` in a terminal, because it is the one
- * irreversible operation here and a popover you can open by accident is the wrong
- * place for it.
- *
- * Everything works against the DOM rather than by editing Conductor's React code.
- * Minified component names change on every release. "The element next to the one
- * whose tooltip says Open in" mostly does not.
- *
- * conductor-acct holds all state. This code shells out to it, so the CLI, the
- * /account command and this panel cannot disagree.
+ * Works against the DOM, not Conductor's React code, and finds anchors by product
+ * copy because minified names change every release. conductor-acct holds all
+ * state; this only reads and writes through it.
  */
 
 import { log } from "./cli.js";
@@ -36,8 +25,7 @@ function injectStyles(): void {
   document.head.appendChild(style);
 }
 
-/* Wrapped because this runs inside a compiled bundle, where a thrown exception is
- * somebody's white screen. */
+/** Wrapped: a throw inside a compiled bundle is somebody's white screen. */
 function tick(): void {
   try {
     injectStyles();
@@ -52,9 +40,8 @@ function boot(): void {
   onRefreshTriggers(refreshTriggers);
   tick();
 
-  /* Conductor re-renders constantly, so rather than fight React, re-attach on a
-   * coalesced observer. Cheap: both attach paths return immediately when the
-   * controls are already in place, and neither reads any state. */
+  // Re-attach on a coalesced observer rather than fighting React. Both attach
+  // paths return immediately when the controls are in place.
   let pending: ReturnType<typeof setTimeout> | null = null;
   new MutationObserver(() => {
     if (pending) return;
@@ -64,10 +51,8 @@ function boot(): void {
     }, 250);
   }).observe(document.body, { childList: true, subtree: true });
 
-  /* The labels used to be refreshed by the observer, which meant a process spawn
-   * per render pass. A slow timer keeps them current at a fixed, small cost
-   * instead. Switching from a terminal shows up within a few seconds, and
-   * switching from the panel is immediate because the panel already knows. */
+  // A slow timer, not the observer: refreshing per render pass cost a process
+  // spawn each time.
   setInterval(() => {
     if (
       !document.getElementById("cma-toolbar-btn") &&
@@ -82,8 +67,8 @@ function boot(): void {
   log("ready");
 }
 
-if (!window.__conductorMultiAccount) {
-  window.__conductorMultiAccount = { version: VERSION };
+if (!window.__conductorHats) {
+  window.__conductorHats = { version: VERSION };
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
   } else {
