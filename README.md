@@ -136,19 +136,31 @@ If none of those match, nothing is exported and you get your normal account.
 [docs/how-it-works.md](docs/how-it-works.md) has the full picture, including
 what was learned by reading Conductor's runtime.
 
-## What is not possible
+## The in-app panel, and what it costs
 
-An account dropdown in the New Workspace modal, or an icon in Conductor's
-toolbar, cannot be added from outside the app. Conductor's UI is compiled into a
-single Developer ID signed Mach-O with the hardened runtime, and every file in
-the bundle is covered by the code signature seal. Adding one file to it is
-enough to make macOS reject the app. Details and the test that proves it are in
-[docs/patching-conductor.md](docs/patching-conductor.md).
+A toolbar button next to "Open in" and an account chip in the New Workspace
+composer both exist, and both open a two-level panel: providers first, then that
+provider's accounts with a delete each and one "Add new account" at the foot.
+Signing in happens in the panel, no terminal. See
+[docs/account-panel.md](docs/account-panel.md).
 
-The chat is the in-app surface that does exist, which is why `/account` renders
-its picker there rather than in a window.
+They are not free. **Nothing outside the app can add them.** Conductor's UI is
+compiled into a single Developer ID signed Mach-O with the hardened runtime, and
+every file in the bundle is covered by the code signature seal, so adding one
+file is enough to make macOS reject the app. The panel is therefore *injected
+into the compiled frontend* and the app is ad-hoc re-signed, which means:
 
-If you want a real toolbar control, ask Conductor for it: Help, then Send
+- patch a copy, not your install: `tools/make-dev-conductor.sh`, then
+  `tools/patch-ui.py`. The patcher refuses `/Applications/Conductor.app` unless
+  you pass `--i-know`.
+- every Conductor release ships a new bundle, so the patch has to be re-applied
+  after each update.
+
+`/account` in the chat is the version that survives updates and needs no
+patching, which is why it exists alongside. Details and the tests behind both
+claims are in [docs/patching-conductor.md](docs/patching-conductor.md).
+
+If you would rather have this natively, ask Conductor for it: Help, then Send
 Feedback, asking for per-workspace agent account selection.
 
 ## Commands
