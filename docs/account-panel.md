@@ -104,6 +104,53 @@ The rule exists twice, because the panel cannot shell out once per row: in
 chat card use, and in `maskEmail` in `account-ui.js`. A test runs both over the
 same cases and fails if they disagree.
 
+### Signed in, signed out, and address unknown
+
+Signed-in state is read from where the credentials are, not from a cached
+address. Claude Code resolves them as `$CLAUDE_CONFIG_DIR/.credentials.json`, then
+a keychain item whose service name carries the first 8 hex of `sha256` of the
+config directory; `profile_signed_in` checks both, in that order.
+
+That distinction matters because a profile can hold working credentials before its
+address is readable anywhere. `.label` is written from
+`oauthAccount.emailAddress` in `.claude.json`, and that is not always populated
+the moment a sign-in finishes. Inferring "signed in" from `.label` meant such a
+profile read as signed out for ever, so the panel offered to sign in an account
+that already was, and `login-status` reported a completed sign-in as an error. So
+there are three states, not two:
+
+| Row shows | Means |
+|---|---|
+| masked address, profile name under it | signed in, address known |
+| profile name, "Signed in" | signed in, address not cached yet |
+| profile name, "Not signed in" | no credentials |
+
+`conductor-acct json` reports `signedIn` alongside `email` for exactly this
+reason. A route can point at a signed-out profile, which is legitimate: routes and
+credentials are separate, and the tick shows the route.
+
+### One account, one profile
+
+A provider keeps a single live token per account. Two profiles signed in to the
+same address are therefore not two accounts: whichever signed in last holds the
+token and the other is silently signed out, so the pair take turns logging each
+other out. The symptom is baffling — an account you signed in minutes ago asking
+again.
+
+Three places say so:
+
+- the panel, during a sign-in that lands on an address another profile already has
+- `conductor-acct login`, which warns on stderr after the fact
+- `conductor-acct doctor`, which reports any pair sharing an address
+
+It is a warning rather than a refusal because the address is only knowable *after*
+the OAuth round trip; refusing then would leave the profile in a state the message
+denies. Resolve it by dropping one:
+
+```sh
+conductor-acct remove <profile>
+```
+
 ### Signing out, and what the panel will not do
 
 **The panel never deletes anything.** Signing out drops that account's
@@ -140,6 +187,9 @@ sits under it, because that is what you type at the CLI.
   from the panel disappearing.
 - **The sign-out control** asks first, naming the account. It signs that account
   out and changes nothing else.
+- **The sign-in control** takes its place on a signed-out row, so the row is never
+  a dead end. Same flow as "Add new account" without the name field, since the
+  profile is already known.
 - **Add new account** signs in without a terminal. Type a profile name, your
   browser opens at the OAuth URL, paste the code back into the panel. `claude
   auth login` prints the URL then blocks reading a code from stdin, so
