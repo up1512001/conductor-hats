@@ -10,7 +10,7 @@ two traps that cost the most time, and the update path.
 src/panel/*.ts          the panel, one file per concern
 src/panel/styles/*.scss partials, one per group of elements
 src/panel/styles.scss   pulls the partials together
-dist/account-ui.js      the built artifact, committed
+dist/account-ui.js      the built artifact, generated and gitignored
 tools/build-panel.mjs   esbuild plus a sass plugin
 ```
 
@@ -18,7 +18,7 @@ tools/build-panel.mjs   esbuild plus a sass plugin
 pnpm install
 pnpm build      # dist/account-ui.js
 pnpm watch      # rebuild on change
-pnpm verify     # fail if dist differs from the source
+pnpm verify     # fail unless two builds produce identical bytes
 pnpm typecheck
 ```
 
@@ -31,9 +31,16 @@ It is **not** minified. There is roughly 199 KB of headroom in the asset slot, s
 minifying saves nothing that matters, and readable output can be inspected in the
 app's devtools when an anchor breaks after a Conductor release.
 
-`dist/account-ui.js` is committed so that patching needs no JavaScript toolchain.
-CI rebuilds it and fails if it differs from the commit, so it cannot drift from
-the source.
+`dist/` is generated, never committed. Two reasons, and the second one was found
+rather than predicted: build output in git goes stale and muddies every diff, and
+esbuild labels each bundled module with its path, which for the SCSS plugin was
+absolute. The committed artifact therefore carried the home directory of whoever
+built it, and the repository's own no-personal-data test caught it.
+
+The build rewrites those paths to repo-relative, so the output is identical on any
+machine. `pnpm verify` builds twice, fails if the two differ, and fails if any
+absolute path survives. That matters because a release attaches this artifact and
+anyone should be able to rebuild exactly what was published.
 
 ## Why it is built the way it is
 

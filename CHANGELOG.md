@@ -16,15 +16,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   loader, so the source is many small files and the build joins them. Styles moved
   from a JavaScript array of string fragments to real SCSS partials, compiled and
   inlined at build time; the compiled CSS is byte-identical to what the array
-  produced. `dist/account-ui.js` is committed so patching needs no JavaScript
-  toolchain, and CI fails if it does not match the source.
+  produced. `dist/` is generated and gitignored, and the build rewrites module
+  paths to repo-relative so two builds of the same source produce identical bytes
+  on any machine. `pnpm verify` checks both.
 - **`bin/conductor-acct` is dispatch only.** 1,360 lines became 13 files under
   `lib/`, one concern each. `install` deploys them beside the CLI and `doctor`
   reports drift in them, which it previously only did for `bin/`.
 - **The test suite is one file per area** plus `test/harness.sh`, collected by
   `test/run.sh`.
 - No source file exceeds 300 lines, and a test enforces it with no allowlist.
-- CI pins every action to a verified commit SHA and runs on Node 24.
+- CI pins every action to a verified commit SHA, runs on Node 24, and uses
+  pnpm 11 with its settings in `pnpm-workspace.yaml`.
 
 ## 0.2.0, the account panel inside Conductor
 

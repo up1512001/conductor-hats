@@ -113,7 +113,7 @@ def main():
     script_path = pathlib.Path(args.script)
     if not script_path.is_file():
         sys.exit(f"no built panel at {script_path}\n"
-                 "The panel is built from src/panel by esbuild:\n"
+                 "dist/ is generated, not committed. Build it first:\n"
                  "  pnpm install && pnpm build")
     script = script_path.read_bytes()
     macho = extract.MachO(binary)

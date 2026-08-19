@@ -1,0 +1,16 @@
+# pnpm settings live here as of pnpm 11, which ignores both the `pnpm` field in
+# package.json and .npmrc.
+
+# Never install a release younger than a week. Long enough that a compromised
+# publish is usually caught and pulled before it can reach a build here.
+minimumReleaseAge: 10080
+
+# Which packages may run install scripts. Answered rather than left open, so an
+# install needs no interactive approval and CI needs no extra flag.
+#
+# esbuild links a platform binary. @parcel/watcher builds a native module for
+# `sass --watch`, which this project never uses: the panel build has its own watch
+# mode through esbuild, so there is nothing to gain from compiling it.
+allowBuilds:
+  esbuild: true
+  '@parcel/watcher': false

@@ -46,16 +46,23 @@ bin/            entrypoints only. conductor-acct is dispatch, the routers are
 lib/            sourced shell libraries, one concern per file
 src/panel/      TypeScript for the injected UI
 src/panel/styles/  SCSS partials, one per group of elements
-dist/           build output, committed but never edited by hand
+dist/           build output, generated and gitignored
 tools/          patching and dev-app tooling (Python and shell)
 test/           harness.sh plus one *.test.sh per area
 docs/           prose
 commands/       the /account slash command
 ```
 
-`dist/account-ui.js` is committed on purpose. Patching a Conductor then needs no
-JavaScript toolchain, which matters for anyone who only wants the panel. CI
-rebuilds it and fails if it differs from the commit, so it cannot go stale.
+`dist/` is generated and never committed. Build output in git goes stale, muddies
+diffs, and in this case leaked a real home directory: esbuild labels each bundled
+module with its path, and for the SCSS plugin that path was absolute. The build
+rewrites those to repo-relative now, and `pnpm verify` fails if two builds differ
+or if any absolute path survives, because a release attaches this artifact and
+anyone should be able to rebuild exactly what was published.
+
+So patching needs a build first: `pnpm install && pnpm build`, then
+`tools/patch-ui.py`. For anyone who only wants the panel and no toolchain, the
+built file belongs in a GitHub Release, not in the tree.
 
 New code goes in the folder that owns its concern, or a new folder gets added to
 this table in the same commit. A file in the wrong place is a review comment.
@@ -110,7 +117,11 @@ screen. Rules that follow from that:
 
 ## Tooling
 
-- **pnpm only**, never npm or yarn, with `minimumReleaseAge: 10080`.
+- **pnpm 11 only**, never npm or yarn. Settings live in `pnpm-workspace.yaml`,
+  which is where pnpm 11 reads them; it ignores both the `pnpm` field in
+  `package.json` and `.npmrc`. `minimumReleaseAge: 10080` holds every dependency
+  back a week, and `allowBuilds` answers which packages may run install scripts so
+  an install never waits on a prompt.
 - **Shell** for `bin/` and `lib/`: the hot path, per above.
 - **TypeScript + esbuild** for `src/panel/`, bundled to one self-contained IIFE.
   The injected artifact has to be a single script with no module loader, so many
@@ -135,7 +146,7 @@ tools/patch-ui.py   # injects dist/account-ui.js
 ```sh
 pnpm install
 pnpm typecheck
-pnpm build            # then commit dist/account-ui.js if it changed
+pnpm build            # tests that read the artifact need it built
 test/run.sh
 shellcheck -x --source-path=SCRIPTDIR \
   bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \

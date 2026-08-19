@@ -1,7 +1,7 @@
 // Build src/panel into the single script that gets injected into Conductor.
 //
 //   node tools/build-panel.mjs           build dist/account-ui.js
-//   node tools/build-panel.mjs --check   build to memory, fail if dist differs
+//   node tools/build-panel.mjs --check   fail unless the build is reproducible
 //   node tools/build-panel.mjs --watch   rebuild on change
 //
 // Why a bundler at all: the artifact is appended to Conductor's compiled
@@ -14,8 +14,7 @@
 // devtools when an anchor breaks after a Conductor release. Legibility is worth
 // more here than bytes.
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import * as esbuild from "esbuild";
@@ -68,6 +67,14 @@ const options = {
   },
 };
 
+// esbuild labels each bundled module with its path. For a plugin namespace that
+// path is absolute, which would put whoever ran the build's home directory into
+// the artifact. Rewritten to repo-relative so the output is identical on any
+// machine, which matters for a release build and for reading a diff.
+function relativise(text) {
+  return text.split(ROOT + "/").join("");
+}
+
 const args = new Set(process.argv.slice(2));
 
 if (args.has("--watch")) {
@@ -75,25 +82,24 @@ if (args.has("--watch")) {
   await ctx.watch();
   console.log("watching src/panel");
 } else if (args.has("--check")) {
-  const built = await esbuild.build({ ...options, write: false });
-  const fresh = built.outputFiles[0].text;
-  if (!existsSync(OUT)) {
-    console.error(`missing ${path.relative(ROOT, OUT)}: run 'pnpm build' and commit it`);
+  // Two builds of the same source must produce the same bytes. A release
+  // attaches this artifact, so anyone should be able to rebuild it and get what
+  // was published. Absolute paths leaking in was exactly this property breaking.
+  const first = relativise((await esbuild.build({ ...options, write: false })).outputFiles[0].text);
+  const second = relativise((await esbuild.build({ ...options, write: false })).outputFiles[0].text);
+  if (first !== second) {
+    console.error("the build is not reproducible: two runs differ");
     process.exit(1);
   }
-  const committed = await readFile(OUT, "utf8");
-  if (committed !== fresh) {
-    console.error(
-      `${path.relative(ROOT, OUT)} is stale.\n` +
-        "It is committed so that patching needs no toolchain, which only works\n" +
-        "if it matches the source. Run 'pnpm build' and commit the result."
-    );
+  if (/\/Users\/|\/home\//.test(first)) {
+    console.error("the build embeds an absolute path, so it is machine specific");
     process.exit(1);
   }
-  console.log(`${path.relative(ROOT, OUT)} matches src/panel (${fresh.length} bytes)`);
+  console.log(`reproducible, ${first.length.toLocaleString()} bytes, no absolute paths`);
 } else {
   await mkdir(path.dirname(OUT), { recursive: true });
-  const built = await esbuild.build({ ...options, outfile: OUT, metafile: true });
-  const bytes = Object.values(built.metafile.outputs)[0].bytes;
-  console.log(`dist/account-ui.js  ${bytes.toLocaleString()} bytes`);
+  const built = await esbuild.build({ ...options, write: false });
+  const text = relativise(built.outputFiles[0].text);
+  await writeFile(OUT, text);
+  console.log(`dist/account-ui.js  ${text.length.toLocaleString()} bytes`);
 }
