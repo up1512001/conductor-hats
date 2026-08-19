@@ -157,6 +157,24 @@ repo_binding() {
     done
 }
 
+# What this path actually ends up on, whichever mechanism gets there first.
+#
+# The router only ever exports a route, because a repository binding needs no
+# router: Conductor applies `[environment_variables]` from the repo's settings
+# itself when it spawns the agent. Reporting the dry run alone therefore told
+# you "default account" for a repository that was firmly bound, which is what
+# made the New Workspace chip read "default account" while the binding said
+# work. Ask the router, then fall back to the binding it never sees.
+effective_dir() {
+    local agent="$1" ws="$2" repo="${3:-}" out
+    [ -n "$repo" ] || repo=$(repo_root_for "$ws")
+    if router_installed; then
+        out=$(router_dry_run "$agent" "$ws" || true)
+        [ -z "$out" ] || { printf '%s\n' "$out"; return 0; }
+    fi
+    repo_binding "$agent" "$repo" || true
+}
+
 profile_from_dir() {
     local dir="$1"
     case "$dir" in
@@ -429,13 +447,16 @@ cmd_which() {
         return 0
     fi
 
-    # Ask the router itself rather than guessing.
+    # Ask the router itself rather than guessing, then the binding it cannot see.
     resolved=$(router_dry_run "$agent" "$ws" || true)
     echo
     if [ -n "$resolved" ]; then
         profile=$(profile_from_dir "$resolved")
         echo "effective:  ${profile:-$resolved}"
         echo "            $var=$resolved"
+    elif [ -n "$binding" ]; then
+        echo "effective:  ${profile:-$binding}   (from the repository binding, applied by Conductor)"
+        echo "            $var=$binding"
     else
         echo "effective:  your default account (no $var would be set)"
     fi
@@ -447,11 +468,7 @@ cmd_status() {
     ws=$(current_workspace "${1:-}")
     for agent in claude codex; do
         [ -n "$(list_profiles "$agent")" ] || continue
-        if router_installed; then
-            resolved=$(router_dry_run "$agent" "$ws" || true)
-        else
-            resolved=$(repo_binding "$agent" "$(repo_root_for "$ws")" || true)
-        fi
+        resolved=$(effective_dir "$agent" "$ws")
         if [ -n "$resolved" ]; then
             profile=$(profile_from_dir "$resolved")
             label=$(label_of "$agent" "$profile")
@@ -471,11 +488,7 @@ cmd_check() {
     ws=$(current_workspace "${1:-}")
     for agent in claude codex; do
         [ -n "$(list_profiles "$agent")" ] || continue
-        if router_installed; then
-            resolved=$(router_dry_run "$agent" "$ws" || true)
-        else
-            resolved=$(repo_binding "$agent" "$(repo_root_for "$ws")" || true)
-        fi
+        resolved=$(effective_dir "$agent" "$ws")
         if [ -n "$resolved" ]; then
             printf 'ACCOUNT %s %s\n' "$agent" "$(profile_from_dir "$resolved")"
             return 0
@@ -610,11 +623,7 @@ cmd_json() {
 
     local firstp=1
     for agent in claude codex; do
-        if router_installed; then
-            resolved=$(router_dry_run "$agent" "$ws" || true)
-        else
-            resolved=$(repo_binding "$agent" "$repo" || true)
-        fi
+        resolved=$(effective_dir "$agent" "$ws" "$repo")
         current=$(profile_from_dir "$resolved")
         [ "$firstp" -eq 1 ] || printf ','
         firstp=0
