@@ -52,36 +52,60 @@
     return "'" + String(s).replace(/'/g, "'\\''") + "'";
   }
 
-  function idsFromUrl() {
-    var url = location.hash + " " + location.pathname;
-    var ws = url.match(/workspace\/([0-9a-f-]{36})/i);
-    var repo = url.match(/repositor(?:y|ies)\/([0-9a-f-]{36})/i);
-    return { workspace: ws && ws[1], repository: repo && repo[1] };
+  /* Conductor's webview runs an in-memory router, so location never changes and
+   * there is no id to read. The panel works out where it is by matching what is
+   * on screen against the workspaces and repositories Conductor knows about,
+   * longest name first so "belo-horizonte" is not beaten by a repo called
+   * "belo". Cached, because it is two SQLite reads. */
+  var placesCache = null;
+
+  function places() {
+    if (placesCache) return Promise.resolve(placesCache);
+    return Promise.all([
+      acct("workspaces").catch(function () { return ""; }),
+      acct("repos").catch(function () { return ""; })
+    ]).then(function (out) {
+      function parse(text, kind) {
+        return text
+          .split("\n")
+          .map(function (l) { return l.split("\t"); })
+          .filter(function (p) { return p.length === 2 && p[0] && p[1]; })
+          .map(function (p) { return { kind: kind, name: p[0], path: p[1] }; });
+      }
+      placesCache = parse(out[0], "workspace").concat(parse(out[1], "repository"));
+      placesCache.sort(function (a, b) { return b.name.length - a.name.length; });
+      return placesCache;
+    });
   }
 
-  /* Two targets, because the panel opens in two places. Inside a workspace the
-   * choice is that workspace's. In the New Workspace composer no workspace
-   * exists yet, so the choice belongs to the repository and takes effect for
-   * the workspace about to be created. */
-  function currentTarget() {
-    var ids = idsFromUrl();
-    if (ids.workspace) {
-      return acct("resolve " + ids.workspace)
-        .then(function (p) {
-          return p ? { kind: "workspace", path: p } : repoTarget(ids);
-        })
-        .catch(function () { return repoTarget(ids); });
+  /* Scoped to the app chrome: the sidebar lists every workspace by name, so
+   * searching the whole document would match the wrong one constantly. */
+  function chromeText() {
+    var bits = [document.title || ""];
+    var sel = "header,[class*=titlebar],[class*=toolbar],[data-tauri-drag-region]";
+    var nodes = document.querySelectorAll(sel);
+    for (var i = 0; i < nodes.length && i < 12; i++) bits.push(nodes[i].textContent || "");
+    var btn = document.getElementById("cma-toolbar-btn");
+    for (var el = btn; el && el !== document.body; el = el.parentElement) {
+      bits.push(el.textContent || "");
+      if ((el.textContent || "").length > 400) break;
     }
-    return repoTarget(ids);
+    var chip = document.getElementById("cma-chip");
+    for (var e2 = chip; e2 && e2 !== document.body; e2 = e2.parentElement) {
+      bits.push(e2.textContent || "");
+      if ((e2.textContent || "").length > 400) break;
+    }
+    return bits.join(" \n ");
   }
 
-  function repoTarget(ids) {
-    if (!ids.repository) return Promise.resolve({ kind: "none", path: "" });
-    return acct("resolve-repo " + ids.repository)
-      .then(function (p) {
-        return p ? { kind: "repository", path: p } : { kind: "none", path: "" };
-      })
-      .catch(function () { return { kind: "none", path: "" }; });
+  function currentTarget() {
+    return places().then(function (list) {
+      var hay = chromeText();
+      for (var i = 0; i < list.length; i++) {
+        if (hay.indexOf(list[i].name) >= 0) return list[i];
+      }
+      return { kind: "none", name: "", path: "" };
+    });
   }
 
   function loadState() {
@@ -158,7 +182,27 @@
     ".cma-go{height:30px;border:0;border-radius:calc(var(--radius) - 3px);",
     "background:var(--foreground);color:var(--background);font-size:12px;font-weight:500;",
     "cursor:default}",
-    ".cma-go:disabled{opacity:.5}"
+    ".cma-go:disabled{opacity:.5}",
+
+    ".cma-grow{flex:1;min-width:0}",
+    ".cma-provider{gap:6px;font-weight:500}",
+    ".cma-caret{display:inline-block;width:10px;text-align:center;opacity:.55;",
+    "transition:transform .13s}",
+    ".cma-provider[aria-expanded=true] .cma-caret{transform:rotate(90deg)}",
+    ".cma-mark{width:14px;text-align:center;opacity:.8}",
+    ".cma-badge{font-size:11px;color:var(--muted-foreground);white-space:nowrap;",
+    "max-width:110px;overflow:hidden;text-overflow:ellipsis}",
+    ".cma-body{padding-left:10px}",
+    ".cma-acct{padding-left:14px}",
+    ".cma-acct[aria-checked=true] .cma-name{font-weight:600}",
+    ".cma-x{margin-left:6px;flex:none;border:0;background:transparent;padding:2px 5px;",
+    "border-radius:5px;color:var(--muted-foreground);font-size:11px;line-height:1;",
+    "opacity:0;cursor:default;transition:opacity .12s}",
+    ".cma-row:hover .cma-x{opacity:.7}",
+    ".cma-x:hover{opacity:1;background:var(--accent);color:var(--foreground)}",
+    ".cma-x-armed{opacity:1;color:#ff6b6b}",
+    ".cma-add-row{padding-left:14px;color:var(--muted-foreground);font-size:12px}",
+    ".cma-add-row:hover{color:var(--foreground)}"
   ].join("");
 
   function injectCss() {
@@ -227,6 +271,7 @@
   }
 
   var AGENT_LABEL = { claude: "Claude Code", codex: "Codex" };
+  var AGENT_MARK = { claude: "✳", codex: "◆" };
 
   /* The label shows Claude's account, falling back to whichever provider has
    * one, because that is the one people mean when they glance at it. */
@@ -244,10 +289,8 @@
     return el;
   }
 
-  /* Sign-in, without a terminal. `claude auth login` prints a URL then blocks
-   * reading the code from stdin, so conductor-acct runs it with stdin on a FIFO
-   * and this collects the code. The browser step is unavoidable: it is OAuth. */
-  function addAccountFlow(panel, agent, onDone) {
+  function addAccountFlow(host, agent, onDone) {
+    if (host.querySelector(".cma-add")) return;
     var wrap = document.createElement("div");
     wrap.className = "cma-add";
 
@@ -258,7 +301,7 @@
 
     var status = document.createElement("div");
     status.className = "cma-note";
-    status.textContent = "Names the profile. Sign-in opens your browser.";
+    status.textContent = "Sign-in opens your browser.";
 
     var go = document.createElement("button");
     go.className = "cma-go";
@@ -268,15 +311,11 @@
     wrap.appendChild(name);
     wrap.appendChild(go);
     wrap.appendChild(status);
-    panel.appendChild(wrap);
+    host.appendChild(wrap);
     setTimeout(function () { name.focus(); }, 0);
 
     var codeField = null;
-
-    function fail(msg) {
-      status.textContent = msg;
-      go.disabled = false;
-    }
+    function fail(msg) { status.textContent = msg; go.disabled = false; }
 
     function poll(profile, tries) {
       acct("login-status " + profile + " " + agent)
@@ -295,19 +334,17 @@
 
     go.addEventListener("click", function () {
       var profile = name.value.trim();
-      if (!/^[A-Za-z0-9_-]+$/.test(profile))
-        return fail("Letters, digits, - and _ only.");
+      if (!/^[A-Za-z0-9_-]+$/.test(profile)) return fail("Letters, digits, - and _ only.");
       go.disabled = true;
       status.textContent = "Starting sign-in…";
-
       acct("login-start " + profile + " " + agent)
         .then(function (url) {
-          status.textContent = "Approve in your browser, then paste the code below.";
+          status.textContent = "Approve in your browser, then paste the code.";
           sh("open " + q(url)).catch(function () {});
           if (!codeField) {
             codeField = document.createElement("input");
             codeField.className = "cma-input";
-            codeField.placeholder = "paste the code";
+            codeField.placeholder = "paste the code, then Enter";
             codeField.spellcheck = false;
             wrap.insertBefore(codeField, status);
             codeField.addEventListener("keydown", function (e) {
@@ -325,10 +362,127 @@
         })
         .catch(function (e) { fail(String(e.message || e)); });
     });
+    name.addEventListener("keydown", function (e) { if (e.key === "Enter") go.click(); });
+  }
 
-    name.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") go.click();
+  function accountRow(state, provider, account, onChanged) {
+    var el = document.createElement("div");
+    el.className = "cma-row cma-acct";
+    el.setAttribute("role", "menuitemradio");
+    el.setAttribute("aria-checked", account.active ? "true" : "false");
+
+    var main = document.createElement("div");
+    main.className = "cma-grow";
+    var n = document.createElement("div");
+    n.className = "cma-name";
+    n.textContent = account.name;
+    var m = document.createElement("div");
+    m.className = "cma-mail";
+    m.textContent = account.email || "not signed in";
+    main.appendChild(n);
+    main.appendChild(m);
+    el.appendChild(main);
+
+    if (account.active) {
+      var tick = document.createElement("span");
+      tick.className = "cma-tick";
+      tick.textContent = "✓";
+      el.appendChild(tick);
+    }
+
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "cma-x";
+    del.textContent = "✕";
+    del.title = "Sign out and delete " + account.name;
+    del.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (del.dataset.armed !== "1") {
+        del.dataset.armed = "1";
+        del.textContent = "remove?";
+        del.classList.add("cma-x-armed");
+        setTimeout(function () {
+          del.dataset.armed = "";
+          del.textContent = "✕";
+          del.classList.remove("cma-x-armed");
+        }, 3000);
+        return;
+      }
+      acct("remove " + account.name + " " + provider.agent).then(function () {
+        closePanel();
+        if (onChanged) onChanged();
+      });
     });
+    el.appendChild(del);
+
+    if (state.target.kind === "none") {
+      el.setAttribute("aria-disabled", "true");
+    } else {
+      el.addEventListener("click", function () {
+        applyAccount(state, provider.agent, account.name)
+          .then(function () { closePanel(); if (onChanged) onChanged(); })
+          .catch(function (e) { log("switch failed", e); });
+      });
+    }
+    return el;
+  }
+
+  var expanded = { claude: true, codex: false };
+
+  function providerGroup(state, provider, onChanged) {
+    var wrap = document.createElement("div");
+    wrap.className = "cma-group";
+
+    var header = document.createElement("div");
+    header.className = "cma-row cma-provider";
+    header.setAttribute("role", "button");
+    header.setAttribute("aria-expanded", expanded[provider.agent] ? "true" : "false");
+
+    var caret = document.createElement("span");
+    caret.className = "cma-caret";
+    caret.textContent = "›";
+    var mark = document.createElement("span");
+    mark.className = "cma-mark";
+    mark.textContent = AGENT_MARK[provider.agent] || "•";
+    var title = document.createElement("span");
+    title.className = "cma-grow cma-name";
+    title.textContent = AGENT_LABEL[provider.agent] || provider.agent;
+    var badge = document.createElement("span");
+    badge.className = "cma-badge";
+    badge.textContent = provider.current || (provider.accounts.length ? "not set" : "none");
+
+    header.appendChild(caret);
+    header.appendChild(mark);
+    header.appendChild(title);
+    header.appendChild(badge);
+    wrap.appendChild(header);
+
+    var body = document.createElement("div");
+    body.className = "cma-body";
+    wrap.appendChild(body);
+
+    provider.accounts.forEach(function (a) {
+      body.appendChild(accountRow(state, provider, a, onChanged));
+    });
+
+    var add = document.createElement("div");
+    add.className = "cma-row cma-add-row";
+    add.setAttribute("role", "menuitem");
+    add.textContent = "+  Add account";
+    add.addEventListener("click", function () { addAccountFlow(body, provider.agent, onChanged); });
+    body.appendChild(add);
+
+    function sync() {
+      var open = expanded[provider.agent];
+      header.setAttribute("aria-expanded", open ? "true" : "false");
+      body.style.display = open ? "" : "none";
+    }
+    header.addEventListener("click", function () {
+      expanded[provider.agent] = !expanded[provider.agent];
+      sync();
+    });
+    sync();
+    return wrap;
   }
 
   function buildPanel(state, anchor, onChanged) {
@@ -337,68 +491,15 @@
     panel.setAttribute("role", "menu");
 
     var scope = state.target.kind === "workspace"
-      ? state.target.path.split("/").pop()
+      ? "Workspace: " + state.target.name
       : state.target.kind === "repository"
-        ? "New workspaces in " + state.target.path.split("/").pop()
+        ? "New workspaces in " + state.target.name
         : "No workspace in view";
     panel.appendChild(sectionLabel(scope));
 
-    state.providers.forEach(function (p, i) {
-      if (i) panel.appendChild(separator());
-      panel.appendChild(sectionLabel(AGENT_LABEL[p.agent] || p.agent));
-
-      p.accounts.forEach(function (a) {
-        panel.appendChild(
-          row({
-            title: a.name,
-            subtitle: a.email || "not signed in",
-            tick: a.active,
-            disabled: state.target.kind === "none",
-            onClick: function () {
-              applyAccount(state, p.agent, a.name)
-                .then(function () {
-                  closePanel();
-                  if (onChanged) onChanged();
-                })
-                .catch(function (e) { log("switch failed", e); });
-            }
-          })
-        );
-      });
-
-      var add = row({
-        title: p.accounts.length ? "Add another account" : "Sign in to " + (AGENT_LABEL[p.agent] || p.agent),
-        subtitle: "opens your browser"
-      });
-      add.addEventListener("click", function () {
-        if (panel.querySelector(".cma-add")) return;
-        addAccountFlow(panel, p.agent, onChanged);
-      });
-      panel.appendChild(add);
+    state.providers.forEach(function (p) {
+      panel.appendChild(providerGroup(state, p, onChanged));
     });
-
-    if (state.providers.some(function (p) { return p.accounts.length; })) {
-      panel.appendChild(separator());
-      panel.appendChild(
-        row({
-          title: "Remove an account",
-          subtitle: "signs out and deletes the profile",
-          onClick: function () {
-            var all = [];
-            state.providers.forEach(function (p) {
-              p.accounts.forEach(function (a) { all.push(p.agent + " " + a.name); });
-            });
-            var pick = window.prompt("Remove which account?\n\n" + all.join("\n"), all[0]);
-            if (!pick || all.indexOf(pick) < 0) return;
-            var parts = pick.split(" ");
-            acct("remove " + parts[1] + " " + parts[0]).then(function () {
-              closePanel();
-              if (onChanged) onChanged();
-            });
-          }
-        })
-      );
-    }
 
     panel.appendChild(separator());
     panel.appendChild(
@@ -418,7 +519,9 @@
     foot.className = "cma-note";
     foot.textContent = state.target.kind === "workspace"
       ? "Applies to the next chat here. A chat already running keeps the account it started on."
-      : "Applies to workspaces created from now on.";
+      : state.target.kind === "repository"
+        ? "Applies to workspaces created from now on."
+        : "Open a workspace to choose its account.";
     panel.appendChild(foot);
 
     document.body.appendChild(panel);

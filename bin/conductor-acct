@@ -652,6 +652,30 @@ cmd_resolve() {
         "select workspace_path from workspaces where id='$id' and workspace_path is not null" 2>/dev/null
 }
 
+# Conductor's webview uses an in-memory router, so the panel cannot read the
+# current workspace from the URL. It matches what is on screen against this
+# list instead. Name first so the UI can match on the visible label.
+cmd_workspaces() {
+    local db
+    db="${CONDUCTOR_DB:-$HOME/Library/Application Support/com.conductor.app/conductor.db}"
+    [ -f "$db" ] || die "no Conductor database at $db"
+    command -v sqlite3 >/dev/null || die "sqlite3 not found"
+    sqlite3 -separator "$(printf '\t')" "file:$db?mode=ro" \
+        "select replace(workspace_path, rtrim(workspace_path, replace(workspace_path, '/', '')), ''), workspace_path
+         from workspaces
+         where workspace_path is not null and state != 'archived'" 2>/dev/null
+}
+
+cmd_repos() {
+    local db
+    db="${CONDUCTOR_DB:-$HOME/Library/Application Support/com.conductor.app/conductor.db}"
+    [ -f "$db" ] || die "no Conductor database at $db"
+    command -v sqlite3 >/dev/null || die "sqlite3 not found"
+    sqlite3 -separator "$(printf '\t')" "file:$db?mode=ro" \
+        "select replace(root_path, rtrim(root_path, replace(root_path, '/', '')), ''), root_path
+         from repos where root_path is not null" 2>/dev/null
+}
+
 cmd_resolve_repo() {
     local id="${1:-}" db
     [ -n "$id" ] || die "usage: conductor-acct resolve-repo <repository-id>"
@@ -1089,6 +1113,8 @@ conductor-acct $CONDUCTOR_ACCT_VERSION - one Claude/Codex account per Conductor 
   json [path] [agent]              accounts and current selection, as JSON
   resolve <workspace-id>           workspace id to directory, for the UI panel
   resolve-repo <repository-id>     repository id to its root directory
+  workspaces                       name and path of every live workspace
+  repos                            name and path of every repository
 
   login-start <profile> [agent]    begin sign-in, print the authorisation URL
   login-code <profile> <code>      hand the pasted code to a pending sign-in
@@ -1127,6 +1153,8 @@ case "$cmd" in
     json) cmd_json "$@" ;;
     resolve) cmd_resolve "$@" ;;
     resolve-repo) cmd_resolve_repo "$@" ;;
+    workspaces) cmd_workspaces "$@" ;;
+    repos) cmd_repos "$@" ;;
     login-start) cmd_login_start "$@" ;;
     login-code) cmd_login_code "$@" ;;
     login-status) cmd_login_status "$@" ;;
