@@ -403,6 +403,7 @@ EOF
     "$ACCT" install >/dev/null
     local body
     body=$(cat "$CONDUCTOR_ACCT_SETTINGS_FILE")
+    # shellcheck disable=SC2016  # $schema is a literal TOML key, not a variable
     contains "schema line survives" "$body" '$schema'
     contains "git table survives" "$body" 'branch_prefix = "feat/"'
     contains "router is wired" "$body" "claude_code_executable_path"
@@ -421,7 +422,7 @@ test_install_replaces_a_stale_deployment() {
     fake_profile claude work
     "$ACCT" install >/dev/null
     # Simulate an older layout, where the deployed path was a symlink.
-    rm -rf "$CONDUCTOR_ACCOUNTS_ROOT/bin"
+    rm -rf "${CONDUCTOR_ACCOUNTS_ROOT:?}/bin"
     ln -s "$PROJECT_DIR/bin" "$CONDUCTOR_ACCOUNTS_ROOT/bin"
     "$ACCT" install >/dev/null
 

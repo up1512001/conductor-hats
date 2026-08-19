@@ -776,7 +776,9 @@ cmd_login_start() {
 
 cmd_login_code() {
     local profile="${1:-}" code="${2:-}" state
-    [ -n "$profile" ] && [ -n "$code" ] || die "usage: conductor-acct login-code <profile> <code>"
+    if [ -z "$profile" ] || [ -z "$code" ]; then
+        die "usage: conductor-acct login-code <profile> <code>"
+    fi
     state=$(login_dir "$profile")
     [ -p "$state/stdin" ] || die "no sign-in in progress for '$profile'"
     printf '%s\n' "$code" > "$state/stdin"
@@ -809,9 +811,10 @@ cmd_login_cancel() {
     local profile="${1:-}" state pid
     [ -n "$profile" ] || die "usage: conductor-acct login-cancel <profile>"
     state=$(login_dir "$profile")
-    for pid in $(cat "$state/pid" "$state/holder.pid" 2>/dev/null); do
+    while read -r pid; do
+        [ -n "$pid" ] || continue
         kill "$pid" 2>/dev/null || true
-    done
+    done < <(cat "$state/pid" "$state/holder.pid" 2>/dev/null)
     rm -rf "$state"
     echo "cancelled"
 }
@@ -923,7 +926,7 @@ toml_unset() {
     local key="$1" tmp
     [ -f "$CONDUCTOR_SETTINGS" ] || return 0
     tmp=$(mktemp)
-    grep -v "^[[:space:]]*$key[[:space:]]*=" "$CONDUCTOR_SETTINGS" > "$tmp" || true
+    grep -v "^[[:space:]]*${key}[[:space:]]*=" "$CONDUCTOR_SETTINGS" > "$tmp" || true
     mv "$tmp" "$CONDUCTOR_SETTINGS"
 }
 
@@ -1153,7 +1156,7 @@ EOF
 }
 
 cmd=${1:-}
-[ $# -gt 0 ] && shift || true
+if [ $# -gt 0 ]; then shift; fi
 case "$cmd" in
     init) cmd_init "$@" ;;
     setup) cmd_setup "$@" ;;

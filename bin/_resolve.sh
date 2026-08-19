@@ -12,25 +12,18 @@ SESSION_DIR="$ACCOUNTS_ROOT/sessions"
 # a window, and a system popup is not part of Conductor's UI. Accounts are
 # chosen ahead of time, from inside Conductor with /account or from a terminal
 # with `conductor-acct use`, and recorded as routes that resolve silently here.
-CFG_DEFAULT=
 
 # Set by resolve_route. ROUTE_EXACT is 1 when the winning route named the
 # workspace itself rather than a parent path or the default entry.
 ROUTE_PROFILE=
 ROUTE_EXACT=0
 
+# The config file has no keys yet, and the one it used to parse was dead: the
+# `default` fallback lives in the routes file, where resolve_route can see it
+# alongside every other route. Kept as the hook for the first real setting, and
+# because callers treat a missing accounts root as "not set up".
 load_config() {
     [ -f "$CONFIG_FILE" ] || return 0
-    while IFS= read -r _line || [ -n "$_line" ]; do
-        case "$_line" in
-            ''|'#'*) continue ;;
-        esac
-        _key=${_line%%=*}
-        _val=${_line#*=}
-        case "$_key" in
-            default) CFG_DEFAULT="$_val" ;;
-        esac
-    done < "$CONFIG_FILE"
 }
 
 read_line_from() {

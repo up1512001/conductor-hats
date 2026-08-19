@@ -36,6 +36,7 @@ ENV_BOUND=0
 # Codex takes no --session-id, so the workspace is the only routing key.
 DECISION=$(
     [ -r "$LIB" ] || exit 0
+    # shellcheck source=./_resolve.sh
     . "$LIB"
     load_config
     _ws=$(workspace_dir)

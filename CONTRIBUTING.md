@@ -52,9 +52,16 @@ Helpers: `is`, `contains`, `fake_profile`, `route_claude`, `route_codex`, `skip`
 ## Linting
 
 ```sh
-shellcheck bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router test/run.sh install.sh
+shellcheck -x --source-path=SCRIPTDIR \
+  bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
+  test/run.sh install.sh tools/make-dev-conductor.sh tools/repersonalize.sh
 node --check tools/ui-patch/account-ui.js
 ```
+
+`-x` follows the sourced library rather than guessing at it, and
+`--source-path=SCRIPTDIR` resolves each `# shellcheck source=` directive relative
+to the script carrying it, so the command passes from any working directory.
+Zero findings is the bar: shellcheck exits non-zero on info-level notes too.
 
 CI runs both and the test suite on macOS and Linux. Its workflow lives at
 `.github/workflows/conductor-multi-account.yml`, at the **repository root**,

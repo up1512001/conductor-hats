@@ -48,6 +48,7 @@ ENV_BOUND=0
 # A syntax error or a failed source dies in here and leaves DECISION empty.
 DECISION=$(
     [ -r "$LIB" ] || exit 0
+    # shellcheck source=./_resolve.sh
     . "$LIB"
     load_config
     _ws=$(workspace_dir)
