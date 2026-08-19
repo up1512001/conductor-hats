@@ -110,7 +110,7 @@ A `use` route on a specific workspace overrides its repository binding.
 Claude Code namespaces credentials by config directory. With `CLAUDE_CONFIG_DIR`
 set, the macOS keychain item becomes `Claude Code-credentials-<sha256(dir)[0:8]>`
 instead of `Claude Code-credentials`, so each directory is a separate login.
-That is Anthropic's own multi-account primitive, not a workaround.
+That is Anthropic's own mechanism for several accounts, not a workaround.
 
 Conductor exposes two documented settings that let you aim it:
 
@@ -239,7 +239,7 @@ Your real Conductor was never touched by either.
 
 | Page | What it covers |
 |---|---|
-| [docs/how-it-works.md](docs/how-it-works.md) | the credential primitive, the router, precedence |
+| [docs/how-it-works.md](docs/how-it-works.md) | how credentials are namespaced, the router, precedence |
 | [docs/account-panel.md](docs/account-panel.md) | the in-app panel: layout, masking, sign-out |
 | [docs/panel-internals.md](docs/panel-internals.md) | how the panel attaches, and the update path |
 | [docs/patching-conductor.md](docs/patching-conductor.md) | what the app bundle allows, with the evidence |

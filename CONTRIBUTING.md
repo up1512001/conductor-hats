@@ -65,16 +65,17 @@ both, and that the changelog has a heading for that version.
 ```sh
 shellcheck -x --source-path=SCRIPTDIR \
   bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
-  test/run.sh install.sh tools/make-dev-conductor.sh tools/repersonalize.sh
-node --check tools/ui-patch/account-ui.js
+  lib/*.sh test/run.sh test/harness.sh test/*.test.sh \
+  install.sh tools/make-dev-conductor.sh tools/repersonalize.sh
+pnpm typecheck
 ```
 
-`-x` follows the sourced library rather than guessing at it, and
+`-x` follows the sourced libraries rather than guessing at them, and
 `--source-path=SCRIPTDIR` resolves each `# shellcheck source=` directive relative
 to the script carrying it, so the command passes from any working directory.
 Zero findings is the bar: shellcheck exits non-zero on info-level notes too.
 
-CI runs both and the test suite on macOS and Linux. Its workflow lives at
+CI runs these and the test suite on macOS and Linux. Its workflow lives at
 `.github/workflows/conductor-multi-account.yml`, at the **repository root**,
 because GitHub only runs workflows from there; a copy inside this directory
 would be ignored silently. It is filtered to paths under

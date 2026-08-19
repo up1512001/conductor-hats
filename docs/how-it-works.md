@@ -6,7 +6,7 @@ treat version-specific details as observations rather than contract. The two
 settings this project depends on are in Conductor's published schemas, and those
 are contract.
 
-## The credential primitive
+## How credentials are namespaced
 
 Claude Code derives its keychain service name from the config directory:
 

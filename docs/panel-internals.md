@@ -1,8 +1,39 @@
 # How the account panel is built
 
 Behaviour is [account-panel.md](account-panel.md). This page is the mechanism:
-how the panel attaches to an app it does not control, the two traps that cost the
-most time, and the update path.
+where the source lives, how the panel attaches to an app it does not control, the
+two traps that cost the most time, and the update path.
+
+## Source and build
+
+```
+src/panel/*.ts          the panel, one file per concern
+src/panel/styles/*.scss partials, one per group of elements
+src/panel/styles.scss   pulls the partials together
+dist/account-ui.js      the built artifact, committed
+tools/build-panel.mjs   esbuild plus a sass plugin
+```
+
+```sh
+pnpm install
+pnpm build      # dist/account-ui.js
+pnpm watch      # rebuild on change
+pnpm verify     # fail if dist differs from the source
+pnpm typecheck
+```
+
+The artifact is appended to Conductor's compiled frontend, where there is no
+module loader and no second file to load, so it has to be one self-contained
+script. Bundling is what allows the source to be many small files instead of one
+unreadable one.
+
+It is **not** minified. There is roughly 199 KB of headroom in the asset slot, so
+minifying saves nothing that matters, and readable output can be inspected in the
+app's devtools when an anchor breaks after a Conductor release.
+
+`dist/account-ui.js` is committed so that patching needs no JavaScript toolchain.
+CI rebuilds it and fails if it differs from the commit, so it cannot drift from
+the source.
 
 ## Why it is built the way it is
 
@@ -123,7 +154,7 @@ ways every time.
 **The stale backup.** `patch-ui.py` keeps a pristine copy of the binary and
 always patches from it, so patching twice is not a stack. That backup is keyed by
 app name, not by version, so after an update it holds the *previous* Conductor's
-binary — and patching a freshly rebuilt copy against it silently reinstates the
+binary, and patching a freshly rebuilt copy against it silently reinstates the
 old version. The script deletes it whenever it rebuilds.
 
 **The leaked routing variable.** Launching the app with `open` from inside a

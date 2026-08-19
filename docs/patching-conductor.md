@@ -194,7 +194,7 @@ Two further pieces made a panel rather than a demo:
 
 ## What is open, and to what
 
-| Surface | Third party, unmodified install | Injected into a re-signed copy |
+| What you want to change | Third party, unmodified install | Injected into a re-signed copy |
 |---|---|---|
 | Chat messages and cards, via `mcp__conductor__AskUserQuestion` | Yes | Yes |
 | Slash commands, via `~/.claude/commands` | Yes | Yes |

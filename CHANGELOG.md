@@ -6,7 +6,27 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.2.0 — the account panel inside Conductor
+## Unreleased
+
+### Changed
+
+- **The panel is TypeScript and SCSS now, built with pnpm and esbuild.** It was
+  one 1,294 line hand-written script. The artifact still has to be a single
+  self-contained file, because it is appended to a compiled bundle with no module
+  loader, so the source is many small files and the build joins them. Styles moved
+  from a JavaScript array of string fragments to real SCSS partials, compiled and
+  inlined at build time; the compiled CSS is byte-identical to what the array
+  produced. `dist/account-ui.js` is committed so patching needs no JavaScript
+  toolchain, and CI fails if it does not match the source.
+- **`bin/conductor-acct` is dispatch only.** 1,360 lines became 13 files under
+  `lib/`, one concern each. `install` deploys them beside the CLI and `doctor`
+  reports drift in them, which it previously only did for `bin/`.
+- **The test suite is one file per area** plus `test/harness.sh`, collected by
+  `test/run.sh`.
+- No source file exceeds 300 lines, and a test enforces it with no allowlist.
+- CI pins every action to a verified commit SHA and runs on Node 24.
+
+## 0.2.0, the account panel inside Conductor
 
 Routing worked in 0.1.0 but had to be driven from the chat or a terminal. This
 release puts it in the app: a toolbar button next to "Open in" and a chip in the
@@ -98,7 +118,7 @@ New Workspace composer, both opening the same panel.
 - `cursor: pointer` on everything clickable. A popover injected over an app cannot
   borrow the app's affordances.
 
-## 0.1.0 — per-workspace routing
+## 0.1.0, per-workspace routing
 
 - `claude-router` and `codex-router`, spawned by Conductor in place of the real
   agent, resolve which account this workspace should use, export

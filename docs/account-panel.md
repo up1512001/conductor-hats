@@ -134,8 +134,8 @@ credentials are separate, and the tick shows the route.
 A provider keeps a single live token per account. Two profiles signed in to the
 same address are therefore not two accounts: whichever signed in last holds the
 token and the other is silently signed out, so the pair take turns logging each
-other out. The symptom is baffling — an account you signed in minutes ago asking
-again.
+other out. The symptom makes no sense until you know this. An account you signed
+in minutes ago asks again.
 
 Three places say so:
 

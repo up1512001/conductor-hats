@@ -8,9 +8,9 @@ rules specific to this subproject.
 ## What this is
 
 Two Claude or Codex accounts live at once in Conductor, one per workspace. Three
-surfaces, deliberately:
+ways to drive it, on purpose:
 
-| Surface | Survives a Conductor update | Where |
+| Where you drive it | Survives a Conductor update | Code |
 |---|---|---|
 | `conductor-acct` CLI | yes | `bin/`, `lib/` |
 | `/account` in the chat | yes | `commands/account.md` |
@@ -27,11 +27,12 @@ the panel does, `docs/panel-internals.md` is how it attaches, and
 301 lines is a failure, not a judgement call. It applies to every source file:
 shell, TypeScript, SCSS, Python, Markdown, tests.
 
-Exempt, because they are not written by hand:
+Exempt, because they are not written by hand or are prose:
 
 - build output under `dist/`
 - `pnpm-lock.yaml`
 - `LICENSE`
+- Markdown under `docs/`, and the Markdown at the root
 
 A file approaching the limit is a file doing more than one job. Split by
 responsibility, not by line count: `lib/routes.sh` and `lib/keychain.sh`, never
@@ -40,15 +41,21 @@ responsibility, not by line count: `lib/routes.sh` and `lib/keychain.sh`, never
 ### Everything in the folder that owns it
 
 ```
-bin/          shell entrypoints only, thin, no logic
-lib/          sourced shell libraries, one concern per file
-src/panel/    TypeScript for the injected UI, plus its SCSS
-dist/         build output, gitignored, never edited
-tools/        patching and dev-app tooling (Python and shell)
-test/         tests, split by area
-docs/         prose
-commands/     the /account slash command
+bin/            entrypoints only. conductor-acct is dispatch, the routers are
+                the hot path and source bin/_resolve.sh directly
+lib/            sourced shell libraries, one concern per file
+src/panel/      TypeScript for the injected UI
+src/panel/styles/  SCSS partials, one per group of elements
+dist/           build output, committed but never edited by hand
+tools/          patching and dev-app tooling (Python and shell)
+test/           harness.sh plus one *.test.sh per area
+docs/           prose
+commands/       the /account slash command
 ```
+
+`dist/account-ui.js` is committed on purpose. Patching a Conductor then needs no
+JavaScript toolchain, which matters for anyone who only wants the panel. CI
+rebuilds it and fails if it differs from the commit, so it cannot go stale.
 
 New code goes in the folder that owns its concern, or a new folder gets added to
 this table in the same commit. A file in the wrong place is a review comment.
@@ -66,8 +73,8 @@ the test itself carries no personal data:
 Also: no real workspace or repository names, no tokens, no keychain hashes from a
 real machine, no third party's name where their team identifier makes the point.
 
-Addresses are masked in every UI surface. If you add a surface that shows one,
-mask it there too, and add it to the test.
+Addresses are masked everywhere the UI shows one. If you add a place that shows
+one, mask it there too, and add it to the test.
 
 ### One source of truth for state
 
@@ -126,9 +133,14 @@ tools/patch-ui.py   # injects dist/account-ui.js
 ## Before opening a pull request
 
 ```sh
+pnpm install
+pnpm typecheck
+pnpm build            # then commit dist/account-ui.js if it changed
 test/run.sh
-shellcheck -x --source-path=SCRIPTDIR bin/* lib/*.sh test/*.sh install.sh tools/*.sh
-pnpm typecheck && pnpm build
+shellcheck -x --source-path=SCRIPTDIR \
+  bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
+  lib/*.sh test/run.sh test/harness.sh test/*.test.sh \
+  install.sh tools/make-dev-conductor.sh tools/repersonalize.sh
 ```
 
 Zero shellcheck findings is the bar; it exits non-zero on info notes too.
@@ -137,21 +149,16 @@ Then: add a `CHANGELOG.md` entry, and keep `CONDUCTOR_ACCT_VERSION` in step with
 the version in the panel source. They ship together, so a skew is a bug. A test
 asserts both.
 
-## Current debt, stated rather than hidden
+## No current debt
 
-The 300-line rule and the folder layout above are the target. As of 0.2.0 three
-files break the rule and the TypeScript build does not exist yet:
+Every source file is under 300 lines and in the folder that owns it, and a test
+enforces both. There is no allowlist to add to: the next file over the limit fails
+the suite.
 
-| File | Lines | Plan |
-|---|---|---|
-| `bin/conductor-acct` | 1360 | split into `lib/*.sh`, `bin/` keeps dispatch only |
-| `tools/ui-patch/account-ui.js` | 1294 | become `src/panel/*.ts` + `styles.scss`, bundled to `dist/` |
-| `test/run.sh` | 834 | split into `test/*.test.sh` with a shared harness |
-
-Do not add to these three files without splitting them. A test enforces both
-halves of that: nothing new may exceed the limit, and these three may not grow
-past the length recorded in `KNOWN_LONG`. Everything else in the tree already
-complies, and new code complies from the first commit.
+The three files that used to break the rule were split rather than exempted:
+`bin/conductor-acct` into `lib/*.sh` with dispatch left behind, the single
+injected script into `src/panel/*.ts` plus SCSS partials, and `test/run.sh` into
+`test/harness.sh` and one file per area.
 
 ## Escalate, don't improvise
 
