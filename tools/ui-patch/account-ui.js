@@ -228,7 +228,10 @@
   }
 
   function onDocDown(e) {
-    if (openPanel && !openPanel.contains(e.target)) closePanel();
+    if (!openPanel) return;
+    if (openPanel.contains(e.target)) return;
+    if (lastTrigger && lastTrigger.contains(e.target)) return;
+    closePanel();
   }
 
   function onDocKey(e) {
@@ -485,10 +488,34 @@
     return wrap;
   }
 
+  /* Conductor's New Workspace modal closes on any pointer event outside itself,
+   * and a panel parked on document.body counts as outside: choosing an account
+   * dismissed the modal and lost the typed prompt. Mounting inside the dialog
+   * puts it within that containment check, and swallowing pointer events at the
+   * panel edge covers listeners that test coordinates instead. */
+  function mountFor(anchor) {
+    for (var el = anchor; el && el !== document.body; el = el.parentElement) {
+      var role = el.getAttribute && el.getAttribute("role");
+      if (el.tagName === "DIALOG" || role === "dialog" || role === "alertdialog" ||
+          (el.getAttribute && el.getAttribute("aria-modal") === "true")) {
+        return el;
+      }
+    }
+    return document.body;
+  }
+
+  function sealPointerEvents(el) {
+    ["mousedown", "pointerdown", "mouseup", "pointerup", "click", "touchstart"]
+      .forEach(function (type) {
+        el.addEventListener(type, function (e) { e.stopPropagation(); }, true);
+      });
+  }
+
   function buildPanel(state, anchor, onChanged) {
     var panel = document.createElement("div");
     panel.className = "cma-panel";
     panel.setAttribute("role", "menu");
+    sealPointerEvents(panel);
 
     var scope = state.target.kind === "workspace"
       ? "Workspace: " + state.target.name
@@ -524,7 +551,7 @@
         : "Open a workspace to choose its account.";
     panel.appendChild(foot);
 
-    document.body.appendChild(panel);
+    mountFor(anchor).appendChild(panel);
     var r = anchor.getBoundingClientRect();
     var top = r.bottom + 6;
     if (top + panel.offsetHeight > window.innerHeight - 12)
@@ -569,7 +596,8 @@
         code.textContent = CLI + " json";
         note.appendChild(code);
         panel.appendChild(note);
-        document.body.appendChild(panel);
+        sealPointerEvents(panel);
+        mountFor(anchor).appendChild(panel);
         var r = anchor.getBoundingClientRect();
         panel.style.top = Math.round(r.bottom + 6) + "px";
         panel.style.left =
@@ -655,6 +683,7 @@
     btn.className = "cma-btn";
     btn.setAttribute("aria-label", "Agent account");
     btn.innerHTML = '<span class="cma-dot"></span><span class="cma-label">account</span>';
+    sealPointerEvents(btn);
     btn.addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -729,6 +758,7 @@
     chip.type = "button";
     chip.className = "cma-chip";
     chip.innerHTML = '<span class="cma-dot"></span><span class="cma-label">account</span>';
+    sealPointerEvents(chip);
     chip.addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
