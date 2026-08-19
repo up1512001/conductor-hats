@@ -79,6 +79,11 @@ ok() {
     printf '  ok    %s\n' "$1"
 }
 
+# Counted as neither, and said out loud, so a missing tool cannot read as green.
+skip() {
+    printf '  skip  %s\n' "$1"
+}
+
 not_ok() {
     FAIL=$((FAIL + 1))
     printf '  FAIL  %s\n' "$1"
@@ -350,6 +355,30 @@ test_bind_replaces_rather_than_appends() {
         "claude/personal"
 }
 
+# The router never exports a repository binding, because Conductor applies the
+# repo's [environment_variables] itself. Reporting only the dry run therefore
+# hid the binding the moment the router was installed, and the New Workspace
+# chip read "default account" for a repository that was firmly bound.
+test_a_repo_binding_is_reported_while_the_router_is_on() {
+    fake_profile claude work
+    "$ACCT" install >/dev/null
+    "$ACCT" bind work claude "$SANDBOX/repo" >/dev/null
+    contains "json names the bound account" "$("$ACCT" json "$SANDBOX/repo")" '"current":"work"'
+    contains "status names it too" "$("$ACCT" status "$SANDBOX/repo")" "work"
+    contains "which calls it effective" "$("$ACCT" which "$SANDBOX/repo")" "effective:  work"
+    contains "check answers with it" "$("$ACCT" check "$SANDBOX/repo")" "ACCOUNT claude work"
+}
+
+test_a_workspace_route_still_wins_in_json() {
+    fake_profile claude work
+    fake_profile claude personal
+    "$ACCT" install >/dev/null
+    "$ACCT" bind work claude "$SANDBOX/repo" >/dev/null
+    mkdir -p "$SANDBOX/repo/ws"
+    "$ACCT" use personal claude "$SANDBOX/repo/ws" >/dev/null
+    contains "the route, not the binding" "$("$ACCT" json "$SANDBOX/repo/ws")" '"current":"personal"'
+}
+
 test_unbind_leaves_the_rest_of_the_file() {
     fake_profile claude work
     cat > "$SANDBOX/repo/.conductor/settings.local.toml" <<'EOF'
@@ -470,6 +499,57 @@ test_profile_names_are_validated() {
     out=$("$ACCT" add "../escape" 2>&1) || status=$?
     is "rejected" "$status" "1"
     contains "with a reason" "$out" "may only contain letters"
+}
+
+# ------------------------------------------------------- the injected UI ---
+#
+# The panel cannot be driven from a shell, but its two worst failures were both
+# visible in the source, so they are guarded there. A broken bundle is expensive
+# to find out about: it means patching a Conductor, launching it and clicking.
+
+UI_JS="$PROJECT_DIR/tools/ui-patch/account-ui.js"
+
+test_the_injected_ui_parses() {
+    command -v node >/dev/null || { skip "node is not installed"; return; }
+    local out status=0
+    out=$(node --check "$UI_JS" 2>&1) || status=$?
+    is "node --check is happy" "$status" "0"
+    [ "$status" -eq 0 ] || printf '        %s\n' "$out"
+}
+
+# Sealing pointer events on the capture phase stopped the click before it ever
+# reached the row that was clicked: every account row went inert and the panel
+# stopped opening at all. The seal has to be on the bubble phase, after the
+# panel's own handlers have run.
+test_the_panel_seals_pointer_events_on_the_bubble_phase() {
+    local body
+    body=$(sed -n '/^  function seal(/,/^  }/p' "$UI_JS")
+    contains "listener is registered non-capturing" "$body" "}, false);"
+    is "and nothing in seal captures" "$(printf '%s' "$body" | grep -c 'true)')" "0"
+}
+
+test_every_clickable_thing_says_it_is_clickable() {
+    local css
+    css=$(sed -n '/^  var CSS = \[/,/\].join("");/p' "$UI_JS")
+    local sel
+    for sel in ".cma-btn,.cma-chip" ".cma-card" ".cma-trash" ".cma-back" ".cma-add" ".cma-go" ".cma-act"; do
+        contains "$sel exists" "$css" "$sel"
+    done
+    is "no interactive rule left on the arrow cursor" \
+        "$(printf '%s' "$css" | grep -c 'cursor:default')" "1"
+}
+
+# The wireframe is a drill-down: providers first, then that provider's accounts
+# with a delete each and one "Add new account" at the foot.
+test_the_panel_is_a_two_level_drill_down() {
+    local body
+    body=$(cat "$UI_JS")
+    contains "a root view" "$body" "function rootView("
+    contains "a provider view" "$body" "function providerView("
+    contains "a back control" "$body" 'el("button", "cma-back")'
+    contains "add at the foot of the provider view" "$body" '"Add new account"'
+    contains "a named delete confirmation" "$body" "function confirmDelete("
+    contains "escape steps back before it closes" "$body" 'open.view.level === "provider"'
 }
 
 # ------------------------------------------------------------------ main ---
