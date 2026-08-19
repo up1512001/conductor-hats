@@ -637,56 +637,67 @@ json_escape() {
     printf '%s' "${1:-}" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
-# Conductor identifies a workspace by uuid in its URL; the router keys on the
-# directory. Read-only lookup, and the panel degrades to the cwd without it.
-cmd_resolve() {
-    local id="${1:-}" db
-    [ -n "$id" ] || die "usage: conductor-acct resolve <workspace-id>"
-    case "$id" in
-        *[!a-zA-Z0-9-]*) die "not a workspace id" ;;
-    esac
-    db="${CONDUCTOR_DB:-$HOME/Library/Application Support/com.conductor.app/conductor.db}"
-    [ -f "$db" ] || die "no Conductor database at $db"
+# Every Conductor on this machine, not just the shipping one. A modified copy
+# built by tools/make-dev-conductor.sh keeps its own database under its own
+# identifier, so a panel running inside that copy has to be told about its own
+# workspaces rather than the real app's. Globbing means neither has to know the
+# other exists, which also covers the copy's data directory not being named
+# quite what its identifier says.
+conductor_dbs() {
+    local d
+    if [ -n "${CONDUCTOR_DB:-}" ]; then
+        [ -f "$CONDUCTOR_DB" ] && printf '%s\n' "$CONDUCTOR_DB"
+        return 0
+    fi
+    for d in "$HOME/Library/Application Support/"com.conductor*/conductor.db; do
+        [ -f "$d" ] && printf '%s\n' "$d"
+    done
+}
+
+db_query() {
+    local sql="$1" db
     command -v sqlite3 >/dev/null || die "sqlite3 not found"
-    sqlite3 "file:$db?mode=ro" \
-        "select workspace_path from workspaces where id='$id' and workspace_path is not null" 2>/dev/null
+    # read, not $(...): these paths contain "Application Support".
+    while IFS= read -r db; do
+        [ -n "$db" ] || continue
+        sqlite3 -separator "$(printf '\t')" "file:$db?mode=ro" "$sql" 2>/dev/null
+    done <<EOF
+$(conductor_dbs)
+EOF
 }
 
 # Conductor's webview uses an in-memory router, so the panel cannot read the
 # current workspace from the URL. It matches what is on screen against this
 # list instead. Name first so the UI can match on the visible label.
 cmd_workspaces() {
-    local db
-    db="${CONDUCTOR_DB:-$HOME/Library/Application Support/com.conductor.app/conductor.db}"
-    [ -f "$db" ] || die "no Conductor database at $db"
-    command -v sqlite3 >/dev/null || die "sqlite3 not found"
-    sqlite3 -separator "$(printf '\t')" "file:$db?mode=ro" \
-        "select replace(workspace_path, rtrim(workspace_path, replace(workspace_path, '/', '')), ''), workspace_path
-         from workspaces
-         where workspace_path is not null and state != 'archived'" 2>/dev/null
+    db_query "select replace(workspace_path, rtrim(workspace_path, replace(workspace_path, '/', '')), ''), workspace_path
+              from workspaces
+              where workspace_path is not null and state != 'archived'" | sort -u
 }
 
 cmd_repos() {
-    local db
-    db="${CONDUCTOR_DB:-$HOME/Library/Application Support/com.conductor.app/conductor.db}"
-    [ -f "$db" ] || die "no Conductor database at $db"
-    command -v sqlite3 >/dev/null || die "sqlite3 not found"
-    sqlite3 -separator "$(printf '\t')" "file:$db?mode=ro" \
-        "select replace(root_path, rtrim(root_path, replace(root_path, '/', '')), ''), root_path
-         from repos where root_path is not null" 2>/dev/null
+    db_query "select replace(root_path, rtrim(root_path, replace(root_path, '/', '')), ''), root_path
+              from repos where root_path is not null" | sort -u
+}
+
+cmd_resolve() {
+    local id="${1:-}"
+    [ -n "$id" ] || die "usage: conductor-acct resolve <workspace-id>"
+    case "$id" in
+        *[!a-zA-Z0-9-]*) die "not a workspace id" ;;
+    esac
+    db_query "select workspace_path from workspaces
+              where id='$id' and workspace_path is not null" | head -1
 }
 
 cmd_resolve_repo() {
-    local id="${1:-}" db
+    local id="${1:-}"
     [ -n "$id" ] || die "usage: conductor-acct resolve-repo <repository-id>"
     case "$id" in
         *[!a-zA-Z0-9-]*) die "not a repository id" ;;
     esac
-    db="${CONDUCTOR_DB:-$HOME/Library/Application Support/com.conductor.app/conductor.db}"
-    [ -f "$db" ] || die "no Conductor database at $db"
-    command -v sqlite3 >/dev/null || die "sqlite3 not found"
-    sqlite3 "file:$db?mode=ro" \
-        "select root_path from repos where id='$id' and root_path is not null" 2>/dev/null
+    db_query "select root_path from repos
+              where id='$id' and root_path is not null" | head -1
 }
 
 # ------------------------------------------------------------ in-app login ---
