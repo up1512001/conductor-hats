@@ -2,7 +2,9 @@
 # Manage Conductor multi-account profiles for Claude Code and Codex.
 set -euo pipefail
 
-CONDUCTOR_ACCT_VERSION=0.1.0
+# Kept in step with the version in tools/ui-patch/account-ui.js: the CLI and the
+# panel ship together and a mismatch between them is a bug, not a variation.
+CONDUCTOR_ACCT_VERSION=0.2.0
 
 SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 BIN_DIR=$(dirname "$SELF")

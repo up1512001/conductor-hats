@@ -741,6 +741,16 @@ test_two_profiles_on_one_address_are_flagged() {
     is "the unshared one is not flagged" "$(printf '%s' "$out" | grep -c 'other@example.com')" "0"
 }
 
+# The CLI and the injected panel ship together, so a version skew between them is
+# a bug rather than a variation. Cheap to assert, and it has already drifted once.
+test_the_cli_and_the_panel_agree_on_the_version() {
+    local cli panel
+    cli=$("$ACCT" version | awk '{print $2}')
+    panel=$(sed -n 's/.*__conductorMultiAccount = { version: "\([^"]*\)".*/\1/p' "$UI_JS")
+    is "same version" "$cli" "$panel"
+    contains "and the changelog has an entry for it" "$(cat "$PROJECT_DIR/CHANGELOG.md")" "## $cli"
+}
+
 # ------------------------------------------------------------------ main ---
 
 for t in $(declare -F | sed -n 's/^declare -f \(test_.*\)$/\1/p'); do

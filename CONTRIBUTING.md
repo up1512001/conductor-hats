@@ -49,6 +49,17 @@ test_your_thing() {
 
 Helpers: `is`, `contains`, `fake_profile`, `route_claude`, `route_codex`, `skip`.
 
+## Changelog and versions
+
+Commits carry the detail; `CHANGELOG.md` carries the version-level view. Add an
+entry under the current heading when a change is worth knowing about at release
+level, which is most of them.
+
+`CONDUCTOR_ACCT_VERSION` in `bin/conductor-acct` and the version in
+`tools/ui-patch/account-ui.js` must match: the CLI and the injected panel ship
+together, so a skew between them is a bug rather than a variation. A test asserts
+both, and that the changelog has a heading for that version.
+
 ## Linting
 
 ```sh
