@@ -1,9 +1,20 @@
 # Can an extension add UI to Conductor?
 
-Short answer: it can add UI to the **chat**, and nothing else. The toolbar, the
-New Workspace modal and every other part of Conductor's window are closed to
-outside code. This page records the evidence, because it is the first question
-everyone asks.
+Two answers, and the distinction is the whole point of this page.
+
+**To a Conductor you rely on, from outside: no.** Nothing a third party can do
+adds a control to the toolbar or the New Workspace modal of an installed,
+notarized Conductor. The evidence is below, and it has not changed.
+
+**To a copy you re-sign yourself: yes.** The frontend is compiled into the
+binary, but it is readable, writable and re-signable, so the panel this project
+ships is *injected into a copy* rather than added to your install. That works, it
+is what [account-panel.md](account-panel.md) documents, and it costs real things:
+Gatekeeper trust, notarization, and re-application after every Conductor release.
+
+An earlier version of this page stopped at the first answer and concluded the
+toolbar was closed full stop. That was wrong, and the section
+[What changed the answer](#what-changed-the-answer) says how.
 
 Measured against Conductor 0.81.0 (macOS arm64, arm64 Mach-O), 2026-08-19.
 
@@ -34,7 +45,7 @@ Tauri compiles the frontend into the executable. So "edit the UI" means "patch a
 $ codesign -dvvv /Applications/Conductor.app
 Identifier=com.conductor.app
 CodeDirectory v=20500 flags=0x10000(runtime)      ← hardened runtime
-Authority=Developer ID Application: Charlie Holtz (27XN666UJ7)
+Authority=Developer ID Application: <the vendor> (27XN666UJ7)
 Notarization Ticket=stapled
 Sealed Resources version=2 rules=13 files=14
 TeamIdentifier=27XN666UJ7
@@ -99,11 +110,17 @@ TeamIdentifier=not set
 Losing `TeamIdentifier=27XN666UJ7` costs more than Gatekeeper:
 
 - Keychain items are access-controlled by signing identity. Conductor's own
-  stored credentials stop being readable by the re-signed binary, so you get
-  signed out of Conductor itself.
+  stored credentials stop being readable by the re-signed binary, so a re-signed
+  copy of your install signs you out of Conductor.
 - Notarization is void, so the app is untrusted on any other machine.
 - Conductor auto-updates, roughly weekly. Every update replaces the binary and
   undoes the patch.
+
+**This is the reason the panel goes into a copy and never into your install.**
+[make-dev-conductor.sh](../tools/make-dev-conductor.sh) gives the copy its own
+bundle identifier, database and keychain items, so none of the above touches the
+Conductor you work in. `patch-ui.py` refuses `/Applications/Conductor.app`
+unless passed `--i-know`.
 
 ## What about injecting a library instead
 
@@ -122,39 +139,78 @@ Absent, and both required:
 - `com.apple.security.cs.disable-library-validation`, without which any loaded
   library must be signed by team `27XN666UJ7`.
 
-Conductor's Tauri commands (`sync_agent_path_overrides`, `open_settings_page`
-and the rest) are also gated by `__TAURI_INVOKE_KEY__` and reachable only from
-its own webview, so there is nothing to call from outside even if you got code
-running.
+So there is no way *into a running Conductor from another process*. Patching the
+bundle before it launches is a different mechanism, and the one that works.
 
 ## Does writing the extension in Rust or Tauri change any of this
 
-No. The host application's language is not an access control boundary. A Tauri
-app you write is a separate process with its own window, exactly like a Swift or
-Electron app you write. Tauri has no third-party plugin API that lets one app
-render into another app's webview, and nothing about matching Conductor's stack
-gets you past the code signature, the hardened runtime or the invoke key.
+No, and this is still true. The host application's language is not an access
+control boundary. A Tauri app you write is a separate process with its own
+window, exactly like a Swift or Electron app you write. Tauri has no third-party
+plugin API that lets one app render into another app's webview, and nothing about
+matching Conductor's stack gets you past the code signature, the hardened runtime
+or the invoke key.
 
-The only thing that would change this is Conductor shipping an extension point.
+Matching the host's stack buys nothing. Patching the host's assets buys
+everything. Those are unrelated facts, and conflating them is what made the
+earlier version of this page wrong.
 
-## What is actually open
+## What changed the answer
 
-| Surface | Open to an extension? |
-|---|---|
-| Chat messages and cards, via `mcp__conductor__AskUserQuestion` | Yes |
-| Slash commands, via `~/.claude/commands` | Yes |
-| Agent process environment, via `environment_variables` | Yes |
-| Agent executable, via `claude_code_executable_path` | Yes |
-| Workspace setup, via `scripts.setup` | Yes |
-| Toolbar, title bar, New Workspace modal, Settings pane | No |
+The first pass concluded "no `.js` files in the bundle, therefore the frontend is
+out of reach". The first half is true and the second does not follow. Looking
+properly:
 
-This project uses every row in the first group. `/account` draws its picker as a
-native card in the Conductor conversation, which is the closest thing to in-app
-UI that exists for third-party code.
+```
+2878 assets, 36 MB of frontend, extracted from __DATA_CONST
+assets/renderApp-CIIBeY95.js   8.6 MB   <- the New Workspace modal and the toolbar
+```
+
+Tauri stores the frontend as an asset map of 32-byte entries,
+`(key_ptr, key_len, value_ptr, value_len)`, with plaintext keys and brotli
+values. [extract-assets.py](../tools/extract-assets.py) walks it.
+
+Writing back is viable because Conductor ships that bundle compressed below
+brotli's maximum:
+
+```
+original compressed   2,148,637 bytes
+recompressed at q11   1,939,578 bytes   ->  ~209 KB of headroom
+```
+
+So a modified bundle fits where the original was. Only `value_len` changes in the
+map, so no pointer is relocated and no segment is resized. Then ad-hoc re-sign,
+which the copy already proves works.
+
+Two further pieces made a panel rather than a demo:
+
+- `execute_shell_command` is one of 48 Tauri commands the webview can invoke, and
+  it is reachable through `window.__TAURI_INTERNALS__.invoke` without the key. So
+  injected UI can call `conductor-acct` directly, and the panel needs no state of
+  its own.
+- Conductor flushes `localStorage` to `local-storage.subsystem.*.json` under
+  Application Support, so injected code has a persistence path if it ever needs
+  one. This project does not: `conductor-acct` owns all state.
+
+## What is open, and to what
+
+| Surface | Third party, unmodified install | Injected into a re-signed copy |
+|---|---|---|
+| Chat messages and cards, via `mcp__conductor__AskUserQuestion` | Yes | Yes |
+| Slash commands, via `~/.claude/commands` | Yes | Yes |
+| Agent process environment, via `environment_variables` | Yes | Yes |
+| Agent executable, via `claude_code_executable_path` | Yes | Yes |
+| Workspace setup, via `scripts.setup` | Yes | Yes |
+| Toolbar, New Workspace modal, any part of the window | **No** | **Yes** |
+| A running Conductor's process, via dyld or the invoke key | No | No |
+
+This project uses every row. `/account` covers the first group and survives
+updates; the injected panel covers the toolbar row and does not.
 
 ## Asking for the real thing
 
 A per-workspace account selector belongs in Conductor. The way to get it is
-Help, then Send Feedback, asking for per-workspace agent account selection.
-Everything in this repository becomes unnecessary the day they ship it, which
-is the correct outcome.
+Help, then Send Feedback, asking for per-workspace agent account selection. That
+is the only version that needs no copy, no re-signing and no re-patching after
+each release. Everything in this repository becomes unnecessary the day they
+ship it, which is the correct outcome.

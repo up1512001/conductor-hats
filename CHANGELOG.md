@@ -29,7 +29,7 @@ New Workspace composer, both opening the same panel.
 - **`tools/repersonalize.sh`**: one command to re-apply everything after a
   Conductor update, including the two steps that fail quietly if done by hand.
 - **Address masking.** Every address the UI renders is masked
-  (`uts**tel@rt**p.com`), so a recorded session or shared screenshot cannot hand
+  (`fir**ast@ex**e.com`), so a recorded session or shared screenshot cannot hand
   one out. `conductor-acct mask`, `list --mask` and `status --mask` expose the same
   rule to the `/account` chat card; a test asserts the shell and panel
   implementations agree on every case.

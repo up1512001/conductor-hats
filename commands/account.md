@@ -71,28 +71,38 @@ plus one line saying which one this workspace uses.
 
 ### `add`
 
-Signing in needs an interactive terminal and an OAuth browser round trip, so you
-cannot do it from here, and opening a Terminal window would be exactly the kind
-of separate window this command exists to avoid. Print the one command for the
-user to paste into their own terminal:
+Signing in needs an OAuth browser round trip, which cannot be driven from a chat
+message, and opening a Terminal window would be exactly the kind of separate
+window this command exists to avoid. Two ways forward, offer both:
 
-```
-conductor-acct add <name>
-```
+1. **The account panel**, if they run a patched Conductor copy: the toolbar
+   button, then "Add new account". It runs the sign-in itself, opens the browser
+   and takes the code back, no terminal. See `docs/account-panel.md`.
+2. **A terminal**, which always works:
+
+   ```
+   conductor-acct add <name>
+   ```
 
 Offer to suggest the name if they say what the account is for.
 
 ### `remove [profile]`
 
-Ask which profile with `mcp__conductor__AskUserQuestion` if not given. Confirm
-with a second card that names the account email. Then run
-`$CLI remove <profile>`, and report that it signed the account out, deleted its
-profile directory and dropped any workspace routes that pointed at it.
+First be clear which of the two they want, because only one is reversible:
+
+- **sign out**, which drops that account's credentials and leaves the profile,
+  its routes, its session pins and its transcripts alone: `$CLI logout <profile>`
+- **remove**, which signs out *and* deletes the profile directory and every route
+  pointing at it, and cannot be undone: `$CLI remove <profile>`
+
+Ask which profile with `mcp__conductor__AskUserQuestion` if not given. For
+`remove`, confirm with a second card naming the masked address and saying it
+cannot be undone. Then report exactly what was done.
 
 ### Never print a full email address
 
 Every command above uses the masked form, and so must you: addresses appear as
-`uts**tel@rt**p.com`. This card renders inside Conductor, on the same screen
+`fir**ast@ex**e.com`. This card renders inside Conductor, on the same screen
 people record and share, and a masked address still tells two accounts apart.
 The profile name is the identifier to use in prose.
 

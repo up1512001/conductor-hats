@@ -33,7 +33,7 @@ it. No other dependencies: everything here is POSIX shell.
 ## Install
 
 ```sh
-git clone https://github.com/up1512001/conductor-playground
+git clone <this repository>
 cd conductor-playground/conductor-multi-account
 bin/conductor-acct setup
 ```
@@ -71,7 +71,7 @@ From a terminal, in any workspace directory:
 
 ```sh
 conductor-acct use work           # this workspace runs on the work account
-conductor-acct status             # claude  work  you@company.com
+conductor-acct status             # claude  work  you@example.com
 conductor-acct which              # the same, with every layer that fed into it
 ```
 
@@ -82,8 +82,8 @@ when that process spawns.
 ### Two accounts at once
 
 ```sh
-cd ~/conductor/workspaces/company-app/austin  && conductor-acct use work
-cd ~/conductor/workspaces/side-project/berlin && conductor-acct use personal
+cd ~/conductor/workspaces/company-app/one  && conductor-acct use work
+cd ~/conductor/workspaces/side-project/two && conductor-acct use personal
 ```
 
 Open a chat in each. Conductor keeps a separate agent host per workspace, so
@@ -146,7 +146,7 @@ signing out drops credentials and leaves the profile, its routes, its session pi
 and its transcripts alone. `conductor-acct remove` in a terminal is the only way
 to delete a profile, deliberately.
 
-Addresses are masked wherever they render, as `uts**tel@rt**p.com`, so a recorded
+Addresses are masked wherever they render, as `fir**ast@ex**e.com`, so a recorded
 session or a shared screenshot cannot hand one out. `conductor-acct list` in a
 terminal is where you read the real thing. See
 [docs/account-panel.md](docs/account-panel.md).
@@ -221,8 +221,32 @@ conductor-acct unbind        # per repository
 rm -rf ~/.conductor-accounts # removes both logins
 ```
 
-Restart Conductor. Nothing else on your machine is touched: no patched app
-bundle, no modified `~/.claude`, no changes to Conductor's database.
+Restart Conductor. That removes the routing side completely: no modified
+`~/.claude`, no changes to Conductor's database, nothing left in
+`~/.conductor/settings.toml`.
+
+If you also patched a copy for the in-app panel, that copy is separate and stays
+until you remove it:
+
+```sh
+tools/patch-ui.py --revert                 # the injected UI only
+rm -rf "/Applications/Conductor Dev.app"   # the whole copy
+```
+
+Your real Conductor was never touched by either.
+
+## Documentation
+
+| Page | What it covers |
+|---|---|
+| [docs/how-it-works.md](docs/how-it-works.md) | the credential primitive, the router, precedence |
+| [docs/account-panel.md](docs/account-panel.md) | the in-app panel: layout, masking, sign-out |
+| [docs/panel-internals.md](docs/panel-internals.md) | how the panel attaches, and the update path |
+| [docs/patching-conductor.md](docs/patching-conductor.md) | what the app bundle allows, with the evidence |
+| [docs/dev-conductor.md](docs/dev-conductor.md) | building a Conductor copy that is safe to modify |
+| [AGENTS.md](AGENTS.md) | rules for changing this code, human or agent |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | tests, linting, changelog, versions |
+| [CHANGELOG.md](CHANGELOG.md) | what changed, by version |
 
 ## Tests
 

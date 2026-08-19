@@ -109,10 +109,18 @@ matters. Verified by `lsof` on the running copy, which shows zero handles under
 
 ## What this does and does not unlock
 
-It gives you a Conductor you can modify and relaunch without consequences. It
-does **not** make the UI easier to change: the frontend is still minified
-JavaScript compiled into the binary, brotli compressed, with no asset files on
-disk. See [patching-conductor.md](patching-conductor.md).
+It gives you a Conductor you can modify and relaunch without consequences, and
+it is the prerequisite for changing the UI rather than the thing that changes it.
+
+The frontend is still minified JavaScript compiled into the binary and brotli
+compressed, with no asset files on disk, but it is reachable:
+[extract-assets.py](../tools/extract-assets.py) reads it and
+[patch-ui.py](../tools/patch-ui.py) writes it back. That is how the account panel
+gets in, and it only happens to a copy, because the re-signing it needs would cost
+your real install its notarization and its keychain access. See
+[account-panel.md](account-panel.md) for the panel and
+[patching-conductor.md](patching-conductor.md) for what the bundle does and does
+not allow.
 
 Note that `~/.conductor/settings.toml` is user-scoped rather than bundle-scoped,
 so both apps read the same settings, including the account router. That is
