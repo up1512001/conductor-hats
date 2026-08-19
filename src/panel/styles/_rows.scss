@@ -1,0 +1,104 @@
+// Account rows: the selectable card plus its sign-in or sign-out control.
+
+@use "tokens" as *;
+
+// An account row is one bordered card holding two buttons. The wide one selects,
+// the narrow one signs out. Nesting the second inside the first would be invalid
+// HTML and would swallow the row's click, so they are siblings inside a container
+// that carries the border. The sign-out control used to sit outside that border,
+// in the gutter, which read as unrelated to the row and put its target a few
+// pixels from "switch account" with nothing between them.
+.cma-row2 {
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 5px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: $radius-inner;
+  transition: border-color 0.12s;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &:hover {
+    border-color: var(--ring, var(--border));
+  }
+
+  // width:100% plus a sibling overflowed the panel, which made the provider view
+  // wider than the root view and moved the whole panel sideways on the way in.
+  .cma-card {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  &[aria-disabled="true"] {
+    opacity: 0.45;
+  }
+
+  &:hover .cma-signout {
+    opacity: 0.85;
+  }
+}
+
+// A divider, and a target the full height of the row. Deliberate to hit, hard to
+// hit by accident.
+.cma-signout {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 36px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: $muted;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 1;
+    background: $danger;
+    color: #fff;
+  }
+}
+
+// Signing in is not destructive, so it does not borrow the warning colour.
+.cma-signin:hover,
+.cma-signin:focus-visible {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+.cma-slot {
+  margin-bottom: 5px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  .cma-row2 {
+    margin-bottom: 0;
+  }
+
+  .cma-form {
+    margin-top: 5px;
+  }
+}
+
+// Masked by default. A recorded screen should not hand out an address, and the
+// profile name underneath already says which account this is.
+.cma-mask {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}

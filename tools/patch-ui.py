@@ -72,7 +72,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--app", default=DEV_APP)
-    ap.add_argument("--script", default=str(pathlib.Path(__file__).parent / "ui-patch" / "account-ui.js"))
+    ap.add_argument("--script",
+                    default=str(pathlib.Path(__file__).parent.parent / "dist" / "account-ui.js"),
+                    help="the built panel; run 'pnpm build' if it is missing")
     ap.add_argument("--revert", action="store_true", help="restore the backup taken on first patch")
     ap.add_argument("--i-know", action="store_true", help="allow patching the real Conductor")
     args = ap.parse_args()
@@ -108,7 +110,12 @@ def main():
     # Always patch from the pristine copy, so patching twice is not a stack.
     shutil.copy2(backup, binary)
 
-    script = pathlib.Path(args.script).read_bytes()
+    script_path = pathlib.Path(args.script)
+    if not script_path.is_file():
+        sys.exit(f"no built panel at {script_path}\n"
+                 "The panel is built from src/panel by esbuild:\n"
+                 "  pnpm install && pnpm build")
+    script = script_path.read_bytes()
     macho = extract.MachO(binary)
     assets = extract.find_assets(macho)
     key, off, length, entry = pick_bundle(assets)

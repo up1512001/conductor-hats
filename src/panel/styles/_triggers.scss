@@ -1,0 +1,8 @@
+// The toolbar button and the composer chip.
+
+@use "tokens" as *;
+
+.cma-btn,
+.cma-chip {
+  @include trigger;
+}

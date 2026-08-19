@@ -1,0 +1,28 @@
+{
+  "name": "conductor-multi-account-panel",
+  "version": "0.2.0",
+  "private": true,
+  "description": "The account panel injected into Conductor's compiled frontend",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node tools/build-panel.mjs",
+    "typecheck": "tsc --noEmit",
+    "watch": "node tools/build-panel.mjs --watch",
+    "verify": "node tools/build-panel.mjs --check"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "sass": "1.93.2",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

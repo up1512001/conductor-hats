@@ -1,0 +1,33 @@
+// Moving between the two levels.
+
+@use "tokens" as *;
+
+.cma-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: $muted;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+
+  &:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+}
+
+.cma-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 9px;
+  font-size: 12px;
+  font-weight: 600;
+}

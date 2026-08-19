@@ -1,3 +1,4 @@
+node_modules/
 .DS_Store
 *.dSYM/
 __pycache__/

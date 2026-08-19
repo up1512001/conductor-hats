@@ -1,0 +1,74 @@
+// The popover itself, and the small text elements inside it.
+
+@use "tokens" as *;
+
+// Fixed width and a capped height, both deliberate. The top left corner is
+// placed once when the panel opens and never moves again, so changing view or
+// account cannot shift anything under the pointer. A long account list scrolls
+// inside the panel rather than growing it.
+.cma-panel {
+  position: fixed;
+  z-index: 99999;
+  box-sizing: border-box;
+  width: 300px;
+  max-height: min(70vh, 560px);
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 10px 38px rgb(0 0 0 / 0.28), 0 2px 8px rgb(0 0 0 / 0.16);
+  font-size: 13px;
+  transform-origin: top left;
+  animation: cma-in 0.11s ease-out;
+
+  svg {
+    flex: none;
+    display: block;
+  }
+}
+
+@keyframes cma-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cma-head {
+  padding: 6px 6px 8px;
+  color: $muted;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.cma-note {
+  padding: 8px 6px 4px;
+  color: $muted;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.cma-code {
+  display: block;
+  margin-top: 5px;
+  padding: 5px 7px;
+  border-radius: $radius-tight;
+  background: var(--muted);
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  user-select: all;
+}
+
+.cma-sep {
+  height: 1px;
+  margin: 6px 2px;
+  background: var(--border);
+}

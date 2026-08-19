@@ -1,0 +1,40 @@
+// Theme tokens and the one mixin shared by both triggers.
+//
+// Conductor is built on shadcn conventions, so its theme tokens are already on
+// :root. Using them rather than fixed colours means this panel takes the app's
+// palette, radii and light or dark handling instead of approximating them.
+
+$radius-inner: calc(var(--radius) - 2px);
+$radius-tight: calc(var(--radius) - 3px);
+$muted: var(--muted-foreground);
+$danger: var(--destructive, #ff5a5a);
+
+@mixin trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: $radius-inner;
+  background: transparent;
+  color: $muted;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+
+  &:hover,
+  &[aria-expanded="true"] {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  // Hidden until the label is known, so the toolbar settles once instead of
+  // reflowing from "Account" to the real name a moment later.
+  &[hidden] {
+    display: none;
+  }
+}

@@ -1,0 +1,107 @@
+// Provider rows, the routing switch, and the loading placeholder.
+
+@use "tokens" as *;
+
+// Rows are bordered cards, following the wireframe. One tap target each, clearly
+// separate, still legible with a dozen accounts in the list.
+.cma-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: $radius-inner;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  outline: 0;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &:hover,
+  &:focus-visible {
+    background: var(--accent);
+    border-color: var(--ring, var(--border));
+  }
+
+  &[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+
+    &:hover {
+      background: transparent;
+      border-color: var(--border);
+    }
+  }
+
+  &[aria-checked="true"] .cma-name {
+    font-weight: 600;
+  }
+}
+
+.cma-ghost {
+  opacity: 0.4;
+  cursor: default;
+  animation: cma-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes cma-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+.cma-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.cma-name {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cma-sub {
+  margin-top: 1px;
+  overflow: hidden;
+  color: $muted;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cma-badge {
+  max-width: 96px;
+  overflow: hidden;
+  color: $muted;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// The slot stays in the flow and only its contents change, so the tick moving
+// between accounts does not reflow the row it lands in.
+.cma-tickslot {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  width: 15px;
+  color: var(--foreground);
+  opacity: 0.9;
+}

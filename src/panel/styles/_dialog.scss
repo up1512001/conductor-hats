@@ -1,0 +1,103 @@
+// The confirmation dialog and its scrim.
+
+@use "tokens" as *;
+
+// Signing back in costs a browser round trip, so the sign-out control asks first,
+// in a real dialog with a scrim. A control that merely arms on a first click is
+// still one stray click from acting, which is the thing being guarded against.
+.cma-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.45);
+  animation: cma-fade 0.12s ease-out;
+}
+
+@keyframes cma-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.cma-dialog {
+  box-sizing: border-box;
+  width: 300px;
+  max-width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 0.4);
+  font-size: 13px;
+  animation: cma-pop 0.12s ease-out;
+
+  .cma-name {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: normal;
+  }
+
+  .cma-sub {
+    margin-top: 6px;
+    line-height: 1.5;
+    white-space: normal;
+  }
+}
+
+@keyframes cma-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cma-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.cma-act {
+  flex: 1;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: $radius-tight;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--accent);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.cma-act-danger {
+  border-color: transparent;
+  background: $danger;
+  color: #fff;
+
+  &:hover {
+    background: $danger;
+    filter: brightness(1.08);
+  }
+}
