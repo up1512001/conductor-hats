@@ -4,17 +4,25 @@ Run as many Claude Code or Codex accounts as you like in
 [Conductor](https://conductor.build) **at the same time**, one per workspace,
 with no signing in and out.
 
-Pick the account per workspace from inside Conductor with `/account`, or from a
-terminal with `conductor-acct use`. Work and personal agents then run
-concurrently, each on its own subscription, each with its own transcripts.
+**With a real account picker in Conductor's own toolbar.** Not a separate window,
+not a menu bar item, not a chat message: a button beside "Open in" and a chip in
+the New Workspace composer, drawn in Conductor's own theme, opening a panel that
+switches accounts, signs in and signs out.
 
-Codex works the same way through `CODEX_HOME`.
+Conductor is a signed, notarized, closed-source application with no plugin API.
+Its entire frontend is compiled into a 66 MB Mach-O and brotli-compressed inside
+`__DATA_CONST`. `hats` reads that asset map, injects the panel and re-signs the
+copy. [docs/patching-conductor.md](docs/patching-conductor.md) has the evidence
+for every part of that, including the things that genuinely are impossible.
 
+```sh
+hats dev-app     # an isolated copy of Conductor, safe to modify
+hats patch       # inject the account panel into it
+hats repatch     # do both again after a Conductor update
 ```
-/account                      pick this workspace's account, as a card in the chat
-conductor-acct use work       the same thing from a terminal
-conductor-acct status         what this workspace resolves to
-```
+
+Agents then run concurrently, each on its own subscription, each with its own
+transcripts. Codex works the same way through `CODEX_HOME`.
 
 ## Why this exists
 
@@ -58,16 +66,22 @@ bin/conductor-acct doctor
 
 ## Use it
 
-Inside a Conductor chat:
+**From the toolbar.** The button next to "Open in" shows the account this
+workspace runs on. Click it for the panel: providers first, then that provider's
+accounts, each with a sign-in or sign-out control and one "Add new account" at
+the foot. Signing in happens in the panel, no terminal. Addresses are masked, so a
+recorded session cannot hand one out.
 
-```
-/account
-```
+**From the New Workspace composer.** The chip beside the model picker binds the
+repository, so the workspace you are about to create starts on the account you
+meant.
 
-You get a card in the conversation listing your accounts. Pick one and that
-workspace is routed to it. No windows, no system dialogs, no menu bar item.
+**From the chat**, with `/account`, which needs no patching and survives every
+Conductor update. This is the fallback rather than the point: a slash command is
+something anyone can write, and it is here so the feature still works on a
+Conductor you have not patched.
 
-From a terminal, in any workspace directory:
+**From a terminal**, in any workspace directory:
 
 ```sh
 conductor-acct use work           # this workspace runs on the work account
@@ -136,22 +150,16 @@ If none of those match, nothing is exported and you get your normal account.
 [docs/how-it-works.md](docs/how-it-works.md) has the full picture, including
 what was learned by reading Conductor's runtime.
 
-## The in-app panel, and what it costs
+## What the panel costs
 
-A toolbar button next to "Open in" and an account chip in the New Workspace
-composer both exist, and both open a two-level panel: providers first, then that
-provider's accounts with a sign-out each and one "Add new account" at the foot.
-Signing in happens in the panel, no terminal. The panel never deletes anything:
-signing out drops credentials and leaves the profile, its routes, its session pins
-and its transcripts alone. `conductor-acct remove` in a terminal is the only way
-to delete a profile, deliberately.
-
-Addresses are masked wherever they render, as `fir**ast@ex**e.com`, so a recorded
-session or a shared screenshot cannot hand one out. `conductor-acct list` in a
-terminal is where you read the real thing. See
+The panel never deletes anything: signing out drops credentials and leaves the
+profile, its routes, its session pins and its transcripts alone.
+`conductor-acct remove` in a terminal is the only way to delete a profile,
+deliberately. Addresses are masked wherever they render, as `fir**ast@ex**e.com`;
+`conductor-acct list` in a terminal is where you read the real thing. See
 [docs/account-panel.md](docs/account-panel.md).
 
-They are not free. **Nothing outside the app can add them.** Conductor's UI is
+It is not free. **Nothing outside the app can add UI to it.** Conductor's UI is
 compiled into a single Developer ID signed Mach-O with the hardened runtime, and
 every file in the bundle is covered by the code signature seal, so adding one
 file is enough to make macOS reject the app. The panel is therefore *injected
@@ -162,8 +170,9 @@ into the compiled frontend* and the app is ad-hoc re-signed, which means:
 - every Conductor release ships a new bundle, so the patch has to be re-applied
   after each update.
 
-`/account` in the chat is the version that survives updates and needs no
-patching, which is why it exists alongside. Details and the tests behind both
+`/account` in the chat survives updates and needs no patching, which is why it
+exists alongside. It is not the interesting part: anyone can write a slash
+command. Details and the tests behind both
 claims are in [docs/patching-conductor.md](docs/patching-conductor.md).
 
 If you would rather have this natively, ask Conductor for it: Help, then Send

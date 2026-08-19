@@ -8,7 +8,9 @@ rules specific to this subproject.
 ## What this is
 
 Any number of Claude Code or Codex accounts live at once in Conductor, one per
-workspace. Three ways to drive it, on purpose:
+workspace. The point of the project is the panel injected into Conductor's own
+toolbar; a slash command is something anyone can write, and it is the fallback
+for an unpatched install rather than the feature. Three ways to drive it:
 
 | Where you drive it | Survives a Conductor update | Code |
 |---|---|---|
