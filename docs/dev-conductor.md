@@ -1,11 +1,11 @@
 # A Conductor you can safely break
 
-`tools/make-dev-conductor.sh` builds `Conductor Dev.app`: a copy of Conductor
+`hats dev-app` builds `Conductor Dev.app`: a copy of Conductor
 with a different bundle identifier, ad-hoc re-signed, isolated from your real
 install. Use it to try modifications without risking the Conductor you work in.
 
 ```sh
-tools/make-dev-conductor.sh          # build it
+hats dev-app          # build it
 open "/Applications/Conductor Dev.app"
 rm -rf "/Applications/Conductor Dev.app"   # undo, completely
 ```
@@ -114,8 +114,7 @@ it is the prerequisite for changing the UI rather than the thing that changes it
 
 The frontend is still minified JavaScript compiled into the binary and brotli
 compressed, with no asset files on disk, but it is reachable:
-[extract-assets.py](../tools/extract-assets.py) reads it and
-[patch-ui.py](../tools/patch-ui.py) writes it back. That is how the account panel
+`hats assets` reads it and `hats patch` writes it back. That is how the account panel
 gets in, and it only happens to a copy, because the re-signing it needs would cost
 your real install its notarization and its keychain access. See
 [account-panel.md](account-panel.md) for the panel and

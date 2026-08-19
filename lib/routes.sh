@@ -52,7 +52,6 @@ cmd_assign() {
 
     local key profile
     if [ "$1" = "default" ]; then
-        # `assign default <profile>` reads more naturally for the fallback.
         key=default
         profile="${2:-}"
         [ -n "$profile" ] || die "usage: conductor-acct assign default <profile>"

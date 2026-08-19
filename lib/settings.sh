@@ -71,8 +71,6 @@ cmd_unbind() {
 }
 
 toml_set() {
-    # Sets a top-level key in ~/.conductor/settings.toml, preserving the rest.
-    # Top-level keys must be written above the first [table] header.
     local key="$1" value="$2" tmp
     mkdir -p "$(dirname "$CONDUCTOR_SETTINGS")"
     touch "$CONDUCTOR_SETTINGS"

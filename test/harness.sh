@@ -5,9 +5,14 @@
 # agent binaries, so no real Conductor install, ~/.claude directory or keychain
 # item is touched.
 
+# A fresh sandbox per test: its own accounts root, settings file and stub agents,
+# so nothing here touches a real Conductor install, ~/.claude or the keychain.
+#
+# The path is resolved because $TMPDIR sits under the /var -> /private/var
+# symlink and routes are compared as strings. CONDUCTOR_ACCOUNTS_ROUTING is unset
+# because the suite may itself be running inside a routed session, where the
+# router's loop guard would refuse every spawn.
 sandbox() {
-    # Resolved, because $TMPDIR lives under the /var -> /private/var symlink and
-    # routes are compared as strings.
     SANDBOX=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/cma-test.XXXXXX")" && pwd)
     export CONDUCTOR_ACCOUNTS_ROOT="$SANDBOX/accounts"
     export CONDUCTOR_ACCT_SETTINGS_FILE="$SANDBOX/settings.toml"
@@ -16,12 +21,8 @@ sandbox() {
     export CONDUCTOR_ACCOUNTS_CODEX_BIN="$SANDBOX/stub-codex"
     unset CONDUCTOR_ACCOUNT CONDUCTOR_WORKSPACE_PATH CONDUCTOR_ROOT_PATH
     unset CLAUDE_CONFIG_DIR CODEX_HOME
-    # The suite may itself be running inside a routed agent session, where this
-    # is set and the router's loop guard would refuse every spawn.
     unset CONDUCTOR_ACCOUNTS_ROUTING CONDUCTOR_ACCOUNTS_DEPTH
 
-    # Stubs stand in for the real agents: they report the two things the router
-    # is responsible for, the config dir it exported and the argv it forwarded.
     cat > "$SANDBOX/stub-claude" <<'EOF'
 #!/bin/sh
 echo "CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR:-}"

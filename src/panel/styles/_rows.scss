@@ -27,8 +27,6 @@
     border-color: var(--ring, var(--border));
   }
 
-  // width:100% plus a sibling overflowed the panel, which made the provider view
-  // wider than the root view and moved the whole panel sideways on the way in.
   .cma-card {
     flex: 1;
     width: auto;

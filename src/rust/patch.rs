@@ -46,7 +46,6 @@ pub fn pick_bundle(assets: Vec<Asset>) -> Result<Asset, String> {
     if js.is_empty() {
         return Err("no JavaScript assets found: is this a Conductor binary?".into());
     }
-    // Largest asset as a fallback, in case a release renames renderApp.
     if let Some(i) = js.iter().position(|a| a.key.contains("renderApp")) {
         return Ok(js.swap_remove(i));
     }
@@ -112,7 +111,6 @@ pub fn inject(binary: &Path, pristine: &Path, script: &str) -> Result<Report, St
 
     let mut data = macho.data;
     data[asset.offset..asset.offset + packed.len()].copy_from_slice(&packed);
-    // Slack past brotli's end-of-stream marker is never read. Zero it anyway.
     for byte in &mut data[asset.offset + packed.len()..asset.offset + asset.length] {
         *byte = 0;
     }

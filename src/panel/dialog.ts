@@ -58,7 +58,6 @@ export function dialog(opts: DialogOptions): void {
     });
   });
 
-  // Only a hit on the scrim itself cancels.
   scrim.addEventListener("click", (e) => {
     if (e.target === scrim) shut();
   });

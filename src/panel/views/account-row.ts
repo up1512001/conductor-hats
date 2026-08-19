@@ -23,7 +23,6 @@ export function accountSlot(
   card.setAttribute("role", "menuitemradio");
   card.setAttribute("aria-checked", account.active ? "true" : "false");
 
-  // Three states: credentials can exist before the address is readable anywhere.
   const main = el("div", "cma-grow");
   const shown = account.email ? maskEmail(account.email) : cap(account.name);
   const line = el("div", "cma-name" + (account.email ? " cma-mask" : ""), shown);
@@ -55,7 +54,6 @@ export function accountSlot(
   }
   row.appendChild(card);
 
-  // A signed-out row with no way back in is a dead end.
   if (account.signedIn) {
     const out = el("button", "cma-signout");
     out.type = "button";

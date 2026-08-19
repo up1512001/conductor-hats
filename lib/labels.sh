@@ -4,8 +4,6 @@
 # Sourced by bin/conductor-acct. Not executable on its own.
 
 account_email() {
-    # Reads oauthAccount.emailAddress out of a profile's .claude.json without
-    # requiring jq.
     local f="$1"
     [ -f "$f" ] || return 1
     sed -n 's/.*"emailAddress"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | head -1
@@ -42,7 +40,6 @@ label_of() {
 # oauthAccount.emailAddress is readable, so a profile with working credentials read
 # as signed out for ever.
 keychain_service() {
-    # ASCII paths only under ACCOUNTS_ROOT, where Claude's NFC pass is a no-op.
     local dir="$1" hash
     hash=$(printf '%s' "$dir" | shasum -a 256 | cut -c1-8)
     printf 'Claude Code-credentials-%s\n' "$hash"

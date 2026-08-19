@@ -23,7 +23,6 @@ test_no_personal_information_is_committed() {
     files=$(cd "$PROJECT_DIR" && git ls-files 2>/dev/null)
     if [ -z "$files" ]; then skip "not a git checkout"; return; fi
 
-    # Addresses on any domain other than the reserved ones.
     bad=$(cd "$PROJECT_DIR" && printf '%s\n' "$files" | while read -r f; do
         [ -f "$f" ] || continue
         grep -HoE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "$f" 2>/dev/null |
@@ -35,7 +34,6 @@ test_no_personal_information_is_committed() {
         ok "example addresses use reserved domains"
     fi
 
-    # Home directories of a real account, as opposed to ~ or /Users/you.
     bad=$(cd "$PROJECT_DIR" && printf '%s\n' "$files" | while read -r f; do
         [ -f "$f" ] || continue
         grep -HoE '/Users/[A-Za-z0-9._-]+' "$f" 2>/dev/null | grep -vE '/Users/(you|USER|username)\b'

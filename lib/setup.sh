@@ -3,15 +3,15 @@
 #
 # Sourced by bin/conductor-acct. Not executable on its own.
 
+# Turns routing on: deploys a copy and points Conductor at it.
+#
+# A copy rather than the checkout, because Conductor never checks that
+# claude_code_executable_path exists, so a deleted clone or an archived workspace
+# would stop every agent starting. conductor-acct is dispatch only, so lib/ is
+# deployed with it.
 cmd_install() {
     ensure_root
 
-    # A copy, not the checkout: Conductor never checks that
-    # claude_code_executable_path exists, so a deleted clone or archived
-    # workspace would stop every agent starting.
-    #
-    # Replace a symlink from older versions, keep a directory: `rm -f` on a
-    # directory fails, and under `set -e` that left a stale copy deployed.
     if [ -L "$INSTALL_BIN" ]; then
         rm -f "$INSTALL_BIN"
     fi
@@ -22,7 +22,6 @@ cmd_install() {
         for f in _resolve.sh claude-router codex-router conductor-acct; do
             cp "$BIN_DIR/$f" "$INSTALL_BIN/$f"
         done
-        # Dispatch alone is useless, so lib/ travels with it.
         rm -rf "${INSTALL_BIN:?}/lib"
         mkdir -p "$INSTALL_BIN/lib"
         cp "$LIB_DIR"/*.sh "$INSTALL_BIN/lib/"
@@ -35,8 +34,6 @@ cmd_install() {
     toml_set claude_code_executable_path "$INSTALL_BIN/claude-router"
     toml_set codex_executable_path "$INSTALL_BIN/codex-router"
 
-    # Conductor passes settingSources ["user","project","local"] to the agent,
-    # so a user-level command shows up in Conductor's own slash command menu.
     mkdir -p "$COMMANDS_DIR"
     ln -sfn "$ACCOUNTS_ROOT/commands/account.md" "$COMMANDS_DIR/account.md"
 
@@ -117,8 +114,6 @@ cmd_doctor() {
 
     if router_installed; then
         echo "router:   on, via claude_code_executable_path"
-        # Pointing Conductor at a checkout is a foot-gun: delete the clone or
-        # archive the workspace holding it and every agent stops starting.
         local wired
         wired=$(sed -n 's/^[[:space:]]*claude_code_executable_path[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' \
             "$CONDUCTOR_SETTINGS" 2>/dev/null | head -1)
@@ -137,7 +132,6 @@ cmd_doctor() {
                 echo "warn:     installed $f differs from this checkout, re-run install"
             fi
         done
-        # A stale library is harder to spot, because the CLI still starts.
         for f in "$LIB_DIR"/*.sh; do
             [ -f "$f" ] || continue
             [ "$LIB_DIR" = "$INSTALL_BIN/lib" ] && continue
@@ -163,7 +157,6 @@ cmd_doctor() {
         fi
     done
 
-    # A pair sharing one address sign each other out.
     local agent seen dup
     for agent in claude codex; do
         seen=""
@@ -181,7 +174,6 @@ cmd_doctor() {
         done
     done
 
-    # Every route must still point at a profile that exists.
     local key routed
     while IFS=$'\t' read -r key routed; do
         case "$key" in ''|'#'*) continue ;; esac
@@ -192,7 +184,6 @@ cmd_doctor() {
         fi
     done < "$ROUTES_FILE"
 
-    # End to end: run the router itself and see what it exports.
     if router_installed; then
         local ws resolved
         ws=$(current_workspace)

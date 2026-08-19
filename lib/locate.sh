@@ -15,8 +15,6 @@ current_workspace() {
 
 repo_root_for() {
     local start="${1:-$PWD}"
-    # Conductor exports the repo root; fall back to the git common dir so this
-    # also works from a plain checkout.
     if [ -z "${1:-}" ] && [ -n "${CONDUCTOR_ROOT_PATH:-}" ]; then
         printf '%s\n' "$CONDUCTOR_ROOT_PATH"
         return 0
@@ -37,8 +35,6 @@ router_installed() {
 router_dry_run() {
     local agent="$1" ws="$2" var out
     var=$(agent_home_var "$agent")
-    # -u CONDUCTOR_ACCOUNTS_ROUTING because this may itself be running inside a
-    # routed agent session, where the router's loop guard would refuse to start.
     case "$agent" in
         claude) out=$(cd "$ws" && env -u CONDUCTOR_ACCOUNTS_ROUTING -u CONDUCTOR_ACCOUNTS_DEPTH -u CLAUDE_CONFIG_DIR \
             CONDUCTOR_WORKSPACE_PATH="$ws" CONDUCTOR_ACCOUNTS_CLAUDE_BIN=/usr/bin/env \

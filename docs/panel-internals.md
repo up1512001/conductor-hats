@@ -147,7 +147,7 @@ after every update. That is the standing cost of this route, and the reason
 One command:
 
 ```sh
-tools/repersonalize.sh
+hats repatch
 ```
 
 It quits the copy, rebuilds it from the freshly updated Conductor, injects the
@@ -158,7 +158,7 @@ rebuilding it.
 Two steps in there exist because doing this by hand goes wrong in the same two
 ways every time.
 
-**The stale backup.** `patch-ui.py` keeps a pristine copy of the binary and
+**The stale backup.** `hats` keeps a pristine copy of the binary and
 always patches from it, so patching twice is not a stack. That backup is keyed by
 app name, not by version, so after an update it holds the *previous* Conductor's
 binary, and patching a freshly rebuilt copy against it silently reinstates the

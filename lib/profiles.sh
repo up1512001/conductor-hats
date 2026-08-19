@@ -30,8 +30,6 @@ cmd_add() {
     fi
 
     if [ "$agent" = "claude" ]; then
-        # Share everything except credentials and per-account state, so skills,
-        # plugins, hooks and transcripts stay common across accounts.
         local item
         for item in $SHARED_LINKS; do
             [ -e "$src/$item" ] || continue
@@ -117,7 +115,6 @@ cmd_remove() {
     cmd_logout "$profile" "$agent" || true
     rm -rf "${ACCOUNTS_ROOT:?}/$agent/$profile"
 
-    # Drop any routes that pointed at it, so nothing resolves to a dead profile.
     local tmp
     tmp=$(mktemp)
     awk -v p="$profile" '

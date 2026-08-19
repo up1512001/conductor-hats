@@ -22,6 +22,14 @@ the panel does, `docs/panel-internals.md` is how it attaches, and
 
 ## Hard rules
 
+### Docblocks, not commentary
+
+Comments explain what a file or a function is, at its top. No inline comments
+inside function bodies. If a fact is load-bearing it goes in the enclosing
+docblock; if it only narrates what the next line does, it goes.
+
+Directives are not comments: `# shellcheck disable=`, `cargo:` and friends stay.
+
 ### No file over 300 lines
 
 301 lines is a failure, not a judgement call. It applies to every source file:
@@ -61,7 +69,7 @@ or if any absolute path survives, because a release attaches this artifact and
 anyone should be able to rebuild exactly what was published.
 
 So patching needs a build first: `pnpm install && pnpm build`, then
-`tools/patch-ui.py`. For anyone who only wants the panel and no toolchain, the
+`hats patch`. For anyone who only wants the panel and no toolchain, the
 built file belongs in a GitHub Release, not in the tree.
 
 New code goes in the folder that owns its concern, or a new folder gets added to
@@ -127,18 +135,21 @@ screen. Rules that follow from that:
   The injected artifact has to be a single script with no module loader, so many
   small sources plus a build step is the only way to keep the 300-line rule.
 - **SCSS** for panel styles, compiled and inlined into the bundle at build time.
-- **Python** for `tools/`: Mach-O parsing and the asset map, standard library
-  only.
-- **No Rust.** Matching the host application's language buys zero extra access,
-  which `docs/patching-conductor.md` sets out with evidence. It would add a
-  toolchain for the same output.
+- **Rust** for the `hats` binary: Mach-O parsing, brotli, building the isolated
+  copy, and injecting the panel. It carries the compiled panel inside it, so a
+  user needs no Python, Node or brotli command.
+- Stock macOS tools are shelled out to freely. codesign, security, PlistBuddy and
+  xattr cost a user nothing to have; a runtime does. That is the line.
+- Rust buys no extra *access* to Conductor, which `docs/patching-conductor.md`
+  still sets out with evidence. It is here for distribution: one binary, no
+  runtime.
 
 Build before patching:
 
 ```sh
 pnpm install
 pnpm build          # src/panel + styles.scss -> dist/account-ui.js
-tools/patch-ui.py   # injects dist/account-ui.js
+cargo build --release   # embeds dist/account-ui.js into the binary
 ```
 
 ## Before opening a pull request
@@ -151,7 +162,7 @@ test/run.sh
 shellcheck -x --source-path=SCRIPTDIR \
   bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
   lib/*.sh test/run.sh test/harness.sh test/*.test.sh \
-  install.sh tools/make-dev-conductor.sh tools/repersonalize.sh
+  install.sh
 ```
 
 Zero shellcheck findings is the bar; it exits non-zero on info notes too.
@@ -175,7 +186,7 @@ injected script into `src/panel/*.ts` plus SCSS partials, and `test/run.sh` into
 
 - Destructive git operations on pushed branches, and anything touching secrets:
   ask first.
-- `patch-ui.py` on `/Applications/Conductor.app`: refuse. There is a `--i-know`
+- `hats patch` on `/Applications/Conductor.app`: refuse. There is a `--i-know`
   flag; it is not for agents to pass.
 - Deleting a profile is the one irreversible operation here. The panel signs out
   and nothing more; `remove` stays a terminal command.

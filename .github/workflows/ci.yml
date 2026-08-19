@@ -50,7 +50,7 @@ jobs:
             bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
             lib/*.sh \
             test/run.sh test/harness.sh test/*.test.sh \
-            install.sh tools/make-dev-conductor.sh tools/repersonalize.sh
+            install.sh
 
       - name: Typecheck the panel
         run: pnpm typecheck

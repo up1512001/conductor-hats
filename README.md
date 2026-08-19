@@ -157,9 +157,8 @@ every file in the bundle is covered by the code signature seal, so adding one
 file is enough to make macOS reject the app. The panel is therefore *injected
 into the compiled frontend* and the app is ad-hoc re-signed, which means:
 
-- patch a copy, not your install: `tools/make-dev-conductor.sh`, then
-  `tools/patch-ui.py`. The patcher refuses `/Applications/Conductor.app` unless
-  you pass `--i-know`.
+- patch a copy, not your install: `hats dev-app`, then `hats patch`.
+  The patcher refuses `/Applications/Conductor.app` unless you pass `--i-know`.
 - every Conductor release ships a new bundle, so the patch has to be re-applied
   after each update.
 
@@ -229,7 +228,7 @@ If you also patched a copy for the in-app panel, that copy is separate and stays
 until you remove it:
 
 ```sh
-tools/patch-ui.py --revert                 # the injected UI only
+hats revert                                # the injected UI only
 rm -rf "/Applications/Conductor Dev.app"   # the whole copy
 ```
 

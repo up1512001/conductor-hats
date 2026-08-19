@@ -12,7 +12,7 @@ above). The short version, and none of it is optional:
   `dist/` build output (generated, gitignored), `tools/` patching,
   `test/`, `docs/`, `commands/`.
 - **Build before patching.** `pnpm install && pnpm build`, then
-  `tools/patch-ui.py`. `dist/` is generated, never committed.
+  `hats patch`. `dist/` is generated, never committed.
 - **No personal information.** This is published. Example addresses use
   RFC 2606 reserved domains; paths use `~` or `/Users/you`. A test enforces it.
 - **`conductor-acct` owns all state.** The panel and the chat command read and
@@ -21,8 +21,10 @@ above). The short version, and none of it is optional:
 - **The panel must never throw.** It is injected into a compiled bundle, so an
   exception is somebody's white screen.
 - **pnpm 11 only**, settings in `pnpm-workspace.yaml`, `minimumReleaseAge: 10080`.
-  No Rust: matching the host's language buys no extra access, as
-  `docs/patching-conductor.md` shows.
+- **Rust for the `hats` binary**, which carries the panel and needs no runtime.
+  Stock macOS tools may be shelled out to; a Python or Node runtime may not.
+- **Docblocks, not commentary.** No inline comments in function bodies. A
+  load-bearing fact belongs in the enclosing docblock.
 
 The parent repository's [AGENTS.md](../AGENTS.md) also applies: no AI attribution
 anywhere in git history, `type/topic` branches, base `develop`, SHA-pinned

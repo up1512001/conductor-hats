@@ -91,7 +91,6 @@ toml_drop_prompts_general() {
             print
         }
     ' "$file" > "$tmp"
-    # Drop a [prompts] header that ended up with nothing under it.
     awk 'BEGIN{RS="";ORS=""} {gsub(/\n*\[prompts\]\n*$/, "\n"); print}' "$tmp" > "$file"
     rm -f "$tmp"
 }

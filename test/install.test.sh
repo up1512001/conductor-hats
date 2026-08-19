@@ -19,7 +19,6 @@ EOF
     contains "schema line survives" "$body" '$schema'
     contains "git table survives" "$body" 'branch_prefix = "feat/"'
     contains "router is wired" "$body" "claude_code_executable_path"
-    # Top-level keys must land above the first table or the TOML is invalid.
     local key_line table_line
     key_line=$(grep -n 'claude_code_executable_path' "$CONDUCTOR_ACCT_SETTINGS_FILE" | cut -d: -f1)
     table_line=$(grep -n '^\[git\]' "$CONDUCTOR_ACCT_SETTINGS_FILE" | cut -d: -f1)
@@ -33,7 +32,6 @@ EOF
 test_install_replaces_a_stale_deployment() {
     fake_profile claude work
     "$ACCT" install >/dev/null
-    # Simulate an older layout, where the deployed path was a symlink.
     rm -rf "${CONDUCTOR_ACCOUNTS_ROOT:?}/bin"
     ln -s "$PROJECT_DIR/bin" "$CONDUCTOR_ACCOUNTS_ROOT/bin"
     "$ACCT" install >/dev/null
@@ -65,7 +63,6 @@ test_remove_drops_routes_pointing_at_the_profile() {
     fake_profile claude personal
     "$ACCT" use work claude "$SANDBOX/ws-a" >/dev/null
     "$ACCT" use personal claude "$SANDBOX/ws-b" >/dev/null
-    # No sign-out round trip: the stub agent has nothing to sign out of.
     rm -rf "$CONDUCTOR_ACCOUNTS_ROOT/claude/work"
     printf '%s\n' "$(grep -v "	work$" "$CONDUCTOR_ACCOUNTS_ROOT/routes")" > "$CONDUCTOR_ACCOUNTS_ROOT/routes"
 

@@ -47,7 +47,6 @@ cmd_which() {
         return 0
     fi
 
-    # Ask the router itself rather than guessing, then the binding it cannot see.
     resolved=$(router_dry_run "$agent" "$ws" || true)
     echo
     if [ -n "$resolved" ]; then
@@ -98,7 +97,6 @@ cmd_check() {
             return 0
         fi
     done
-    # Nothing to choose between is not a question worth asking.
     [ -n "$(list_profiles claude)" ] || { echo "NO_PROFILES"; return 0; }
     echo "NEEDS_ACCOUNT"
 }

@@ -17,7 +17,6 @@ const CODEX_MARK =
 const PATHS: Record<string, string[]> = {
   chevron: ["M6 3.5 10.5 8 6 12.5"],
   back: ["M12.5 8H4", "M7.5 4.5 4 8l3.5 3.5"],
-  // Sign out, not a bin: a bin would promise deletion this does not do.
   signout: ["M9.2 3.5H4.2v9h5", "M7.4 8h6.4", "M11.6 5.9 13.8 8l-2.2 2.1"],
   signin: ["M6.8 3.5h5v9h-5", "M8.6 8H2.2", "M4.4 5.9 2.2 8l2.2 2.1"],
   tick: ["M3.5 8.6 6.4 11.5 12.5 5"],

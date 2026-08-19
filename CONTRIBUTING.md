@@ -66,7 +66,7 @@ both, and that the changelog has a heading for that version.
 shellcheck -x --source-path=SCRIPTDIR \
   bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
   lib/*.sh test/run.sh test/harness.sh test/*.test.sh \
-  install.sh tools/make-dev-conductor.sh tools/repersonalize.sh
+  install.sh
 pnpm typecheck
 ```
 

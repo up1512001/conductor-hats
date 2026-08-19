@@ -32,8 +32,6 @@ $danger: var(--destructive, #ff5a5a);
     color: var(--foreground);
   }
 
-  // Hidden until the label is known, so the toolbar settles once instead of
-  // reflowing from "Account" to the real name a moment later.
   &[hidden] {
     display: none;
   }

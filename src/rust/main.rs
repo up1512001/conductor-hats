@@ -3,63 +3,93 @@
 //! Carries the panel inside it, so patching needs no Python, Node or brotli
 //! command installed.
 
+mod devapp;
 mod macho;
 mod patch;
+mod repatch;
 mod sign;
 
 use std::path::{Path, PathBuf};
 
 const REAL_APP: &str = "/Applications/Conductor.app";
 const DEV_APP: &str = "/Applications/Conductor Dev.app";
+const DEV_ID: &str = "com.conductor.dev";
 
-fn usage() -> i32 {
+fn usage() {
     println!(
         "hats {}
 
+  hats dev-app [--force]               build an isolated Conductor copy
   hats patch [--app PATH] [--i-know]   inject the account panel into a copy
   hats revert [--app PATH]             restore the copy's original frontend
+  hats repatch [--keep-app|--no-launch] rebuild and re-inject after an update
   hats assets [--app PATH] [PATTERN]   list the frontend assets in a binary
   hats panel                           print the panel this binary carries
   hats version
 
 Patching rewrites a signed application, so it works on a copy by default:
   {DEV_APP}
-Build one with tools/make-dev-conductor.sh. Passing --i-know allows patching
-{REAL_APP}, which costs it notarization and its keychain access.",
+Passing --i-know allows patching {REAL_APP}, which costs it notarization and
+its keychain access.",
         env!("CARGO_PKG_VERSION")
     );
-    0
 }
 
 struct Args {
     app: PathBuf,
+    src: PathBuf,
+    id: String,
     i_know: bool,
+    force: bool,
+    rebuild: bool,
+    launch: bool,
     pattern: Option<String>,
 }
 
 fn parse(rest: &[String]) -> Args {
-    let mut app = PathBuf::from(DEV_APP);
-    let mut i_know = false;
-    let mut pattern = None;
+    let mut args = Args {
+        app: env_path("CONDUCTOR_DEV_APP", DEV_APP),
+        src: env_path("CONDUCTOR_APP", REAL_APP),
+        id: std::env::var("CONDUCTOR_DEV_ID").unwrap_or_else(|_| DEV_ID.into()),
+        i_know: false,
+        force: false,
+        rebuild: true,
+        launch: true,
+        pattern: None,
+    };
     let mut it = rest.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
             "--app" => {
                 if let Some(v) = it.next() {
-                    app = PathBuf::from(v);
+                    args.app = PathBuf::from(v);
                 }
             }
-            "--i-know" => i_know = true,
-            other => pattern = Some(other.to_string()),
+            "--src" => {
+                if let Some(v) = it.next() {
+                    args.src = PathBuf::from(v);
+                }
+            }
+            "--i-know" => args.i_know = true,
+            "--force" => args.force = true,
+            "--keep-app" => args.rebuild = false,
+            "--no-launch" => args.launch = false,
+            other => args.pattern = Some(other.to_string()),
         }
     }
-    Args { app, i_know, pattern }
+    args
+}
+
+fn env_path(key: &str, fallback: &str) -> PathBuf {
+    std::env::var_os(key).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(fallback))
 }
 
 fn binary_in(app: &Path) -> PathBuf {
     app.join("Contents/MacOS/conductor")
 }
 
+/// Patching the real Conductor costs it notarization and its keychain access, so
+/// it takes an explicit flag.
 fn guard(app: &Path, i_know: bool) -> Result<(), String> {
     let same = app
         .canonicalize()
@@ -68,47 +98,41 @@ fn guard(app: &Path, i_know: bool) -> Result<(), String> {
         .map(|(a, b)| a == b)
         .unwrap_or(false);
     if same && !i_know {
-        return Err(format!(
+        return Err(
             "refusing to patch your real Conductor.\n\
-             Build a copy first:  tools/make-dev-conductor.sh\n\
+             Build a copy first:  hats dev-app\n\
              Then:                hats patch\n\
              Override with --i-know if you really mean it."
-        ));
+                .into(),
+        );
     }
     Ok(())
 }
 
-fn cmd_patch(args: &Args) -> Result<(), String> {
-    let binary = binary_in(&args.app);
+pub(crate) fn cmd_patch_app(app: &Path, i_know: bool) -> Result<(), String> {
+    let binary = binary_in(app);
     if !binary.is_file() {
         return Err(format!("no Conductor binary at {}", binary.display()));
     }
-    guard(&args.app, args.i_know)?;
+    guard(app, i_know)?;
 
-    // Kept outside the bundle: the signature seal covers every file under
-    // Contents/.
-    let backup = patch::backup_path(&args.app);
+    let backup = patch::backup_path(app);
     if !backup.is_file() {
         if let Some(dir) = backup.parent() {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         }
         std::fs::copy(&binary, &backup).map_err(|e| format!("taking a backup: {e}"))?;
-        println!("backup   {}", backup.display());
+        println!("    backup   {}", backup.display());
     }
 
     let report = patch::inject(&binary, &backup, patch::PANEL)?;
-    println!("target   {}", report.key);
-    println!("         {} compressed -> {} bytes", report.was, report.plain);
-    println!(
-        "         + {} bytes of panel -> {} compressed",
-        patch::PANEL.len(),
-        report.now
-    );
-    println!("         {} bytes of headroom left over", report.headroom);
+    println!("    target   {}", report.key);
+    println!("    {} compressed -> {} bytes", report.was, report.plain);
+    println!("    + {} bytes of panel -> {} compressed", patch::PANEL.len(), report.now);
+    println!("    {} bytes of headroom left over", report.headroom);
 
-    let valid = sign::resign(&args.app)?;
-    println!("signature {}", if valid { "valid" } else { "INVALID" });
-    println!("\nPatched. Launch it:\n  open '{}'\n\nUndo:\n  hats revert", args.app.display());
+    let valid = sign::resign(app)?;
+    println!("    signature {}", if valid { "valid" } else { "INVALID" });
     Ok(())
 }
 
@@ -150,8 +174,21 @@ fn main() {
     let args = parse(&rest);
 
     let result = match cmd {
-        "patch" => cmd_patch(&args),
+        "dev-app" => devapp::build(&devapp::Options {
+            src: args.src.clone(),
+            dst: args.app.clone(),
+            id: args.id.clone(),
+            force: args.force,
+        }),
+        "patch" => cmd_patch_app(&args.app, args.i_know),
         "revert" => cmd_revert(&args),
+        "repatch" => repatch::run(&repatch::Options {
+            app: args.app.clone(),
+            src: args.src.clone(),
+            id: args.id.clone(),
+            rebuild: args.rebuild,
+            launch: args.launch,
+        }),
         "assets" => cmd_assets(&args),
         "panel" => {
             print!("{}", patch::PANEL);
@@ -162,7 +199,8 @@ fn main() {
             Ok(())
         }
         "help" | "-h" | "--help" => {
-            std::process::exit(usage());
+            usage();
+            Ok(())
         }
         other => Err(format!("unknown command '{other}' (try --help)")),
     };

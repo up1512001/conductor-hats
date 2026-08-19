@@ -1,6 +1,6 @@
 # The account panel inside Conductor
 
-`tools/patch-ui.py` injects `tools/ui-patch/account-ui.js` into a Conductor
+`hats patch` injects the built panel into a Conductor
 copy's compiled frontend. It adds two controls to the app itself, no separate
 window anywhere:
 
@@ -12,10 +12,10 @@ window anywhere:
 Both open the same panel. Patch a copy, never your real install:
 
 ```sh
-tools/make-dev-conductor.sh     # build "Conductor Dev.app"
-tools/patch-ui.py               # inject the panel
+hats dev-app      # build "Conductor Dev.app"
+hats patch        # inject the panel
+hats revert       # undo the UI only
 open "/Applications/Conductor Dev.app"
-tools/patch-ui.py --revert      # undo the UI only
 ```
 
 ## The panel
@@ -68,7 +68,7 @@ sunburst, and a ringed dot is not the OpenAI knot. Both are filled paths on a
 If a release ever changes them, re-extract:
 
 ```sh
-tools/extract-assets.py grep 'M22.2819'   # the Codex mark
+hats assets                               # then search the renderApp chunk
 ```
 
 The Claude mark is the path inside the component rendered beside a Claude

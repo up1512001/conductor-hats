@@ -59,7 +59,7 @@ const options = {
   plugins: [scssPlugin],
   banner: {
     js: `/* conductor-hats: the account panel injected into Conductor's
- * frontend by tools/patch-ui.py.
+ * frontend by \`hats patch\`.
  *
  * GENERATED FILE. Do not edit. Source is src/panel/, styles are
  * src/panel/styles.scss, build with \`pnpm build\`.
@@ -82,9 +82,11 @@ if (args.has("--watch")) {
   await ctx.watch();
   console.log("watching src/panel");
 } else if (args.has("--check")) {
-  // Two builds of the same source must produce the same bytes. A release
-  // attaches this artifact, so anyone should be able to rebuild it and get what
-  // was published. Absolute paths leaking in was exactly this property breaking.
+  /**
+   * Two builds of the same source must produce identical bytes, and none may name
+   * a build machine. A release attaches this artifact, so anyone should be able to
+   * rebuild what was published.
+   */
   const first = relativise((await esbuild.build({ ...options, write: false })).outputFiles[0].text);
   const second = relativise((await esbuild.build({ ...options, write: false })).outputFiles[0].text);
   if (first !== second) {

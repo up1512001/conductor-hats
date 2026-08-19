@@ -74,8 +74,6 @@ test_every_clickable_thing_says_it_is_clickable() {
     for sel in ".cma-btn" ".cma-chip" ".cma-card" ".cma-signout" ".cma-back" ".cma-add" ".cma-go" ".cma-act"; do
         contains "$sel exists" "$css" "$sel"
     done
-    # cursor: default is only ever right on something that cannot be clicked, so
-    # every one of them sits in a :disabled block or on the loading placeholder.
     is "the arrow cursor is only on unclickable things" \
         "$(ui_css | grep -B 3 'cursor: default' | grep -c -e ':disabled' -e 'cma-ghost')" \
         "$(ui_css | grep -c 'cursor: default')"
@@ -211,8 +209,6 @@ test_sign_out_asks_in_a_dialog() {
     contains "escape cancels it" "$src" 'if (e.key === "Escape") {'
     contains "the scrim cancels, the box does not" "$src" "if (e.target === scrim) shut()"
     contains "and it says what will happen" "$src" '"Signs "'
-    # A dialog is a sibling of the panel, so clicking it must not read as
-    # clicking away from the panel.
     contains "the panel ignores clicks while it is open" "$src" "if (!panel || openDialog()) return"
 }
 
@@ -232,7 +228,6 @@ test_the_panel_never_renders_a_full_address() {
     contains "rows mask" "$src" "maskEmail(account.email)"
     contains "the sign-out dialog masks" "$src" "account.email ? maskEmail(account.email) : cap(account.name)"
     contains "sign-in confirmation masks" "$src" '"Signed in as " + maskEmail(email)'
-    # A tooltip is as visible on video as the text is.
     is "no address in a title attribute" \
         "$(printf '%s' "$src" | grep -c 'title = .*account\.email')" "0"
 }

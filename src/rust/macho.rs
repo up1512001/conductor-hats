@@ -120,7 +120,6 @@ impl MachO {
         let val_ptr = u64_at(&self.data, at + 16)?;
         let val_len = u64_at(&self.data, at + 24)? as usize;
 
-        // Generous bounds: the job is rejecting noise, not being precise.
         if !(2..=512).contains(&key_len) || val_len < 4 || val_len > 64 << 20 {
             return None;
         }

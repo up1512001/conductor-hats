@@ -62,7 +62,6 @@ test_route_default_is_the_fallback() {
 
 test_repo_binding_is_honoured_by_the_router() {
     fake_profile claude work
-    # Conductor injects this before the router runs.
     local bound="$CONDUCTOR_ACCOUNTS_ROOT/claude/work"
     local got
     got=$(cd "$SANDBOX/ws-a" && CONDUCTOR_WORKSPACE_PATH="$SANDBOX/ws-a" \
@@ -124,7 +123,6 @@ test_router_fails_open_when_the_library_is_broken() {
     fake_profile claude work
     "$ACCT" use work claude "$SANDBOX/ws-a" >/dev/null
 
-    # A copy of the shipped router next to a deliberately broken library.
     mkdir -p "$SANDBOX/broken"
     cp "$PROJECT_DIR/bin/claude-router" "$SANDBOX/broken/"
     printf 'this is not ( valid shell\n' > "$SANDBOX/broken/_resolve.sh"
@@ -155,8 +153,6 @@ test_router_refuses_to_route_into_itself() {
 test_router_tolerates_one_inherited_generation() {
     fake_profile claude work
     "$ACCT" use work claude "$SANDBOX/ws-a" >/dev/null
-    # Launching Conductor from a shell inside a routed session leaks these into
-    # the app, and from there into every agent it starts.
     local out
     out=$(cd "$SANDBOX/ws-a" && CONDUCTOR_WORKSPACE_PATH="$SANDBOX/ws-a" \
         CONDUCTOR_ACCOUNTS_ROUTING=claude CONDUCTOR_ACCOUNTS_DEPTH=1 \
@@ -183,7 +179,6 @@ test_router_ignores_a_profile_with_no_directory() {
 test_session_pin_survives_a_route_change() {
     fake_profile claude work
     fake_profile claude personal
-    # What the router recorded when this session first started.
     mkdir -p "$CONDUCTOR_ACCOUNTS_ROOT/sessions/claude"
     printf 'personal\n' > "$CONDUCTOR_ACCOUNTS_ROOT/sessions/claude/sess-1"
     "$ACCT" use work claude "$SANDBOX/ws-a" >/dev/null

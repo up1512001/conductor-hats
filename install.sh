@@ -17,7 +17,6 @@ die() { printf 'install: %s\n' "$*" >&2; exit 1; }
 
 [ "$(uname -s)" = "Darwin" ] || die "Conductor is macOS only"
 
-
 # Running from a checkout, or piped from curl?
 SELF_DIR=""
 if [ -n "${0##*/}" ] && [ -f "$0" ]; then

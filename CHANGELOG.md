@@ -37,18 +37,18 @@ New Workspace composer, both opening the same panel.
 ### Added
 
 - **In-app account panel**, injected into a Conductor copy's compiled frontend by
-  `tools/patch-ui.py`. Two levels: providers, then that provider's accounts.
+  `hats patch`. Two levels: providers, then that provider's accounts.
   Switch, sign in, sign out and turn routing on or off, without leaving the app.
 - **Sign-in without a terminal.** Type a name, the browser opens at the OAuth URL,
   paste the code back into the panel. `claude auth login` prints the URL then
   blocks on stdin, so `login-start` runs it with stdin on a FIFO and `login-code`
   feeds the answer in.
-- **`tools/make-dev-conductor.sh`**, which builds an isolated `Conductor Dev.app`
+- **`hats dev-app`**, which builds an isolated `Conductor Dev.app`
   with its own bundle identifier, database and keychain items, so nothing here has
   to be tried on a Conductor you rely on.
-- **`tools/extract-assets.py`**, which walks the Tauri asset map in `__DATA_CONST`
+- **`hats assets`**, which walks the Tauri asset map in `__DATA_CONST`
   to read the compiled frontend out of the binary.
-- **`tools/repersonalize.sh`**: one command to re-apply everything after a
+- **`hats repatch`**: one command to re-apply everything after a
   Conductor update, including the two steps that fail quietly if done by hand.
 - **Address masking.** Every address the UI renders is masked
   (`fir**ast@ex**e.com`), so a recorded session or shared screenshot cannot hand

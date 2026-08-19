@@ -100,8 +100,6 @@ resolve_route() {
             continue
         fi
 
-        # The directory itself or anything beneath it, never a sibling sharing a
-        # name prefix (/a/b must not match /a/bc).
         case "$_dir" in
             "$_path") _exact=1 ;;
             "$_path"/*) _exact=0 ;;
@@ -144,6 +142,18 @@ list_profiles() {
 #
 # Prints the profile name, or nothing to mean "change nothing". Never blocks,
 # never prompts: if none of the above answers, the default account is right.
+# Resolves the account for a workspace, highest precedence first.
+#
+#   1. CONDUCTOR_ACCOUNT, a one-off override for a single spawn
+#   2. the session pin, so a running conversation never changes account: an
+#      account change under a live --resume would break it
+#   3. a route naming this exact workspace, the most specific thing anyone can
+#      express, which outranks a repository-wide binding
+#   4. a repository binding, which has already answered the question
+#   5. a parent-directory route, then the default
+#
+# Prefix matching covers a directory and anything beneath it, never a sibling
+# sharing a name prefix: /a/b must not match /a/bc.
 decide_profile() {
     _agent="$1"
     _dir="$2"
@@ -155,9 +165,6 @@ decide_profile() {
         return 0
     fi
 
-    # A session keeps the account it started on. Conductor respawns the agent
-    # on resume, model switches and generator restarts, and an account change
-    # underneath a running conversation would break --resume.
     _pin="$SESSION_DIR/$_agent/$_sid"
     if [ -n "$_sid" ] && read_line_from "$_pin"; then
         return 0
@@ -166,16 +173,12 @@ decide_profile() {
     resolve_route "$_dir"
     _routed="$ROUTE_PROFILE"
 
-    # A route naming this exact workspace is the most specific thing anyone can
-    # express, so it outranks a repository-wide binding.
     if [ -n "$_routed" ] && [ "$ROUTE_EXACT" = 1 ]; then
         remember_session "$_agent" "$_sid" "$_routed"
         printf '%s\n' "$_routed"
         return 0
     fi
 
-    # Otherwise a repository binding already answered the question, and
-    # overriding it here would make two configured things disagree.
     if [ "$_env_bound" = 1 ]; then
         return 0
     fi
@@ -215,8 +218,6 @@ resolve_agent_binary() {
         fi
     fi
 
-    # Conductor manages these symlinks and repoints them on every agent update,
-    # which is exactly why the router must never patch them in place.
     _bundled="${CONDUCTOR_AGENT_BIN_DIR:-$HOME/Library/Application Support/com.conductor.app/bin}/$_agent"
     if [ -x "$_bundled" ]; then
         printf '%s\n' "$_bundled"

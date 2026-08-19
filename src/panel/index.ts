@@ -40,8 +40,6 @@ function boot(): void {
   onRefreshTriggers(refreshTriggers);
   tick();
 
-  // Re-attach on a coalesced observer rather than fighting React. Both attach
-  // paths return immediately when the controls are in place.
   let pending: ReturnType<typeof setTimeout> | null = null;
   new MutationObserver(() => {
     if (pending) return;
@@ -51,8 +49,6 @@ function boot(): void {
     }, 250);
   }).observe(document.body, { childList: true, subtree: true });
 
-  // A slow timer, not the observer: refreshing per render pass cost a process
-  // spawn each time.
   setInterval(() => {
     if (
       !document.getElementById("cma-toolbar-btn") &&

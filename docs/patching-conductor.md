@@ -117,9 +117,9 @@ Losing `TeamIdentifier=27XN666UJ7` costs more than Gatekeeper:
   undoes the patch.
 
 **This is the reason the panel goes into a copy and never into your install.**
-[make-dev-conductor.sh](../tools/make-dev-conductor.sh) gives the copy its own
+`hats dev-app` gives the copy its own
 bundle identifier, database and keychain items, so none of the above touches the
-Conductor you work in. `patch-ui.py` refuses `/Applications/Conductor.app`
+Conductor you work in. `hats patch` refuses `/Applications/Conductor.app`
 unless passed `--i-know`.
 
 ## What about injecting a library instead
@@ -168,7 +168,7 @@ assets/renderApp-CIIBeY95.js   8.6 MB   <- the New Workspace modal and the toolb
 
 Tauri stores the frontend as an asset map of 32-byte entries,
 `(key_ptr, key_len, value_ptr, value_len)`, with plaintext keys and brotli
-values. [extract-assets.py](../tools/extract-assets.py) walks it.
+values. `hats assets` walks it.
 
 Writing back is viable because Conductor ships that bundle compressed below
 brotli's maximum:

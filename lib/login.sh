@@ -13,6 +13,12 @@
 
 login_dir() { printf '%s\n' "$ACCOUNTS_ROOT/login/$1"; }
 
+# Starts a sign-in the panel can drive.
+#
+# `claude auth login` prints a URL then blocks reading a code from stdin, so it
+# runs with stdin on a FIFO held open by a sleeper, otherwise the CLI sees EOF
+# before the code lands. Waits for the URL rather than guessing how long the CLI
+# takes to print it.
 cmd_login_start() {
     local profile="${1:-}" agent
     agent=$(agent_of "${2:-claude}")
@@ -41,7 +47,6 @@ cmd_login_start() {
     fi
 
     mkfifo "$state/stdin"
-    # Held open by a sleeper so the CLI does not see EOF before the code lands.
     ( exec 9<>"$state/stdin"; sleep 300 ) >/dev/null 2>&1 &
     printf '%s\n' "$!" > "$state/holder.pid"
 
@@ -51,7 +56,6 @@ cmd_login_start() {
     esac < "$state/stdin" > "$state/out" 2>&1 &
     printf '%s\n' "$!" > "$state/pid"
 
-    # Wait for the URL rather than guessing how long the CLI takes to print it.
     local i=0 url=""
     while [ "$i" -lt 100 ]; do
         url=$(sed -n 's|.*\(https://[^ ]*oauth[^ ]*\).*|\1|p' "$state/out" 2>/dev/null | head -1)
@@ -79,6 +83,11 @@ cmd_login_code() {
     echo "submitted"
 }
 
+# Reports `ok [address]`, `pending`, `idle` or `error`.
+#
+# Credentials can land before the address is written to .claude.json, and
+# reporting that as a failure made a completed sign-in look like one that never
+# happened.
 cmd_login_status() {
     local profile="${1:-}" agent state pid email
     agent=$(agent_of "${2:-claude}")
@@ -97,9 +106,6 @@ cmd_login_status() {
     if [ -n "$email" ]; then
         printf 'ok %s\n' "$email"
     elif profile_signed_in "$agent" "$profile"; then
-        # Credentials landed, the address has not been written to .claude.json
-        # yet. Reporting this as a failure was wrong, and it is what made a
-        # completed sign-in look like one that had not happened.
         printf 'ok\n'
     else
         printf 'error %s\n' "$(tail -3 "$state/out" 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g')"

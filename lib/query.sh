@@ -3,6 +3,11 @@
 #
 # Sourced by bin/conductor-acct. Not executable on its own.
 
+# Machine-readable state for the panel.
+#
+# `signedIn` is asked of the keychain rather than inferred from the address: a
+# profile can hold credentials with no address cached yet, and reading that as
+# "not signed in" made the panel offer to sign in an account that already was.
 cmd_json() {
     ensure_root
     local ws repo agent profile label resolved current first
@@ -25,10 +30,6 @@ cmd_json() {
             label=$(label_of "$agent" "$profile")
             [ "$first" -eq 1 ] || printf ','
             first=0
-            # signedIn is asked of the keychain, not inferred from the address:
-            # a profile can hold credentials with no address cached yet, and
-            # reading that as "not signed in" is what made the panel offer to
-            # sign in an account that already was.
             printf '{"name":"%s","email":"%s","active":%s,"signedIn":%s}' \
                 "$(json_escape "$profile")" "$(json_escape "$label")" \
                 "$([ "$profile" = "$current" ] && echo true || echo false)" \
@@ -44,7 +45,7 @@ json_escape() {
 }
 
 # Every Conductor on this machine, not just the shipping one. A modified copy
-# built by tools/make-dev-conductor.sh keeps its own database under its own
+# built by `hats dev-app` keeps its own database under its own
 # identifier, so a panel running inside that copy has to be told about its own
 # workspaces rather than the real app's. Globbing means neither has to know the
 # other exists, which also covers the copy's data directory not being named
@@ -63,7 +64,6 @@ conductor_dbs() {
 db_query() {
     local sql="$1" db
     command -v sqlite3 >/dev/null || die "sqlite3 not found"
-    # read, not $(...): these paths contain "Application Support".
     while IFS= read -r db; do
         [ -n "$db" ] || continue
         sqlite3 -separator "$(printf '\t')" "file:$db?mode=ro" "$sql" 2>/dev/null
