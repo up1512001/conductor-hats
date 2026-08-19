@@ -1,0 +1,807 @@
+#!/bin/bash
+# Manage Conductor multi-account profiles for Claude Code and Codex.
+set -euo pipefail
+
+CONDUCTOR_ACCT_VERSION=0.1.0
+
+SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+BIN_DIR=$(dirname "$SELF")
+REPO_DIR=$(dirname "$BIN_DIR")
+# shellcheck source=./_resolve.sh
+. "$BIN_DIR/_resolve.sh"
+
+# Both overridable so the test suite never touches a real Conductor install.
+CONDUCTOR_SETTINGS="${CONDUCTOR_ACCT_SETTINGS_FILE:-$HOME/.conductor/settings.toml}"
+COMMANDS_DIR="${CONDUCTOR_ACCT_COMMANDS_DIR:-$HOME/.claude/commands}"
+SHARED_LINKS="projects skills plugins commands agents settings.json CLAUDE.md"
+
+die() { echo "conductor-acct: $*" >&2; exit 1; }
+
+agent_of() {
+    case "${1:-claude}" in
+        claude|codex) printf '%s\n' "$1" ;;
+        *) die "unknown agent '$1' (expected claude or codex)" ;;
+    esac
+}
+
+agent_home_var() {
+    case "$1" in
+        claude) printf 'CLAUDE_CONFIG_DIR\n' ;;
+        codex) printf 'CODEX_HOME\n' ;;
+    esac
+}
+
+source_home() {
+    case "$1" in
+        claude) printf '%s\n' "$HOME/.claude" ;;
+        codex) printf '%s\n' "$HOME/.codex" ;;
+    esac
+}
+
+require_profile() {
+    local agent="$1" profile="$2"
+    [ -d "$ACCOUNTS_ROOT/$agent/$profile" ] ||
+        die "no such $agent profile '$profile' (run: conductor-acct add $profile $agent)"
+}
+
+ensure_root() {
+    mkdir -p "$ACCOUNTS_ROOT/claude" "$ACCOUNTS_ROOT/codex" "$SESSION_DIR"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        cat > "$CONFIG_FILE" <<'EOF'
+# Reserved for future settings. Accounts are chosen per workspace and live in
+# the routes file next to this one.
+EOF
+    fi
+    if [ ! -f "$ROUTES_FILE" ]; then
+        cat > "$ROUTES_FILE" <<'EOF'
+# <workspace-or-repo-path><TAB><profile>     longest matching prefix wins
+# default<TAB><profile>                      fallback when nothing matches
+EOF
+    fi
+}
+
+account_email() {
+    # Reads oauthAccount.emailAddress out of a profile's .claude.json without
+    # requiring jq.
+    local f="$1"
+    [ -f "$f" ] || return 1
+    sed -n 's/.*"emailAddress"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | head -1
+}
+
+codex_email() {
+    local f="$1"
+    [ -f "$f" ] || return 1
+    sed -n 's/.*"email"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | head -1
+}
+
+refresh_label() {
+    local agent="$1" profile="$2" dir email=""
+    dir="$ACCOUNTS_ROOT/$agent/$profile"
+    case "$agent" in
+        claude) email=$(account_email "$dir/.claude.json" || true) ;;
+        codex) email=$(codex_email "$dir/auth.json" || true) ;;
+    esac
+    if [ -n "$email" ]; then
+        printf '%s\n' "$email" > "$dir/.label"
+    fi
+    printf '%s\n' "$email"
+}
+
+label_of() {
+    read_line_from "$ACCOUNTS_ROOT/$1/$2/.label" 2>/dev/null || true
+}
+
+# The directory Conductor would run an agent in. Inside a Conductor session the
+# app tells us; from a terminal, the shell's own working directory is right.
+current_workspace() {
+    local path="${1:-}"
+    if [ -n "$path" ]; then
+        [ -d "$path" ] || die "no such directory: $path"
+        normalize_dir "$path"
+        return 0
+    fi
+    workspace_dir
+}
+
+repo_root_for() {
+    local start="${1:-$PWD}"
+    # Conductor exports the repo root; fall back to the git common dir so this
+    # also works from a plain checkout.
+    if [ -z "${1:-}" ] && [ -n "${CONDUCTOR_ROOT_PATH:-}" ]; then
+        printf '%s\n' "$CONDUCTOR_ROOT_PATH"
+        return 0
+    fi
+    local common
+    common=$(git -C "$start" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || {
+        printf '%s\n' "$start"; return 0
+    }
+    printf '%s\n' "$(dirname "$common")"
+}
+
+router_installed() {
+    grep -q "claude-router" "$CONDUCTOR_SETTINGS" 2>/dev/null
+}
+
+# Runs the real router against a workspace with /usr/bin/env standing in for the
+# agent binary, and reports the config dir it would have exported. This is the
+# routing decision itself rather than a re-implementation of it.
+router_dry_run() {
+    local agent="$1" ws="$2" var out
+    var=$(agent_home_var "$agent")
+    # -u CONDUCTOR_ACCOUNTS_ROUTING because this may itself be running inside a
+    # routed agent session, where the router's loop guard would refuse to start.
+    case "$agent" in
+        claude) out=$(cd "$ws" && env -u CONDUCTOR_ACCOUNTS_ROUTING -u CLAUDE_CONFIG_DIR \
+            CONDUCTOR_WORKSPACE_PATH="$ws" CONDUCTOR_ACCOUNTS_CLAUDE_BIN=/usr/bin/env \
+            "$BIN_DIR/claude-router" 2>/dev/null) || return 1 ;;
+        codex) out=$(cd "$ws" && env -u CONDUCTOR_ACCOUNTS_ROUTING -u CODEX_HOME \
+            CONDUCTOR_WORKSPACE_PATH="$ws" CONDUCTOR_ACCOUNTS_CODEX_BIN=/usr/bin/env \
+            "$BIN_DIR/codex-router" 2>/dev/null) || return 1 ;;
+    esac
+    printf '%s\n' "$out" | sed -n "s/^$var=//p" | head -1
+}
+
+# Whatever a repository settings file pins for this agent, if anything.
+repo_binding() {
+    local agent="$1" repo="$2" var f
+    var=$(agent_home_var "$agent")
+    for f in "$repo/.conductor/settings.local.toml" "$repo/.conductor/settings.toml"; do
+        [ -f "$f" ] || continue
+        awk -v key="$var" '
+            /^[[:space:]]*\[environment_variables(\.local)?\][[:space:]]*$/ { inenv = 1; next }
+            /^[[:space:]]*\[/ { inenv = 0 }
+            inenv && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+                sub(/^[^=]*=[[:space:]]*/, ""); gsub(/^"|"$/, ""); print; exit
+            }
+        ' "$f" && return 0
+    done
+}
+
+profile_from_dir() {
+    local dir="$1"
+    case "$dir" in
+        "$ACCOUNTS_ROOT"/*/*) printf '%s\n' "${dir##*/}" ;;
+        *) printf '\n' ;;
+    esac
+}
+
+# ---------------------------------------------------------------- commands ---
+
+cmd_init() {
+    ensure_root
+    echo "Initialised $ACCOUNTS_ROOT"
+    echo "Next: conductor-acct add <profile>"
+}
+
+cmd_add() {
+    local profile="${1:-}" agent
+    agent=$(agent_of "${2:-claude}")
+    [ -n "$profile" ] || die "usage: conductor-acct add <profile> [claude|codex]"
+    case "$profile" in
+        *[!a-zA-Z0-9_-]*) die "profile names may only contain letters, digits, - and _" ;;
+    esac
+
+    ensure_root
+    local dir="$ACCOUNTS_ROOT/$agent/$profile"
+    local src
+    src=$(source_home "$agent")
+
+    if [ -d "$dir" ]; then
+        echo "Profile '$profile' already exists at $dir"
+    else
+        mkdir -p "$dir"
+        echo "Created $dir"
+    fi
+
+    if [ "$agent" = "claude" ]; then
+        # Share everything except credentials and per-account state, so skills,
+        # plugins, hooks and transcripts stay common across accounts.
+        local item
+        for item in $SHARED_LINKS; do
+            [ -e "$src/$item" ] || continue
+            [ -e "$dir/$item" ] && continue
+            ln -s "$src/$item" "$dir/$item"
+            echo "  linked $item -> $src/$item"
+        done
+    fi
+
+    cmd_login "$profile" "$agent"
+}
+
+cmd_login() {
+    local profile="${1:-}" agent
+    agent=$(agent_of "${2:-claude}")
+    [ -n "$profile" ] || die "usage: conductor-acct login <profile> [claude|codex]"
+    require_profile "$agent" "$profile"
+
+    local dir="$ACCOUNTS_ROOT/$agent/$profile" bin
+    bin=$(resolve_agent_binary "$agent" "$SELF") || die "could not locate the real $agent binary"
+
+    echo "Signing in to '$profile' using $bin"
+    echo "  $(agent_home_var "$agent")=$dir"
+    echo
+
+    case "$agent" in
+        claude) env CLAUDE_CONFIG_DIR="$dir" "$bin" auth login ;;
+        codex) env CODEX_HOME="$dir" "$bin" login ;;
+    esac
+
+    local email
+    email=$(refresh_label "$agent" "$profile" || true)
+    if [ -n "$email" ]; then
+        echo
+        echo "Profile '$profile' is now $email"
+    else
+        echo
+        echo "Signed in. Could not read the account email; the picker will show the profile name only."
+    fi
+}
+
+cmd_logout() {
+    local profile="${1:-}" agent
+    agent=$(agent_of "${2:-claude}")
+    [ -n "$profile" ] || die "usage: conductor-acct logout <profile> [claude|codex]"
+    require_profile "$agent" "$profile"
+    local dir="$ACCOUNTS_ROOT/$agent/$profile" bin
+    bin=$(resolve_agent_binary "$agent" "$SELF") || die "could not locate the real $agent binary"
+    case "$agent" in
+        claude) env CLAUDE_CONFIG_DIR="$dir" "$bin" auth logout ;;
+        codex) env CODEX_HOME="$dir" "$bin" logout ;;
+    esac
+    rm -f "$dir/.label"
+    echo "Signed out of '$profile'. The profile directory is still there; conductor-acct remove $profile deletes it."
+}
+
+cmd_remove() {
+    local profile="${1:-}" agent
+    agent=$(agent_of "${2:-claude}")
+    [ -n "$profile" ] || die "usage: conductor-acct remove <profile> [claude|codex]"
+    require_profile "$agent" "$profile"
+    ensure_root
+
+    cmd_logout "$profile" "$agent" || true
+    rm -rf "${ACCOUNTS_ROOT:?}/$agent/$profile"
+
+    # Drop any routes that pointed at it, so nothing resolves to a dead profile.
+    local tmp
+    tmp=$(mktemp)
+    awk -v p="$profile" '
+        /^[[:space:]]*(#|$)/ { print; next }
+        { line = $0; sub(/^[^\t ]*[\t ]+/, "", line) }
+        line != p { print }
+    ' "$ROUTES_FILE" > "$tmp"
+    mv "$tmp" "$ROUTES_FILE"
+
+    echo "Removed the $agent profile '$profile' and any routes pointing at it."
+}
+
+cmd_list() {
+    ensure_root
+    local agent profile label
+    for agent in claude codex; do
+        local found=0
+        for profile in $(list_profiles "$agent"); do
+            [ "$found" -eq 0 ] && { echo "$agent profiles:"; found=1; }
+            label=$(label_of "$agent" "$profile")
+            if [ -n "$label" ]; then
+                printf '  %-14s %s\n' "$profile" "$label"
+            else
+                printf '  %-14s %s\n' "$profile" "(not signed in)"
+            fi
+        done
+        [ "$found" -eq 1 ] && echo
+    done
+
+    echo "routes:"
+    if grep -qv '^[[:space:]]*\(#.*\)\?$' "$ROUTES_FILE" 2>/dev/null; then
+        grep -v '^[[:space:]]*\(#.*\)\?$' "$ROUTES_FILE" | sed 's/^/  /'
+    else
+        echo "  (none)"
+    fi
+    echo
+    if router_installed; then
+        echo "router: on"
+    else
+        echo "router: off   (repository bindings still work; conductor-acct install turns it on)"
+    fi
+}
+
+# The headline command: point this workspace at an account.
+cmd_use() {
+    local profile="${1:-}" agent
+    agent=$(agent_of "${2:-claude}")
+    [ -n "$profile" ] || die "usage: conductor-acct use <profile> [claude|codex] [workspace-path]"
+    require_profile "$agent" "$profile"
+    ensure_root
+
+    local ws
+    ws=$(current_workspace "${3:-}")
+    write_route "$ws" "$profile"
+
+    local label
+    label=$(label_of "$agent" "$profile")
+    echo "$(basename "$ws") now uses '$profile'${label:+ ($label)}"
+    echo "  $ws"
+
+    if ! router_installed; then
+        echo
+        echo "The router is off, so this route is recorded but not applied."
+        echo "Turn it on with: conductor-acct install   (then restart Conductor)"
+        return 0
+    fi
+
+    echo
+    echo "Open a new chat in this workspace for it to take effect. A chat that is"
+    echo "already running keeps the account its agent process started on."
+}
+
+write_route() {
+    local key="$1" profile="$2" tmp
+    tmp=$(mktemp)
+    grep -v "^$(printf '%s' "$key" | sed 's/[[\.*^$/]/\\&/g')[[:space:]]" "$ROUTES_FILE" > "$tmp" 2>/dev/null || true
+    printf '%s\t%s\n' "$key" "$profile" >> "$tmp"
+    mv "$tmp" "$ROUTES_FILE"
+}
+
+drop_route() {
+    local key="$1" tmp
+    tmp=$(mktemp)
+    grep -v "^$(printf '%s' "$key" | sed 's/[[\.*^$/]/\\&/g')[[:space:]]" "$ROUTES_FILE" > "$tmp" 2>/dev/null || true
+    mv "$tmp" "$ROUTES_FILE"
+}
+
+cmd_assign() {
+    [ $# -ge 1 ] || die "usage: conductor-acct assign <profile> [path] | assign default <profile>"
+    ensure_root
+
+    local key profile
+    if [ "$1" = "default" ]; then
+        # `assign default <profile>` reads more naturally for the fallback.
+        key=default
+        profile="${2:-}"
+        [ -n "$profile" ] || die "usage: conductor-acct assign default <profile>"
+    else
+        profile="$1"
+        key=$(current_workspace "${2:-$PWD}")
+    fi
+
+    if [ ! -d "$ACCOUNTS_ROOT/claude/$profile" ] && [ ! -d "$ACCOUNTS_ROOT/codex/$profile" ]; then
+        die "no such profile '$profile'"
+    fi
+
+    write_route "$key" "$profile"
+    echo "$key -> $profile"
+}
+
+cmd_unassign() {
+    local path="${1:-$PWD}" key
+    ensure_root
+    if [ "$path" = "default" ]; then
+        key=default
+    else
+        key=$(current_workspace "$path")
+    fi
+    drop_route "$key"
+    echo "removed route for $key"
+}
+
+cmd_which() {
+    local ws agent
+    ws=$(current_workspace "${1:-}")
+    agent=$(agent_of "${2:-claude}")
+    ensure_root
+    load_config
+
+    local repo var binding resolved profile
+    repo=$(repo_root_for "$ws")
+    var=$(agent_home_var "$agent")
+    binding=$(repo_binding "$agent" "$repo" || true)
+
+    echo "workspace:  $ws"
+    echo "repository: $repo"
+
+    if [ -n "$binding" ]; then
+        profile=$(profile_from_dir "$binding")
+        echo "binding:    ${profile:-$binding}   (.conductor settings, applies to the whole repository)"
+    else
+        echo "binding:    (none)"
+    fi
+
+    resolve_route "$ws"
+    if [ -n "$ROUTE_PROFILE" ]; then
+        if [ "$ROUTE_EXACT" = 1 ]; then
+            echo "route:      $ROUTE_PROFILE   (this workspace)"
+        else
+            echo "route:      $ROUTE_PROFILE   (inherited from a parent path or the default)"
+        fi
+    else
+        echo "route:      (none)"
+    fi
+
+    if ! router_installed; then
+        echo
+        echo "router:     off, so routes are recorded but not applied"
+        if [ -n "$binding" ]; then
+            echo "effective:  ${profile:-$binding}   (from the repository binding)"
+        else
+            echo "effective:  your default account"
+        fi
+        return 0
+    fi
+
+    # Ask the router itself rather than guessing.
+    resolved=$(router_dry_run "$agent" "$ws" || true)
+    echo
+    if [ -n "$resolved" ]; then
+        profile=$(profile_from_dir "$resolved")
+        echo "effective:  ${profile:-$resolved}"
+        echo "            $var=$resolved"
+    else
+        echo "effective:  your default account (no $var would be set)"
+    fi
+}
+
+cmd_status() {
+    ensure_root
+    local ws agent resolved profile label
+    ws=$(current_workspace "${1:-}")
+    for agent in claude codex; do
+        [ -n "$(list_profiles "$agent")" ] || continue
+        if router_installed; then
+            resolved=$(router_dry_run "$agent" "$ws" || true)
+        else
+            resolved=$(repo_binding "$agent" "$(repo_root_for "$ws")" || true)
+        fi
+        if [ -n "$resolved" ]; then
+            profile=$(profile_from_dir "$resolved")
+            label=$(label_of "$agent" "$profile")
+            printf '%-7s %s%s\n' "$agent" "${profile:-$resolved}" "${label:+  $label}"
+        else
+            printf '%-7s %s\n' "$agent" "(default account)"
+        fi
+    done
+    printf 'in      %s\n' "$ws"
+}
+
+cmd_sessions() {
+    ensure_root
+    if [ "${1:-}" = "clear" ]; then
+        rm -rf "${SESSION_DIR:?}"/claude "${SESSION_DIR:?}"/codex
+        echo "cleared session pins"
+        return
+    fi
+    local agent f
+    for agent in claude codex; do
+        [ -d "$SESSION_DIR/$agent" ] || continue
+        for f in "$SESSION_DIR/$agent"/*; do
+            [ -f "$f" ] || continue
+            printf '%-7s %s -> %s\n' "$agent" "${f##*/}" "$(cat "$f")"
+        done
+    done
+}
+
+# Sets one key inside the [environment_variables] table of a repo settings file,
+# creating the table when it is missing and leaving every other table alone.
+toml_set_env() {
+    local file="$1" key="$2" value="$3" tmp
+    mkdir -p "$(dirname "$file")"
+    touch "$file"
+    tmp=$(mktemp)
+    awk -v key="$key" -v val="$value" '
+        BEGIN { inenv = 0; written = 0 }
+        /^[[:space:]]*\[environment_variables\][[:space:]]*$/ {
+            print; inenv = 1; print key " = \"" val "\""; written = 1; next
+        }
+        /^[[:space:]]*\[/ { inenv = 0 }
+        inenv && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" { next }
+        { print }
+        END {
+            if (!written) {
+                print ""
+                print "[environment_variables]"
+                print key " = \"" val "\""
+            }
+        }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+
+toml_unset_env() {
+    local file="$1" key="$2" tmp
+    [ -f "$file" ] || return 0
+    tmp=$(mktemp)
+    awk -v key="$key" '
+        BEGIN { inenv = 0 }
+        /^[[:space:]]*\[environment_variables\][[:space:]]*$/ { inenv = 1; print; next }
+        /^[[:space:]]*\[/ { inenv = 0 }
+        inenv && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" { next }
+        { print }
+    ' "$file" > "$tmp"
+    mv "$tmp" "$file"
+}
+
+cmd_bind() {
+    local profile="${1:-}" agent
+    agent=$(agent_of "${2:-claude}")
+    [ -n "$profile" ] || die "usage: conductor-acct bind <profile> [claude|codex] [repo-path]"
+    require_profile "$agent" "$profile"
+    local repo
+    repo=$(repo_root_for "${3:-}")
+
+    local dir="$ACCOUNTS_ROOT/$agent/$profile"
+    local file="$repo/.conductor/settings.local.toml"
+    toml_set_env "$file" "$(agent_home_var "$agent")" "$dir"
+    echo "Bound $repo to the $agent profile '$profile'"
+    echo "  $file"
+    echo "  [environment_variables] $(agent_home_var "$agent") = \"$dir\""
+    echo
+    echo "Conductor reads this per repository, so other repos keep their own account."
+    echo "Open a new chat in this repo's workspaces for it to take effect."
+}
+
+cmd_unbind() {
+    local agent
+    agent=$(agent_of "${1:-claude}")
+    local repo file
+    repo=$(repo_root_for "${2:-}")
+    file="$repo/.conductor/settings.local.toml"
+    toml_unset_env "$file" "$(agent_home_var "$agent")"
+    echo "Removed the $agent binding from $file"
+}
+
+toml_set() {
+    # Sets a top-level key in ~/.conductor/settings.toml, preserving the rest.
+    # Top-level keys must be written above the first [table] header.
+    local key="$1" value="$2" tmp
+    mkdir -p "$(dirname "$CONDUCTOR_SETTINGS")"
+    touch "$CONDUCTOR_SETTINGS"
+    tmp=$(mktemp)
+    awk -v key="$key" -v val="$value" '
+        BEGIN { done = 0 }
+        !done && /^[[:space:]]*\[/ { print key " = \"" val "\""; done = 1 }
+        $0 ~ "^[[:space:]]*" key "[[:space:]]*=" { next }
+        { print }
+        END { if (!done) print key " = \"" val "\"" }
+    ' "$CONDUCTOR_SETTINGS" > "$tmp"
+    mv "$tmp" "$CONDUCTOR_SETTINGS"
+}
+
+toml_unset() {
+    local key="$1" tmp
+    [ -f "$CONDUCTOR_SETTINGS" ] || return 0
+    tmp=$(mktemp)
+    grep -v "^[[:space:]]*$key[[:space:]]*=" "$CONDUCTOR_SETTINGS" > "$tmp" || true
+    mv "$tmp" "$CONDUCTOR_SETTINGS"
+}
+
+INSTALL_BIN="$ACCOUNTS_ROOT/bin"
+
+cmd_install() {
+    ensure_root
+
+    # Deploy a copy rather than pointing Conductor at the checkout. Conductor
+    # does not check that claude_code_executable_path exists, so if that path
+    # ever disappears -- a deleted clone, or a Conductor workspace that gets
+    # archived -- every agent in the app fails to start. A copy under
+    # ~/.conductor-accounts cannot be taken away by git.
+    rm -f "$INSTALL_BIN"                    # an older install symlinked this
+    mkdir -p "$INSTALL_BIN" "$ACCOUNTS_ROOT/commands"
+
+    if [ "$BIN_DIR" != "$INSTALL_BIN" ]; then
+        local f
+        for f in _resolve.sh claude-router codex-router conductor-acct; do
+            cp "$BIN_DIR/$f" "$INSTALL_BIN/$f"
+        done
+        cp "$REPO_DIR/commands/account.md" "$ACCOUNTS_ROOT/commands/account.md"
+        printf '%s\n' "$REPO_DIR" > "$ACCOUNTS_ROOT/.source"
+    fi
+    chmod +x "$INSTALL_BIN/claude-router" "$INSTALL_BIN/codex-router" \
+        "$INSTALL_BIN/conductor-acct"
+
+    toml_set claude_code_executable_path "$INSTALL_BIN/claude-router"
+    toml_set codex_executable_path "$INSTALL_BIN/codex-router"
+
+    # Conductor passes settingSources ["user","project","local"] to the agent,
+    # so a user-level command shows up in Conductor's own slash command menu.
+    mkdir -p "$COMMANDS_DIR"
+    ln -sfn "$ACCOUNTS_ROOT/commands/account.md" "$COMMANDS_DIR/account.md"
+
+    echo "Installed to $INSTALL_BIN"
+    echo "Wrote to $CONDUCTOR_SETTINGS:"
+    echo "  claude_code_executable_path = \"$INSTALL_BIN/claude-router\""
+    echo "  codex_executable_path       = \"$INSTALL_BIN/codex-router\""
+    echo "  $COMMANDS_DIR/account.md  (adds /account inside Conductor)"
+    echo
+    echo "Re-run install after pulling changes; doctor warns when the copy is stale."
+}
+
+cmd_uninstall() {
+    toml_unset claude_code_executable_path
+    toml_unset codex_executable_path
+    [ -L "$COMMANDS_DIR/account.md" ] && rm -f "$COMMANDS_DIR/account.md"
+    echo "Removed the router paths from $CONDUCTOR_SETTINGS and the /account command. Restart Conductor."
+}
+
+cmd_setup() {
+    ensure_root
+    echo "conductor-acct $CONDUCTOR_ACCT_VERSION"
+    echo
+
+    local existing
+    existing=$(list_profiles claude)
+    if [ -z "$existing" ]; then
+        cat <<EOF
+No accounts yet. Sign in to each one, in this terminal:
+
+  $SELF add personal
+  $SELF add work
+
+Then run $0 setup again.
+EOF
+        return 0
+    fi
+
+    echo "Accounts:"
+    local profile label
+    for profile in $existing; do
+        label=$(label_of claude "$profile")
+        printf '  %-14s %s\n' "$profile" "${label:-(not signed in)}"
+    done
+    echo
+
+    if router_installed; then
+        echo "Router is already on."
+    else
+        cmd_install
+    fi
+    echo
+    cat <<EOF
+Now pick an account per workspace:
+
+  cd <a workspace>            $SELF use work
+  cd <another workspace>      $SELF use personal
+
+or, inside a Conductor chat, run /account.
+
+Check any workspace with: $SELF which
+EOF
+}
+
+cmd_doctor() {
+    ensure_root
+    local ok=1
+
+    echo "version:  $CONDUCTOR_ACCT_VERSION"
+    echo "root:     $ACCOUNTS_ROOT"
+
+    local bin
+    if bin=$(resolve_agent_binary claude "$SELF"); then
+        echo "claude:   $bin ($("$bin" --version 2>/dev/null | head -1))"
+    else
+        echo "claude:   NOT FOUND"; ok=0
+    fi
+
+    if router_installed; then
+        echo "router:   on, via claude_code_executable_path"
+        # Pointing Conductor at a checkout is a foot-gun: delete the clone or
+        # archive the workspace holding it and every agent stops starting.
+        local wired
+        wired=$(sed -n 's/^[[:space:]]*claude_code_executable_path[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' \
+            "$CONDUCTOR_SETTINGS" 2>/dev/null | head -1)
+        case "$wired" in
+            "$INSTALL_BIN"/*) ;;
+            *) echo "warn:     Conductor points at $wired, outside $ACCOUNTS_ROOT"
+               echo "          re-run 'conductor-acct install' so it cannot be deleted"
+               ok=0 ;;
+        esac
+        local f
+        for f in _resolve.sh claude-router codex-router conductor-acct; do
+            [ -f "$INSTALL_BIN/$f" ] || continue
+            [ -f "$BIN_DIR/$f" ] || continue
+            [ "$BIN_DIR" = "$INSTALL_BIN" ] && continue
+            if ! cmp -s "$BIN_DIR/$f" "$INSTALL_BIN/$f"; then
+                echo "warn:     installed $f differs from this checkout, re-run install"
+            fi
+        done
+    else
+        echo "router:   off (repository bindings still work; conductor-acct install turns it on)"
+    fi
+
+    local profile item target
+    for profile in $(list_profiles claude); do
+        for item in $SHARED_LINKS; do
+            target="$ACCOUNTS_ROOT/claude/$profile/$item"
+            if [ -e "$target" ] && [ ! -L "$target" ]; then
+                echo "warn:     $profile/$item is a real file, no longer shared with ~/.claude"
+            fi
+        done
+        if [ ! -f "$ACCOUNTS_ROOT/claude/$profile/.label" ]; then
+            echo "warn:     profile '$profile' is not signed in"
+            ok=0
+        fi
+    done
+
+    # Every route must still point at a profile that exists.
+    local key routed
+    while IFS=$'\t' read -r key routed; do
+        case "$key" in ''|'#'*) continue ;; esac
+        [ -n "$routed" ] || continue
+        if [ ! -d "$ACCOUNTS_ROOT/claude/$routed" ] && [ ! -d "$ACCOUNTS_ROOT/codex/$routed" ]; then
+            echo "warn:     route $key points at missing profile '$routed'"
+            ok=0
+        fi
+    done < "$ROUTES_FILE"
+
+    # End to end: run the router itself and see what it exports.
+    if router_installed; then
+        local ws resolved
+        ws=$(current_workspace)
+        if resolved=$(router_dry_run claude "$ws"); then
+            if [ -n "$resolved" ]; then
+                echo "dry run:  $ws -> $(profile_from_dir "$resolved")"
+            else
+                echo "dry run:  $ws -> default account (no route, no binding)"
+            fi
+        else
+            echo "dry run:  FAILED, the router did not exec cleanly"; ok=0
+        fi
+    fi
+
+    [ "$ok" -eq 1 ] && echo "OK"
+}
+
+usage() {
+    cat <<EOF
+conductor-acct $CONDUCTOR_ACCT_VERSION - one Claude/Codex account per Conductor workspace
+
+  setup                            guided first run
+  add <profile> [claude|codex]     create a profile and sign in to it
+  use <profile> [agent] [path]     point this workspace at a profile
+  status [path]                    what this workspace resolves to, in two lines
+  which [path] [agent]             the same, with every layer that fed into it
+  list                             profiles, accounts and routes
+
+  login <profile> [agent]          re-run sign in for a profile
+  logout <profile> [agent]         sign out, keep the profile
+  remove <profile> [agent]         sign out, delete the profile and its routes
+
+  bind <profile> [agent] [repo]    bind a whole repository to a profile
+  unbind [agent] [repo]            drop a repository binding
+  assign default <profile>         account for workspaces with no route
+  unassign [path|default]          drop a route
+
+  install                          turn the router on, add /account
+  uninstall                        turn it off again
+  sessions [clear]                 show or reset per-session pins
+  doctor                           check the setup end to end
+
+Env overrides: CONDUCTOR_ACCOUNT forces a profile for one spawn,
+CONDUCTOR_ACCOUNTS_ROOT moves the state directory.
+EOF
+}
+
+cmd=${1:-}
+[ $# -gt 0 ] && shift || true
+case "$cmd" in
+    init) cmd_init "$@" ;;
+    setup) cmd_setup "$@" ;;
+    add) cmd_add "$@" ;;
+    login) cmd_login "$@" ;;
+    logout) cmd_logout "$@" ;;
+    remove|rm) cmd_remove "$@" ;;
+    use) cmd_use "$@" ;;
+    status) cmd_status "$@" ;;
+    bind) cmd_bind "$@" ;;
+    unbind) cmd_unbind "$@" ;;
+    list|ls) cmd_list "$@" ;;
+    assign) cmd_assign "$@" ;;
+    unassign) cmd_unassign "$@" ;;
+    which) cmd_which "$@" ;;
+    sessions) cmd_sessions "$@" ;;
+    install) cmd_install "$@" ;;
+    uninstall) cmd_uninstall "$@" ;;
+    doctor) cmd_doctor "$@" ;;
+    version|--version|-V) echo "conductor-acct $CONDUCTOR_ACCT_VERSION" ;;
+    ''|-h|--help|help) usage ;;
+    *) die "unknown command '$cmd' (try --help)" ;;
+esac

@@ -1,0 +1,70 @@
+#!/bin/sh
+# Conductor multi-account router for Codex.
+# Same contract as claude-router, including the fail-open subshell, but it swaps
+# CODEX_HOME instead of CLAUDE_CONFIG_DIR. Point Conductor's
+# `codex_executable_path` at this file.
+
+SELF=$0
+case "$SELF" in
+    /*) ;;
+    *) SELF=$(cd "$(dirname "$0")" 2>/dev/null && pwd)/${0##*/} ;;
+esac
+LIB="${SELF%/*}/_resolve.sh"
+
+if [ -n "${CONDUCTOR_ACCOUNTS_ROUTING:-}" ]; then
+    echo "codex-router: refusing to route into itself (loop guard)" >&2
+    exit 70
+fi
+CONDUCTOR_ACCOUNTS_ROUTING=codex
+export CONDUCTOR_ACCOUNTS_ROUTING
+
+ENV_BOUND=0
+[ -n "${CODEX_HOME:-}" ] && ENV_BOUND=1
+
+# Codex takes no --session-id, so the workspace is the only routing key.
+DECISION=$(
+    [ -r "$LIB" ] || exit 0
+    . "$LIB"
+    load_config
+    _ws=$(workspace_dir)
+    _profile=$(decide_profile codex "$_ws" "" "$ENV_BOUND")
+    if [ -n "$_profile" ]; then
+        _dir="$ACCOUNTS_ROOT/codex/$_profile"
+        if [ -d "$_dir" ]; then
+            printf 'dir %s\n' "$_dir"
+        else
+            printf 'warn profile %s has no home at %s\n' "$_profile" "$_dir"
+        fi
+    fi
+    if _bin=$(resolve_agent_binary codex "$SELF"); then
+        printf 'bin %s\n' "$_bin"
+    fi
+) 2>/dev/null
+
+CODEX_BIN=
+while IFS= read -r _line; do
+    case "$_line" in
+        'dir '*) CODEX_HOME="${_line#dir }"; export CODEX_HOME ;;
+        'bin '*) CODEX_BIN="${_line#bin }" ;;
+        'warn '*) echo "codex-router: ${_line#warn } (using the account already configured)" >&2 ;;
+    esac
+done <<EOF
+$DECISION
+EOF
+
+if [ -z "$CODEX_BIN" ]; then
+    for _c in "${CONDUCTOR_ACCOUNTS_CODEX_BIN:-}" \
+              "$HOME/Library/Application Support/com.conductor.app/bin/codex"; do
+        if [ -n "$_c" ] && [ -x "$_c" ]; then CODEX_BIN="$_c"; break; fi
+    done
+fi
+if [ -z "$CODEX_BIN" ]; then
+    CODEX_BIN=$(command -v codex 2>/dev/null)
+    [ "$CODEX_BIN" = "$SELF" ] && CODEX_BIN=
+fi
+if [ -z "$CODEX_BIN" ]; then
+    echo "codex-router: could not locate the real codex binary" >&2
+    exit 127
+fi
+
+exec "$CODEX_BIN" "$@"
