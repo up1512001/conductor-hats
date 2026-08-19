@@ -44,10 +44,10 @@ the account it started on.
   <  Back
   Claude Code
 
-  up1512001@gmail.com                     delete
+  up1**001@g**.com                      | delete
   Personal
 
-  utsav.patel@rtcamp.com          tick    delete
+  uts**tel@rt**p.com              tick  | delete
   Work
 
   +  Add new account
@@ -56,6 +56,54 @@ the account it started on.
 Profile names are lower case on disk, because they are typed at a CLI and used
 as directory names. They are capitalised for display through one `cap()` helper
 and never fed back to `conductor-acct` in that form.
+
+### Addresses are masked
+
+Every address the UI renders is masked, so a recorded session or a shared
+screenshot cannot hand one out:
+
+```
+someone.long@example.com  ->  som**ong@exa**le.com
+joe@mail.co.uk            ->  j**@m**.co.uk
+```
+
+Local part and host are masked separately and the suffix is kept, so the string
+still reads as an email. How much is revealed scales with length, so a short
+local part is not handed over in full for want of characters to hide, and
+anything under three characters reveals nothing. The profile name underneath is
+the identifier worth reading anyway.
+
+The full address is not in a `title` attribute either: a tooltip is as visible on
+video as the text is. To read one, use a terminal:
+
+```sh
+conductor-acct list          # real addresses
+conductor-acct list --mask   # the masked form, as the UI shows it
+conductor-acct mask <email>  # one address
+```
+
+The rule exists twice, because the panel cannot shell out once per row: in
+`mask_email` in the CLI, which `list --mask`, `status --mask` and the `/account`
+chat card use, and in `maskEmail` in `account-ui.js`. A test runs both over the
+same cases and fails if they disagree.
+
+### Deleting an account
+
+The delete control sits **inside** the row's border, divided from the selectable
+area by a rule and running the full height of the row: deliberate to hit, hard to
+hit by accident. It used to float in the gutter outside the border, which read as
+unrelated to the row and put a destructive target a few pixels from "switch
+account" with nothing between them.
+
+Clicking it opens a dialog with a scrim, not an inline confirmation and not a
+control that arms on first click, because an armed control is still one stray
+click from destruction. The dialog names the account, says what will be lost and
+that it cannot be undone, and focuses Cancel. Escape cancels, clicking the scrim
+cancels, clicking the dialog itself does not.
+
+The dialog is a sibling of the panel rather than a descendant, so the panel
+ignores outside clicks and Escape for as long as it is open. Without that, the
+first interaction with the dialog would close the panel underneath it.
 
 The email leads, because that is what identifies an account; the profile name
 sits under it, because that is what you type at the CLI.

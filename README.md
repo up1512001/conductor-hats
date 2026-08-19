@@ -141,7 +141,11 @@ what was learned by reading Conductor's runtime.
 A toolbar button next to "Open in" and an account chip in the New Workspace
 composer both exist, and both open a two-level panel: providers first, then that
 provider's accounts with a delete each and one "Add new account" at the foot.
-Signing in happens in the panel, no terminal. See
+Signing in happens in the panel, no terminal.
+
+Addresses are masked wherever they render, as `uts**tel@rt**p.com`, so a recorded
+session or a shared screenshot cannot hand one out. `conductor-acct list` in a
+terminal is where you read the real thing. See
 [docs/account-panel.md](docs/account-panel.md).
 
 They are not free. **Nothing outside the app can add them.** Conductor's UI is
@@ -169,9 +173,10 @@ Feedback, asking for per-workspace agent account selection.
 setup                            guided first run
 add <profile> [claude|codex]     create a profile and sign in to it
 use <profile> [agent] [path]     point this workspace at a profile
-status [path]                    what this workspace resolves to, in two lines
+status [path] [--mask]           what this workspace resolves to, in two lines
 which [path] [agent]             the same, with every layer that fed into it
-list                             profiles, accounts and routes
+list [--mask]                    profiles, accounts and routes
+mask <email>                     the masked form the UI shows on screen
 
 login <profile> [agent]          re-run sign in for a profile
 logout <profile> [agent]         sign out, keep the profile
