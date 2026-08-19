@@ -2,10 +2,14 @@
 
 ## Ground rules
 
-**Nothing may prompt.** No `osascript`, no dialogs, no Terminal windows, no menu
-bar items. The router runs on every agent spawn, so anything that blocks there
-blocks Conductor. User-facing choices belong in the Conductor chat, through
-`commands/account.md` and `mcp__conductor__AskUserQuestion`.
+**The UI lives inside Conductor.** The panel is injected into Conductor's own
+toolbar and composer and drawn in its theme; the chat card is drawn by
+`mcp__conductor__AskUserQuestion`. Both are inside the app, which is the point of
+the project.
+
+Outside it, nothing may prompt: no `osascript`, no system dialogs, no windows of
+our own. The router runs on every agent spawn, so anything that blocks there
+blocks Conductor.
 
 **The router must fail open.** A broken or missing `_resolve.sh` costs you the
 routing, never the agent. All decision making happens inside one subshell whose

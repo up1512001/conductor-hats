@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Must match VERSION in src/panel/index.ts; a test asserts it.
-CONDUCTOR_ACCT_VERSION=0.3.0
+CONDUCTOR_ACCT_VERSION=0.3.1
 
 SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 BIN_DIR=$(dirname "$SELF")

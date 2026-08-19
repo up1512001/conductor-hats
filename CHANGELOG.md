@@ -6,6 +6,20 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.1
+
+### Fixed
+
+- **The release tarball had no `install.sh`.** It shipped the binary, the router
+  and the libraries, so anyone who downloaded it had to read the README and wire
+  things up by hand. It is packaged now.
+- **`install.sh` installed from a git clone**, which is not how anyone installs a
+  release. It detects the architecture, downloads the matching tarball, verifies
+  it against the published `.sha256`, deploys the router and puts `hats` on
+  `~/.local/bin`. Run from an extracted tarball or a checkout it uses the files
+  beside it and downloads nothing.
+- README install instructions described the clone rather than the release.
+
 ## 0.3.0
 
 ### Changed

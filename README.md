@@ -4,10 +4,10 @@ Run as many Claude Code or Codex accounts as you like in
 [Conductor](https://conductor.build) **at the same time**, one per workspace,
 with no signing in and out.
 
-**With a real account picker in Conductor's own toolbar.** Not a separate window,
-not a menu bar item, not a chat message: a button beside "Open in" and a chip in
-the New Workspace composer, drawn in Conductor's own theme, opening a panel that
-switches accounts, signs in and signs out.
+**With a real account picker in Conductor's own toolbar.** A button beside
+"Open in" and a chip in the New Workspace composer, drawn in Conductor's own
+theme, opening a panel that switches accounts, signs in and signs out. Inside the
+app, not beside it.
 
 Conductor is a signed, notarized, closed-source application with no plugin API.
 Its entire frontend is compiled into a 66 MB Mach-O and brotli-compressed inside
@@ -40,18 +40,34 @@ it. No other dependencies: everything here is POSIX shell.
 
 ## Install
 
+Download the tarball for your Mac from the
+[latest release](https://github.com/up1512001/conductor-hats/releases/latest),
+then:
+
 ```sh
-git clone <this repository>
-cd conductor-hats
-bin/conductor-acct setup
+tar xzf hats-aarch64-apple-darwin.tar.gz     # or x86_64 on an Intel Mac
+cd hats-aarch64-apple-darwin
+./install.sh
 ```
+
+Every release publishes a `.sha256` beside each tarball, and `install.sh`
+verifies whatever it downloads itself. It installs `hats` to `~/.local/bin`,
+deploys the router under `~/.conductor-accounts`, and touches nothing else.
+
+Once the repository is public, the same script installs in one line:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/up1512001/conductor-hats/main/install.sh | sh
+```
+
+From a checkout, `./install.sh` uses the files beside it rather than downloading.
 
 Then sign in to each account, in a real terminal, because the browser has to
 open:
 
 ```sh
-bin/conductor-acct add personal
-bin/conductor-acct add work
+conductor-acct add personal
+conductor-acct add work
 ```
 
 `add` creates a config directory per account, symlinks your skills, plugins,
@@ -61,7 +77,7 @@ runs the sign in flow.
 Restart Conductor once, and check it:
 
 ```sh
-bin/conductor-acct doctor
+conductor-acct doctor
 ```
 
 ## Use it

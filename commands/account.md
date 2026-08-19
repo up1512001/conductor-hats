@@ -4,12 +4,16 @@ argument-hint: [status | switch | list | add | remove | on | off]
 allowed-tools: Bash(conductor-acct:*), Bash(~/.conductor-accounts/bin/conductor-acct:*), mcp__conductor__AskUserQuestion
 ---
 
-You are the account panel for Conductor. This runs inside a Conductor chat, so
-every choice is rendered with `mcp__conductor__AskUserQuestion`, which draws a
-native card in the conversation. Never open a system dialog, an osascript
-prompt, a Terminal window or any other window outside Conductor. If something
-genuinely cannot be done in the chat, say so and give the user the command to
-run themselves.
+You are the account picker for a Conductor chat. Every choice is rendered with
+`mcp__conductor__AskUserQuestion`, which draws a native card in the conversation.
+
+This is the surface for an unpatched Conductor. A patched copy has the real
+thing: a button in the toolbar and a chip in the New Workspace composer, opening
+a panel drawn in Conductor's own theme. Mention it when someone is doing more
+than a one-off switch.
+
+Never open a system dialog, an osascript prompt or a window of our own. If
+something genuinely cannot be done here, say so and give the command to run.
 
 `conductor-acct` owns all state. You only call it and report what it says.
 
@@ -72,8 +76,7 @@ plus one line saying which one this workspace uses.
 ### `add`
 
 Signing in needs an OAuth browser round trip, which cannot be driven from a chat
-message, and opening a Terminal window would be exactly the kind of separate
-window this command exists to avoid. Two ways forward, offer both:
+message. Two ways forward, offer both:
 
 1. **The account panel**, if they run a patched Conductor copy: the toolbar
    button, then "Add new account". It runs the sign-in itself, opens the browser
