@@ -536,8 +536,63 @@ test_every_clickable_thing_says_it_is_clickable() {
     for sel in ".cma-btn,.cma-chip" ".cma-card" ".cma-trash" ".cma-back" ".cma-add" ".cma-go" ".cma-act"; do
         contains "$sel exists" "$css" "$sel"
     done
-    is "no interactive rule left on the arrow cursor" \
-        "$(printf '%s' "$css" | grep -c 'cursor:default')" "1"
+    # cursor:default is only ever right on something that cannot be clicked.
+    is "the arrow cursor is only on disabled states" \
+        "$(printf '%s\n' "$css" | tr ',' '\n' | grep 'cursor:default' | grep -vc ':disabled')" "0"
+}
+
+MASK_CASES="someone.long@example.com joe@mail.co.uk ab@x.io a@b.c up1512001@gmail.com
+utsav.patel@rtcamp.com noatsign x@y"
+
+test_masking_never_reveals_a_whole_part() {
+    local addr out part head leaked=0
+    for addr in $MASK_CASES; do
+        out=$("$ACCT" mask "$addr")
+        case "$out" in
+            *'**'*) ;;
+            *) not_ok "$addr is masked at all" "something with **" "$out"; return ;;
+        esac
+        # No local part or host may survive intact.
+        for part in ${addr//@/ }; do
+            head=${part%%.*}
+            [ ${#head} -gt 2 ] || continue
+            case "$out" in
+                *"$head"*) echo "        leaked '$head' in $out"; leaked=1 ;;
+            esac
+        done
+    done
+    is "no part survives intact" "$leaked" "0"
+}
+
+# The panel cannot shell out once per row, so the rule exists twice. A test is
+# cheaper than a refactor and catches the only thing that actually matters.
+test_the_shell_and_the_panel_mask_identically() {
+    command -v node >/dev/null || { skip "node is not installed"; return; }
+    local addr from_sh from_js differed=0
+    for addr in $MASK_CASES; do
+        from_sh=$("$ACCT" mask "$addr")
+        from_js=$(node -e '
+            var fs = require("fs");
+            var src = fs.readFileSync(process.argv[1], "utf8");
+            var fns = src.match(/function maskPart[\s\S]*?\n  }\n/)[0] +
+                      src.match(/function maskEmail[\s\S]*?\n  }\n/)[0];
+            eval(fns.replace(/^  /gm, ""));
+            process.stdout.write(maskEmail(process.argv[2]));
+        ' "$PROJECT_DIR/tools/ui-patch/account-ui.js" "$addr")
+        if [ "$from_sh" != "$from_js" ]; then
+            echo "        $addr: shell '$from_sh' vs panel '$from_js'"
+            differed=1
+        fi
+    done
+    is "both maskers agree on every case" "$differed" "0"
+}
+
+test_mask_is_opt_in_for_the_terminal() {
+    fake_profile claude work "person@example.com"
+    contains "list shows the real address" "$("$ACCT" list)" "person@example.com"
+    contains "list --mask does not" "$("$ACCT" list --mask)" "pe**n@ex**e.com"
+    is "and the real one is absent when masked" \
+        "$("$ACCT" list --mask | grep -c 'person@example.com')" "0"
 }
 
 # Nothing under the pointer may move once the panel is open. Four things make
@@ -549,7 +604,7 @@ test_the_panel_cannot_shift_once_it_is_open() {
     contains "the corner is placed once and reused" "$body" "if (open && open.pos)"
     contains "width is fixed, not content driven" "$css" "width:300px;box-sizing:border-box"
     contains "a long list scrolls instead of growing" "$css" "overflow-y:auto"
-    contains "the card flexes beside its delete control" "$css" ".cma-rowwrap .cma-card{flex:1"
+    contains "the card flexes beside its delete control" "$css" ".cma-row2 .cma-card{flex:1"
     contains "the tick has a slot of its own" "$css" ".cma-tickslot"
     contains "and the slot is always in the flow" "$body" 'el("div", "cma-tickslot")'
     contains "triggers stay hidden until labelled" "$body" "btn.hidden = true"
@@ -585,6 +640,46 @@ test_the_panel_is_a_two_level_drill_down() {
     contains "add at the foot of the provider view" "$body" '"Add new account"'
     contains "a named delete confirmation" "$body" "function confirmDelete("
     contains "escape steps back before it closes" "$body" 'open.view.level === "provider"'
+}
+
+# Delete signs an account out, removes its profile and drops its routes. It asks
+# in a dialog with a scrim, because a control that arms on first click is still
+# one stray click from destruction.
+test_delete_asks_in_a_dialog() {
+    local body css
+    body=$(cat "$UI_JS")
+    css=$(sed -n '/^  var CSS = \[/,/\].join("");/p' "$UI_JS")
+    contains "a reusable dialog" "$body" "function dialog(opts)"
+    contains "with a scrim" "$css" ".cma-scrim{position:fixed;inset:0"
+    contains "announced as a modal alert" "$body" '"alertdialog"'
+    contains "escape cancels it" "$body" 'if (e.key === "Escape") { e.stopPropagation(); shut(); }'
+    contains "the scrim cancels, the box does not" "$body" "if (e.target === scrim) shut()"
+    contains "and it says the change cannot be undone" "$body" "cannot be undone"
+    # A dialog is a sibling of the panel, so clicking it must not read as
+    # clicking away from the panel.
+    contains "the panel ignores clicks while it is open" "$body" "if (!open || openDialog) return"
+}
+
+# The delete control lives inside the row's border, divided from the selectable
+# area, rather than floating in the gutter beside it.
+test_delete_sits_inside_the_row() {
+    local css
+    css=$(sed -n '/^  var CSS = \[/,/\].join("");/p' "$UI_JS")
+    contains "the row carries the border" "$css" ".cma-row2{display:flex"
+    contains "the card inside it does not" "$css" ".cma-row2 .cma-card{flex:1;min-width:0;width:auto;margin:0;border:0"
+    contains "a divider before the control" "$css" "border-left:1px solid var(--border)"
+    contains "full height of the row" "$css" "align-self:stretch"
+}
+
+test_the_panel_never_renders_a_full_address() {
+    local body
+    body=$(cat "$UI_JS")
+    contains "rows mask" "$body" "maskEmail(account.email)"
+    contains "the delete dialog masks" "$body" "maskEmail(account.email) : cap(account.name)"
+    contains "sign-in confirmation masks" "$body" 'maskEmail(out.slice(3))'
+    # A tooltip is as visible on video as the text is.
+    is "no address in a title attribute" \
+        "$(printf '%s' "$body" | grep -c 'title = .*account\.email')" "0"
 }
 
 # ------------------------------------------------------------------ main ---

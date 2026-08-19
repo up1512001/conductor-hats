@@ -28,7 +28,7 @@ User input: `$ARGUMENTS`
 
 ### No arguments
 
-Run `$CLI status` and `$CLI list`. Then show one `mcp__conductor__AskUserQuestion`
+Run `$CLI status --mask` and `$CLI list --mask`. Then show one `mcp__conductor__AskUserQuestion`
 with header `Account`, question `This workspace uses <profile> (<email>). Switch it?`
 and these options:
 
@@ -65,7 +65,8 @@ command output:
 
 ### `list`
 
-Run `$CLI list`. Show the profiles and their emails as a short markdown table,
+Run `$CLI list --mask`. Show the profiles and their masked emails as a short
+markdown table,
 plus one line saying which one this workspace uses.
 
 ### `add`
@@ -87,6 +88,16 @@ Ask which profile with `mcp__conductor__AskUserQuestion` if not given. Confirm
 with a second card that names the account email. Then run
 `$CLI remove <profile>`, and report that it signed the account out, deleted its
 profile directory and dropped any workspace routes that pointed at it.
+
+### Never print a full email address
+
+Every command above uses the masked form, and so must you: addresses appear as
+`uts**tel@rt**p.com`. This card renders inside Conductor, on the same screen
+people record and share, and a masked address still tells two accounts apart.
+The profile name is the identifier to use in prose.
+
+If the user explicitly asks for the real address, tell them to run
+`conductor-acct list` in a terminal rather than printing it here.
 
 ### `on` / `off`
 

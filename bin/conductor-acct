@@ -183,6 +183,56 @@ profile_from_dir() {
     esac
 }
 
+# Mask an address for anything that renders on screen: a recorded session or a
+# shared screenshot should not hand one out. Local part and host are masked
+# separately and the suffix is kept, so the result still reads as an email:
+#
+#   someone.long@example.com  ->  som**ong@exa**le.com
+#   joe@mail.co.uk            ->  j**@m**.co.uk
+#
+# How much is revealed scales with length, so a short part is not handed over in
+# full for want of characters to hide. This rule is duplicated in
+# tools/ui-patch/account-ui.js, which cannot shell out per row, and a test
+# asserts the two agree on every case.
+mask_part() {
+    local s="$1" n=${#1}
+    if [ "$n" -le 2 ]; then printf '**'
+    elif [ "$n" -le 5 ]; then printf '%s**' "${s:0:1}"
+    elif [ "$n" -le 8 ]; then printf '%s**%s' "${s:0:2}" "${s:$((n - 1))}"
+    else printf '%s**%s' "${s:0:3}" "${s:$((n - 3))}"
+    fi
+}
+
+mask_email() {
+    local raw="${1:-}" local_part host suffix domain
+    [ -n "$raw" ] || return 0
+    case "$raw" in
+        *@*)
+            local_part=${raw%@*}
+            domain=${raw##*@}
+            ;;
+        *) mask_part "$raw"; echo; return 0 ;;
+    esac
+    [ -n "$local_part" ] || { printf '@'; mask_part "$domain"; echo; return 0; }
+    case "$domain" in
+        *.*) host=${domain%%.*}; suffix=".${domain#*.}" ;;
+        *) host="$domain"; suffix="" ;;
+    esac
+    printf '%s@%s%s\n' "$(mask_part "$local_part")" "$(mask_part "$host")" "$suffix"
+}
+
+# Display commands mask by default only when asked, because a terminal is where
+# you go to read the real address. The chat card passes --mask.
+label_for_display() {
+    local agent="$1" profile="$2" masked="$3" label
+    label=$(label_of "$agent" "$profile")
+    if [ -n "$label" ] && [ "$masked" = "1" ]; then
+        mask_email "$label"
+    else
+        printf '%s\n' "$label"
+    fi
+}
+
 # ---------------------------------------------------------------- commands ---
 
 cmd_init() {
@@ -295,12 +345,13 @@ cmd_remove() {
 
 cmd_list() {
     ensure_root
-    local agent profile label
+    local agent profile label masked=0
+    [ "${1:-}" = "--mask" ] && masked=1
     for agent in claude codex; do
         local found=0
         for profile in $(list_profiles "$agent"); do
             [ "$found" -eq 0 ] && { echo "$agent profiles:"; found=1; }
-            label=$(label_of "$agent" "$profile")
+            label=$(label_for_display "$agent" "$profile" "$masked")
             if [ -n "$label" ]; then
                 printf '  %-14s %s\n' "$profile" "$label"
             else
@@ -464,14 +515,18 @@ cmd_which() {
 
 cmd_status() {
     ensure_root
-    local ws agent resolved profile label
-    ws=$(current_workspace "${1:-}")
+    local ws agent resolved profile label masked=0 arg
+    local -a rest=()
+    for arg in "$@"; do
+        if [ "$arg" = "--mask" ]; then masked=1; else rest+=("$arg"); fi
+    done
+    ws=$(current_workspace "${rest[0]:-}")
     for agent in claude codex; do
         [ -n "$(list_profiles "$agent")" ] || continue
         resolved=$(effective_dir "$agent" "$ws")
         if [ -n "$resolved" ]; then
             profile=$(profile_from_dir "$resolved")
-            label=$(label_of "$agent" "$profile")
+            label=$(label_for_display "$agent" "$profile" "$masked")
             printf '%-7s %s%s\n' "$agent" "${profile:-$resolved}" "${label:+  $label}"
         else
             printf '%-7s %s\n' "$agent" "(default account)"
@@ -1118,9 +1173,10 @@ conductor-acct $CONDUCTOR_ACCT_VERSION - one Claude/Codex account per Conductor 
   setup                            guided first run
   add <profile> [claude|codex]     create a profile and sign in to it
   use <profile> [agent] [path]     point this workspace at a profile
-  status [path]                    what this workspace resolves to, in two lines
+  status [path] [--mask]           what this workspace resolves to, in two lines
   which [path] [agent]             the same, with every layer that fed into it
-  list                             profiles, accounts and routes
+  list [--mask]                    profiles, accounts and routes
+  mask <email>                     the masked form shown on screen
 
   login <profile> [agent]          re-run sign in for a profile
   logout <profile> [agent]         sign out, keep the profile
@@ -1174,6 +1230,7 @@ case "$cmd" in
     which) cmd_which "$@" ;;
     check) cmd_check "$@" ;;
     json) cmd_json "$@" ;;
+    mask) mask_email "${1:-}" ;;
     resolve) cmd_resolve "$@" ;;
     resolve-repo) cmd_resolve_repo "$@" ;;
     workspaces) cmd_workspaces "$@" ;;

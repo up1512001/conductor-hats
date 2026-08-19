@@ -197,22 +197,34 @@
     ".cma-tickslot{flex:none;width:15px;display:flex;justify-content:center;",
     "color:var(--foreground);opacity:.9}",
 
-    /* The delete control sits inside a row that is itself a button, so it is a
-     * sibling rather than a nested button: nested interactive elements are
-     * invalid and, worse, swallow the row's own click. */
+    /* An account row is one bordered card holding two buttons: the wide one
+     * selects, the narrow one deletes. Nesting the delete button inside the
+     * select button would be invalid HTML and would swallow the row's click, so
+     * they are siblings inside a plain container that carries the border. The
+     * delete control used to sit outside that border, in the gutter, which read
+     * as unrelated to the row and put a destructive target a few pixels from
+     * "switch account" with nothing between them. */
+    ".cma-row2{display:flex;align-items:stretch;width:100%;box-sizing:border-box;",
+    "margin:0 0 5px;border-radius:calc(var(--radius) - 2px);border:1px solid var(--border);",
+    "overflow:hidden;transition:border-color .12s}",
+    ".cma-row2:last-child{margin-bottom:0}",
+    ".cma-row2:hover{border-color:var(--ring,var(--border))}",
+    ".cma-row2 .cma-card{flex:1;min-width:0;width:auto;margin:0;border:0;border-radius:0}",
+    ".cma-row2[aria-disabled=true]{opacity:.45}",
+
+    /* A divider, and a target the full height of the row: deliberate to hit,
+     * hard to hit by accident. */
     ".cma-trash{flex:none;display:inline-flex;align-items:center;justify-content:center;",
-    "width:26px;height:26px;margin:-4px -5px -4px 0;border:0;border-radius:6px;",
-    "background:transparent;color:var(--muted-foreground);cursor:pointer;opacity:.55;",
-    "transition:opacity .12s,background .12s,color .12s}",
-    /* width:100% plus a sibling overflowed the panel, which made the provider
-     * view wider than the root view and moved the whole panel sideways on the
-     * way in. The card flexes instead. */
-    ".cma-rowwrap{position:relative;display:flex;align-items:center;gap:0}",
-    ".cma-rowwrap .cma-card{flex:1;width:auto;min-width:0;margin-bottom:0}",
-    ".cma-rowwrap:hover .cma-trash{opacity:.85}",
-    ".cma-trash:hover{opacity:1;background:var(--destructive,#ff5a5a);color:#fff}",
-    ".cma-slot{margin-bottom:5px}",
-    ".cma-slot:last-child{margin-bottom:0}",
+    "width:36px;align-self:stretch;border:0;border-left:1px solid var(--border);",
+    "border-radius:0;background:transparent;color:var(--muted-foreground);",
+    "cursor:pointer;opacity:.6;transition:opacity .12s,background .12s,color .12s}",
+    ".cma-row2:hover .cma-trash{opacity:.85}",
+    ".cma-trash:hover,.cma-trash:focus-visible{opacity:1;",
+    "background:var(--destructive,#ff5a5a);color:#fff}",
+
+    /* Masked by default. A recorded screen should not hand out an address, and
+     * the profile name underneath already says which account this is. */
+    ".cma-mask{font-variant-numeric:tabular-nums;letter-spacing:.01em}",
 
     ".cma-back{display:inline-flex;align-items:center;gap:6px;margin:0 0 6px;padding:4px 6px;",
     "border:0;border-radius:6px;background:transparent;color:var(--muted-foreground);",
@@ -241,13 +253,29 @@
     "cursor:pointer}",
     ".cma-go:disabled{opacity:.5;cursor:default}",
 
-    ".cma-confirm{padding:8px 10px;border-radius:calc(var(--radius) - 2px);",
-    "border:1px solid var(--destructive,#ff5a5a)}",
-    ".cma-confirm .cma-sub{white-space:normal}",
-    ".cma-actions{display:flex;gap:6px;margin-top:7px}",
-    ".cma-act{flex:1;height:28px;border-radius:calc(var(--radius) - 3px);border:1px solid var(--border);",
-    "background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}",
+    /* Deleting an account signs it out, removes its profile directory and drops
+     * every route pointing at it. None of that is undoable, so it gets a real
+     * dialog with a scrim rather than a control that arms on a first click:
+     * an armed control is still one click from destruction, and one stray click
+     * is exactly the failure being guarded against. */
+    ".cma-scrim{position:fixed;inset:0;z-index:100000;display:flex;",
+    "align-items:center;justify-content:center;padding:24px;",
+    "background:rgb(0 0 0/.45);animation:cma-fade .12s ease-out}",
+    "@keyframes cma-fade{from{opacity:0}to{opacity:1}}",
+    ".cma-dialog{width:300px;max-width:100%;box-sizing:border-box;padding:14px;",
+    "border-radius:var(--radius);border:1px solid var(--border);",
+    "background:var(--popover);color:var(--popover-foreground);",
+    "box-shadow:0 18px 48px rgb(0 0 0/.4);font-size:13px;",
+    "animation:cma-pop .12s ease-out}",
+    "@keyframes cma-pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}",
+    ".cma-dialog .cma-name{white-space:normal;font-weight:600;font-size:13px}",
+    ".cma-dialog .cma-sub{white-space:normal;margin-top:6px;line-height:1.5}",
+    ".cma-actions{display:flex;gap:7px;margin-top:13px}",
+    ".cma-act{flex:1;height:30px;border-radius:calc(var(--radius) - 3px);border:1px solid var(--border);",
+    "background:transparent;color:inherit;font:inherit;font-size:12px;font-weight:500;",
+    "cursor:pointer}",
     ".cma-act:hover{background:var(--accent)}",
+    ".cma-act:disabled{opacity:.6;cursor:default}",
     ".cma-act-danger{border-color:transparent;background:var(--destructive,#ff5a5a);color:#fff}",
     ".cma-act-danger:hover{filter:brightness(1.08);background:var(--destructive,#ff5a5a)}"
   ].join("");
@@ -297,6 +325,7 @@
   var open = null; /* { el, anchor, state, view, refresh } */
 
   function closePanel() {
+    closeDialog();
     if (open && open.el && open.el.parentNode) open.el.parentNode.removeChild(open.el);
     if (open && open.anchor) open.anchor.setAttribute("aria-expanded", "false");
     open = null;
@@ -304,15 +333,18 @@
     document.removeEventListener("keydown", onDocKey, true);
   }
 
+  /* A confirmation dialog is a sibling of the panel, not a descendant, so both
+   * of these would otherwise treat interacting with it as clicking away and pull
+   * the panel out from under it. */
   function onDocDown(e) {
-    if (!open) return;
+    if (!open || openDialog) return;
     if (open.el.contains(e.target)) return;
     if (open.anchor && open.anchor.contains(e.target)) return;
     closePanel();
   }
 
   function onDocKey(e) {
-    if (e.key !== "Escape" || !open) return;
+    if (e.key !== "Escape" || !open || openDialog) return;
     if (open.view.level === "provider") {
       open.view = { level: "root" };
       render();
@@ -404,6 +436,42 @@
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   }
 
+  /* Addresses are masked wherever they appear in the UI, so a screen recording
+   * or a shared screenshot cannot hand one out. Each part keeps its first three
+   * and last three characters with ** between; the domain keeps its suffix so
+   * the string still reads as an email:
+   *
+   *   someone.long@example.com  ->  som**ong@exa**le.com
+   *   joe@mail.co.uk            ->  j**@m**.co.uk
+   *
+   * Enough to tell two accounts apart at a glance, and the profile name sits
+   * right underneath for when it is not. The full address is never put in a
+   * title attribute either, since a tooltip is just as visible on video. Use
+   * `conductor-acct list` in a terminal when you need to read it. */
+  function maskPart(s) {
+    /* How much is revealed scales with length, so a short local part is not
+     * handed over in full for want of characters to hide. Nothing shorter than
+     * three characters reveals anything at all. */
+    var n = s.length;
+    if (n <= 2) return "**";
+    if (n <= 5) return s.charAt(0) + "**";
+    if (n <= 8) return s.slice(0, 2) + "**" + s.slice(-1);
+    return s.slice(0, 3) + "**" + s.slice(-3);
+  }
+
+  function maskEmail(raw) {
+    var s = String(raw || "");
+    if (!s) return "";
+    var at = s.lastIndexOf("@");
+    if (at < 1) return maskPart(s);
+    var local = s.slice(0, at);
+    var domain = s.slice(at + 1);
+    var dot = domain.indexOf(".");
+    var host = dot > 0 ? domain.slice(0, dot) : domain;
+    var suffix = dot > 0 ? domain.slice(dot) : "";
+    return maskPart(local) + "@" + maskPart(host) + suffix;
+  }
+
   var AGENT_LABEL = { claude: "Claude Code", codex: "Codex" };
   var AGENT_ICON = { claude: "claude", codex: "codex" };
 
@@ -489,8 +557,7 @@
   /* -------------------------------------------------------- provider view -- */
 
   function accountSlot(state, provider, account) {
-    var slot = el("div", "cma-slot");
-    var wrap = el("div", "cma-rowwrap");
+    var row = el("div", "cma-row2");
 
     var card = el("button", "cma-card");
     card.type = "button";
@@ -498,7 +565,10 @@
     card.setAttribute("aria-checked", account.active ? "true" : "false");
 
     var main = el("div", "cma-grow");
-    main.appendChild(el("div", "cma-name", account.email || cap(account.name)));
+    var shown = account.email ? maskEmail(account.email) : cap(account.name);
+    var line = el("div", "cma-name" + (account.email ? " cma-mask" : ""), shown);
+    if (account.email) line.setAttribute("aria-label", "email hidden");
+    main.appendChild(line);
     main.appendChild(el("div", "cma-sub", account.email ? cap(account.name) : "Not signed in"));
     card.appendChild(main);
 
@@ -507,16 +577,17 @@
     card.appendChild(tickslot);
 
     if (state.target.kind === "none") {
+      row.setAttribute("aria-disabled", "true");
       card.setAttribute("aria-disabled", "true");
       card.title = "Open a workspace, or the New Workspace dialog, to pick an account";
     } else {
       card.addEventListener("click", function () {
         applyAccount(state, provider.agent, account.name).then(reload).catch(function (e) {
-          note(slot, String((e && e.message) || e));
+          note(open ? open.el : row, String((e && e.message) || e));
         });
       });
     }
-    wrap.appendChild(card);
+    row.appendChild(card);
 
     var del = el("button", "cma-trash");
     del.type = "button";
@@ -524,43 +595,95 @@
     del.setAttribute("aria-label", "Delete " + cap(account.name));
     del.appendChild(icon("trash", 14));
     del.addEventListener("click", function () {
-      slot.replaceChildren(confirmDelete(provider, account, function () {
-        slot.replaceChildren(wrap);
-      }));
+      confirmDelete(provider, account);
     });
-    wrap.appendChild(del);
+    row.appendChild(del);
 
-    slot.appendChild(wrap);
-    return slot;
+    return row;
   }
 
   /* Deleting signs the account out, removes its profile directory and drops any
-   * routes pointing at it. None of that is undoable, so it gets a named
-   * confirmation rather than a control that arms on a first click. */
-  function confirmDelete(provider, account, cancel) {
-    var box = el("div", "cma-confirm");
-    box.appendChild(el("div", "cma-name", "Delete " + cap(account.name) + "?"));
-    box.appendChild(el("div", "cma-sub",
-      "Signs " + (account.email || cap(account.name)) +
-      " out and drops every workspace routed to it."));
+   * route pointing at it. None of that is undoable, so it asks in a dialog with
+   * a scrim: a control that merely arms on a first click is still one stray
+   * click from destruction, which is the thing being guarded against. */
+  function confirmDelete(provider, account) {
+    dialog({
+      title: "Delete " + cap(account.name) + "?",
+      body: "Signs " + (account.email ? maskEmail(account.email) : cap(account.name)) +
+            " out of " + (AGENT_LABEL[provider.agent] || provider.agent) +
+            ", deletes its profile and drops every workspace routed to it. " +
+            "This cannot be undone.",
+      confirm: "Delete",
+      danger: true,
+      onConfirm: function (done, fail) {
+        acct("remove " + account.name + " " + provider.agent)
+          .then(function () { done(); reload(); })
+          .catch(function (e) { fail(String((e && e.message) || e)); });
+      }
+    });
+  }
+
+  /* Mounted in the same host as the panel, so Conductor's own dialog still counts
+   * it as inside itself and does not dismiss on the click that opened it. */
+  var openDialog = null;
+
+  function closeDialog() {
+    if (openDialog && openDialog.parentNode) openDialog.parentNode.removeChild(openDialog);
+    openDialog = null;
+  }
+
+  function dialog(opts) {
+    closeDialog();
+    var scrim = el("div", "cma-scrim");
+    var box = el("div", "cma-dialog");
+    box.setAttribute("role", "alertdialog");
+    box.setAttribute("aria-modal", "true");
+    seal(scrim);
+
+    box.appendChild(el("div", "cma-name", opts.title));
+    var body = el("div", "cma-sub", opts.body);
+    box.appendChild(body);
 
     var actions = el("div", "cma-actions");
     var no = el("button", "cma-act", "Cancel");
     no.type = "button";
-    no.addEventListener("click", cancel);
-    var yes = el("button", "cma-act cma-act-danger", "Delete");
+    var yes = el("button", "cma-act" + (opts.danger ? " cma-act-danger" : ""), opts.confirm);
     yes.type = "button";
+
+    function shut() {
+      document.removeEventListener("keydown", onKey, true);
+      closeDialog();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") { e.stopPropagation(); shut(); }
+    }
+
+    no.addEventListener("click", shut);
     yes.addEventListener("click", function () {
+      no.disabled = true;
       yes.disabled = true;
-      yes.textContent = "Deleting…";
-      acct("remove " + account.name + " " + provider.agent).then(reload).catch(function (e) {
-        box.replaceChildren(el("div", "cma-sub", String((e && e.message) || e)));
+      yes.textContent = "Working…";
+      opts.onConfirm(shut, function (message) {
+        yes.remove();
+        no.disabled = false;
+        no.textContent = "Close";
+        body.textContent = message;
       });
     });
+    /* Clicking the scrim cancels, which is the safe outcome. Clicking the dialog
+     * itself must not, so the box stops the event before it gets there. */
+    scrim.addEventListener("click", function (e) {
+      if (e.target === scrim) shut();
+    });
+
     actions.appendChild(no);
     actions.appendChild(yes);
     box.appendChild(actions);
-    return box;
+    scrim.appendChild(box);
+    (open ? open.el.parentNode : document.body).appendChild(scrim);
+    openDialog = scrim;
+    document.addEventListener("keydown", onKey, true);
+    setTimeout(function () { no.focus(); }, 0);
   }
 
   function signInForm(agent, host, replaced) {
@@ -588,7 +711,7 @@
       acct("login-status " + profile + " " + agent)
         .then(function (out) {
           if (/^ok /.test(out)) {
-            status.textContent = "Signed in as " + out.slice(3);
+            status.textContent = "Signed in as " + maskEmail(out.slice(3));
             setTimeout(reload, 600);
             return;
           }
