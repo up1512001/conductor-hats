@@ -539,6 +539,40 @@ test_every_clickable_thing_says_it_is_clickable() {
         "$(printf '%s' "$css" | grep -c 'cursor:default')" "1"
 }
 
+# Nothing under the pointer may move once the panel is open. Four things make
+# that true, and each one was a visible jump before it was there.
+test_the_panel_cannot_shift_once_it_is_open() {
+    local body css
+    body=$(cat "$UI_JS")
+    css=$(sed -n '/^  var CSS = \[/,/\].join("");/p' "$UI_JS")
+    contains "the corner is placed once and reused" "$body" "if (open && open.pos)"
+    contains "width is fixed, not content driven" "$css" "width:300px;box-sizing:border-box"
+    contains "a long list scrolls instead of growing" "$css" "overflow-y:auto"
+    contains "the card flexes beside its delete control" "$css" ".cma-rowwrap .cma-card{flex:1"
+    contains "the tick has a slot of its own" "$css" ".cma-tickslot"
+    contains "and the slot is always in the flow" "$body" 'el("div", "cma-tickslot")'
+    contains "triggers stay hidden until labelled" "$body" "btn.hidden = true"
+}
+
+# A dot next to a label is decoration standing in for a word. The label says it.
+test_no_status_dots_anywhere() {
+    is "no dot element" "$(grep -c 'cma-dot' "$UI_JS")" "0"
+}
+
+# Profile names are lower case on disk and capitalised only for display.
+test_display_names_are_capitalised_without_touching_the_cli() {
+    local body
+    body=$(cat "$UI_JS")
+    contains "a display-only helper" "$body" "function cap(s)"
+    contains "account rows use it" "$body" "cap(account.name)"
+    contains "the provider badge uses it" "$body" "cap(provider.current)"
+    contains "the trigger label uses it" "$body" "cap(cur)"
+    is "and writes still send the raw name" \
+        "$(printf '%s' "$body" | grep -c 'applyAccount(state, provider.agent, account.name)')" "1"
+    is "as does remove" \
+        "$(printf '%s' "$body" | grep -c 'acct("remove " + account.name')" "1"
+}
+
 # The wireframe is a drill-down: providers first, then that provider's accounts
 # with a delete each and one "Add new account" at the foot.
 test_the_panel_is_a_two_level_drill_down() {

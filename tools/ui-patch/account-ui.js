@@ -144,10 +144,16 @@
     "white-space:nowrap;cursor:pointer;transition:background .12s,color .12s}",
     ".cma-btn:hover,.cma-chip:hover,.cma-btn[aria-expanded=true],",
     ".cma-chip[aria-expanded=true]{background:var(--accent);color:var(--foreground)}",
-    ".cma-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;opacity:.75}",
-    ".cma-dot.cma-off{opacity:.35}",
+    /* Hidden until its label is known, so the toolbar settles once instead of
+     * reflowing from "Account" to the real name a moment later. */
+    ".cma-btn[hidden],.cma-chip[hidden]{display:none}",
 
-    ".cma-panel{position:fixed;z-index:99999;width:300px;padding:6px;",
+    /* Fixed width and a capped height, both on purpose: the panel's top left
+     * corner is placed once when it opens and never moves again, so switching
+     * view or account cannot shift anything under the pointer. A long account
+     * list scrolls inside the panel rather than growing it. */
+    ".cma-panel{position:fixed;z-index:99999;width:300px;box-sizing:border-box;padding:6px;",
+    "max-height:min(70vh,560px);overflow-y:auto;overscroll-behavior:contain;",
     "border-radius:var(--radius);border:1px solid var(--border);",
     "background:var(--popover);color:var(--popover-foreground);",
     "box-shadow:0 10px 38px rgb(0 0 0/.28),0 2px 8px rgb(0 0 0/.16);",
@@ -186,7 +192,10 @@
     ".cma-badge{font-size:11px;color:var(--muted-foreground);white-space:nowrap;",
     "max-width:96px;overflow:hidden;text-overflow:ellipsis}",
     ".cma-card[aria-checked=true] .cma-name{font-weight:600}",
-    ".cma-tick{color:var(--foreground);opacity:.9}",
+    /* The slot is always in the flow and only its contents come and go, so the
+     * tick moving between accounts does not reflow the row it lands in. */
+    ".cma-tickslot{flex:none;width:15px;display:flex;justify-content:center;",
+    "color:var(--foreground);opacity:.9}",
 
     /* The delete control sits inside a row that is itself a button, so it is a
      * sibling rather than a nested button: nested interactive elements are
@@ -195,8 +204,11 @@
     "width:26px;height:26px;margin:-4px -5px -4px 0;border:0;border-radius:6px;",
     "background:transparent;color:var(--muted-foreground);cursor:pointer;opacity:.55;",
     "transition:opacity .12s,background .12s,color .12s}",
+    /* width:100% plus a sibling overflowed the panel, which made the provider
+     * view wider than the root view and moved the whole panel sideways on the
+     * way in. The card flexes instead. */
     ".cma-rowwrap{position:relative;display:flex;align-items:center;gap:0}",
-    ".cma-rowwrap .cma-card{margin-bottom:0}",
+    ".cma-rowwrap .cma-card{flex:1;width:auto;min-width:0;margin-bottom:0}",
     ".cma-rowwrap:hover .cma-trash{opacity:.85}",
     ".cma-trash:hover{opacity:1;background:var(--destructive,#ff5a5a);color:#fff}",
     ".cma-slot{margin-bottom:5px}",
@@ -339,11 +351,22 @@
     return document.body;
   }
 
-  /* position:fixed is relative to the nearest ancestor that establishes a
+  /* Placed once, when the panel opens, and then left alone. Re-measuring on
+   * every re-render is what made the panel jump: the provider view is a
+   * different height from the root view, and clamping against the right edge
+   * moved it sideways too. Now the top left corner is fixed for the life of the
+   * panel, the width is fixed in CSS, and a long list scrolls inside it.
+   *
+   * position:fixed is relative to the nearest ancestor that establishes a
    * containing block, and Conductor animates its dialog with a transform, which
    * does exactly that. Rather than guess which ancestor wins, place the panel,
    * measure where it actually landed and correct by the difference. */
   function place(panel, anchor) {
+    if (open && open.pos) {
+      panel.style.top = open.pos.top + "px";
+      panel.style.left = open.pos.left + "px";
+      return;
+    }
     var a = anchor.getBoundingClientRect();
     var h = panel.offsetHeight;
     var wantTop = a.bottom + 6;
@@ -355,10 +378,11 @@
     var got = panel.getBoundingClientRect();
     var dy = wantTop - got.top;
     var dx = wantLeft - got.left;
-    if (Math.abs(dy) > 0.5 || Math.abs(dx) > 0.5) {
-      panel.style.top = Math.round(wantTop + dy) + "px";
-      panel.style.left = Math.round(wantLeft + dx) + "px";
-    }
+    var top = Math.round(wantTop + (Math.abs(dy) > 0.5 ? dy : 0));
+    var left = Math.round(wantLeft + (Math.abs(dx) > 0.5 ? dx : 0));
+    panel.style.top = top + "px";
+    panel.style.left = left + "px";
+    if (open) open.pos = { top: top, left: left };
   }
 
   function el(tag, cls, text) {
@@ -370,6 +394,14 @@
 
   function label(text) {
     return el("div", "cma-head", text);
+  }
+
+  /* Profile names are lower case on disk, because they are typed at a CLI and
+   * used as directory names. They are capitalised for display only: never feed
+   * the result back to conductor-acct. */
+  function cap(s) {
+    s = String(s || "");
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   }
 
   var AGENT_LABEL = { claude: "Claude Code", codex: "Codex" };
@@ -417,11 +449,11 @@
     var main = el("div", "cma-grow");
     main.appendChild(el("div", "cma-name", AGENT_LABEL[provider.agent] || provider.agent));
     var n = provider.accounts.length;
-    main.appendChild(el("div", "cma-sub", n === 1 ? "1 account" : n + " accounts"));
+    main.appendChild(el("div", "cma-sub", n === 1 ? "1 Account" : n + " Accounts"));
     card.appendChild(main);
 
     card.appendChild(el("span", "cma-badge",
-      provider.current || (provider.accounts.length ? "not set" : "none")));
+      cap(provider.current) || (provider.accounts.length ? "Not set" : "None")));
     card.appendChild(icon("chevron", 13));
 
     card.addEventListener("click", function () {
@@ -466,14 +498,13 @@
     card.setAttribute("aria-checked", account.active ? "true" : "false");
 
     var main = el("div", "cma-grow");
-    main.appendChild(el("div", "cma-name", account.email || account.name));
-    main.appendChild(el("div", "cma-sub", account.email ? account.name : "not signed in"));
+    main.appendChild(el("div", "cma-name", account.email || cap(account.name)));
+    main.appendChild(el("div", "cma-sub", account.email ? cap(account.name) : "Not signed in"));
     card.appendChild(main);
-    if (account.active) {
-      var t = icon("tick", 13);
-      t.setAttribute("class", "cma-tick");
-      card.appendChild(t);
-    }
+
+    var tickslot = el("div", "cma-tickslot");
+    if (account.active) tickslot.appendChild(icon("tick", 13));
+    card.appendChild(tickslot);
 
     if (state.target.kind === "none") {
       card.setAttribute("aria-disabled", "true");
@@ -489,8 +520,8 @@
 
     var del = el("button", "cma-trash");
     del.type = "button";
-    del.title = "Sign out and delete " + account.name;
-    del.setAttribute("aria-label", "Delete " + account.name);
+    del.title = "Sign out and delete " + cap(account.name);
+    del.setAttribute("aria-label", "Delete " + cap(account.name));
     del.appendChild(icon("trash", 14));
     del.addEventListener("click", function () {
       slot.replaceChildren(confirmDelete(provider, account, function () {
@@ -508,9 +539,9 @@
    * confirmation rather than a control that arms on a first click. */
   function confirmDelete(provider, account, cancel) {
     var box = el("div", "cma-confirm");
-    box.appendChild(el("div", "cma-name", "Delete " + account.name + "?"));
+    box.appendChild(el("div", "cma-name", "Delete " + cap(account.name) + "?"));
     box.appendChild(el("div", "cma-sub",
-      "Signs " + (account.email || account.name) +
+      "Signs " + (account.email || cap(account.name)) +
       " out and drops every workspace routed to it."));
 
     var actions = el("div", "cma-actions");
@@ -685,7 +716,7 @@
     }, 0);
   }
 
-  function togglePanel(anchor, refresh) {
+  function togglePanel(anchor) {
     if (open) {
       var same = open.anchor === anchor;
       closePanel();
@@ -698,9 +729,10 @@
     loadState()
       .then(function (state) {
         mountFor(anchor).appendChild(panel);
-        open = { el: panel, anchor: anchor, state: state, view: { level: "root" }, refresh: refresh };
+        open = { el: panel, anchor: anchor, state: state, view: { level: "root" } };
         render();
         listen();
+        refreshTriggers(state);
       })
       .catch(function (e) {
         anchor.setAttribute("aria-expanded", "false");
@@ -708,11 +740,13 @@
       });
   }
 
-  function refreshTriggers() {
+  /* Both triggers are refreshed from state already in hand. They can each fetch
+   * their own, and do on first attach, but a switch would then cost three reads
+   * of the same thing and the labels would visibly lag the tick. */
+  function refreshTriggers(state) {
     var b = document.getElementById("cma-toolbar-btn");
-    if (b) refreshToolbarLabel(b);
-    refreshComposerChip();
-    if (open && open.refresh) open.refresh();
+    if (b) refreshToolbarLabel(b, state);
+    refreshComposerChip(state);
   }
 
   /* -------------------------------------------------------------- toolbar -- */
@@ -786,11 +820,12 @@
     btn.type = "button";
     btn.className = "cma-btn";
     btn.setAttribute("aria-label", "Agent account");
-    btn.innerHTML = '<span class="cma-dot"></span><span class="cma-label">account</span>';
+    btn.hidden = true;
+    btn.appendChild(el("span", "cma-label"));
     seal(btn);
     btn.addEventListener("click", function (e) {
       e.preventDefault();
-      togglePanel(btn, function () { refreshToolbarLabel(btn); });
+      togglePanel(btn);
     });
 
     if (before) host.insertBefore(btn, before);
@@ -799,20 +834,22 @@
     log("toolbar button attached", before ? "next to Open in" : "floating (toolbar not found)");
   }
 
-  function refreshToolbarLabel(btn) {
+  function refreshToolbarLabel(btn, state) {
+    function apply(s) {
+      var cur = primary(s);
+      var lbl = btn.querySelector(".cma-label");
+      if (lbl) lbl.textContent = cap(cur) || (s.enabled ? "Default" : "Off");
+      btn.title = cur ? "Agent account: " + cap(cur) : "No account chosen here";
+      btn.hidden = false;
+    }
+    if (state) return apply(state);
     loadState()
-      .then(function (s) {
-        var cur = primary(s);
-        var lbl = btn.querySelector(".cma-label");
-        var dot = btn.querySelector(".cma-dot");
-        if (lbl) lbl.textContent = cur || (s.enabled ? "default" : "off");
-        if (dot) dot.className = "cma-dot" + (s.enabled && cur ? "" : " cma-off");
-        btn.title = cur ? "Agent account: " + cur : "No account chosen here";
-      })
+      .then(apply)
       .catch(function (e) {
         var lbl = btn.querySelector(".cma-label");
-        if (lbl) lbl.textContent = "account?";
+        if (lbl) lbl.textContent = "Account?";
         btn.title = "conductor-acct did not answer: " + (e && e.message ? e.message : e);
+        btn.hidden = false;
       });
   }
 
@@ -857,30 +894,30 @@
     chip.id = "cma-chip";
     chip.type = "button";
     chip.className = "cma-chip";
-    chip.innerHTML = '<span class="cma-dot"></span><span class="cma-label">account</span>';
+    chip.hidden = true;
+    chip.appendChild(el("span", "cma-label"));
     seal(chip);
     chip.addEventListener("click", function (e) {
       e.preventDefault();
-      togglePanel(chip, function () { refreshComposerChip(); });
+      togglePanel(chip);
     });
     foot.insertBefore(chip, foot.firstChild);
     refreshComposerChip();
     log("composer chip attached");
   }
 
-  function refreshComposerChip() {
+  function refreshComposerChip(state) {
     var chip = document.getElementById("cma-chip");
     if (!chip) return;
-    loadState()
-      .then(function (s) {
-        var lbl = chip.querySelector(".cma-label");
-        var dot = chip.querySelector(".cma-dot");
-        var name = primary(s) || "default account";
-        if (lbl) lbl.textContent = name;
-        if (dot) dot.className = "cma-dot" + (primary(s) ? "" : " cma-off");
-        chip.title = "This workspace will run agents on: " + name;
-      })
-      .catch(function () {});
+    function apply(s) {
+      var lbl = chip.querySelector(".cma-label");
+      var name = cap(primary(s)) || "Default account";
+      if (lbl) lbl.textContent = name;
+      chip.title = "This workspace will run agents on: " + name;
+      chip.hidden = false;
+    }
+    if (state) return apply(state);
+    loadState().then(apply).catch(function () {});
   }
 
   /* ----------------------------------------------------------------- boot -- */
