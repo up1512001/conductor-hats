@@ -47,15 +47,20 @@ test_your_thing() {
 }
 ```
 
-Helpers: `is`, `contains`, `fake_profile`, `route_claude`, `route_codex`.
+Helpers: `is`, `contains`, `fake_profile`, `route_claude`, `route_codex`, `skip`.
 
 ## Linting
 
 ```sh
-shellcheck bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router test/run.sh
+shellcheck bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router test/run.sh install.sh
+node --check tools/ui-patch/account-ui.js
 ```
 
-CI runs this and the test suite on macOS and Linux.
+CI runs both and the test suite on macOS and Linux. Its workflow lives at
+`.github/workflows/conductor-multi-account.yml`, at the **repository root**,
+because GitHub only runs workflows from there; a copy inside this directory
+would be ignored silently. It is filtered to paths under
+`conductor-multi-account/`.
 
 ## Manual checks before a release
 
