@@ -91,6 +91,63 @@ label_of() {
     read_line_from "$ACCOUNTS_ROOT/$1/$2/.label" 2>/dev/null || true
 }
 
+# Whether a profile actually holds credentials, asked of the place that holds
+# them rather than inferred from a cached label.
+#
+# This used to be "does .label exist", which is a cached email address written
+# after a sign-in and deleted on sign-out. It lies in the case that matters:
+# .label is only written when oauthAccount.emailAddress can be read out of
+# .claude.json, and that is not always populated the moment a sign-in finishes.
+# A profile with perfectly good credentials then read as "not signed in" for
+# ever, so the panel offered to sign an account in that was already signed in.
+#
+# Claude Code resolves credentials as $CLAUDE_CONFIG_DIR/.credentials.json, then
+# a keychain item whose service name carries the first 8 hex of sha256 of the
+# config directory. Both are checked here, in that order.
+keychain_service() {
+    # Claude normalises the path to NFC first. Every path under ACCOUNTS_ROOT is
+    # ASCII, where NFC is a no-op, so plain bytes are the same answer.
+    local dir="$1" hash
+    hash=$(printf '%s' "$dir" | shasum -a 256 | cut -c1-8)
+    printf 'Claude Code-credentials-%s\n' "$hash"
+}
+
+profile_signed_in() {
+    local agent="$1" profile="$2" dir
+    dir="$ACCOUNTS_ROOT/$agent/$profile"
+    [ -d "$dir" ] || return 1
+    case "$agent" in
+        claude)
+            [ -s "$dir/.credentials.json" ] && return 0
+            security find-generic-password -s "$(keychain_service "$dir")" \
+                >/dev/null 2>&1 && return 0
+            return 1
+            ;;
+        codex)
+            [ -s "$dir/auth.json" ] && return 0
+            return 1
+            ;;
+    esac
+    return 1
+}
+
+# Which other profile of this agent already holds an address, if any. Two
+# profiles on one account is not a second account: the provider's OAuth hands
+# out one live token per account, so signing the second one in silently revokes
+# the first, and the pair then take turns logging each other out.
+profile_with_email() {
+    local agent="$1" email="$2" skip="${3:-}" profile
+    [ -n "$email" ] || return 1
+    for profile in $(list_profiles "$agent"); do
+        [ "$profile" != "$skip" ] || continue
+        if [ "$(label_of "$agent" "$profile")" = "$email" ]; then
+            printf '%s\n' "$profile"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # The directory Conductor would run an agent in. Inside a Conductor session the
 # app tells us; from a terminal, the shell's own working directory is right.
 current_workspace() {
@@ -294,15 +351,34 @@ cmd_login() {
         codex) env CODEX_HOME="$dir" "$bin" login ;;
     esac
 
-    local email
+    local email clash
     email=$(refresh_label "$agent" "$profile" || true)
+    echo
     if [ -n "$email" ]; then
-        echo
         echo "Profile '$profile' is now $email"
+        if clash=$(profile_with_email "$agent" "$email" "$profile"); then
+            warn_duplicate_email "$agent" "$profile" "$clash" "$email"
+        fi
     else
-        echo
         echo "Signed in. Could not read the account email; the picker will show the profile name only."
     fi
+}
+
+# Said as a warning rather than an error: the sign-in already happened, and
+# refusing after the fact would leave the profile in a state the message denies.
+warn_duplicate_email() {
+    local agent="$1" profile="$2" clash="$3" email="$4"
+    cat >&2 <<EOF
+
+Warning: '$clash' is already signed in to $email on $agent.
+
+One account cannot be two accounts. The provider keeps a single live token per
+account, so whichever of '$profile' and '$clash' signed in last holds it and the
+other is now signed out. They will keep logging each other out.
+
+Keep one and drop the other:
+  conductor-acct remove $clash $agent
+EOF
 }
 
 cmd_logout() {
@@ -354,6 +430,8 @@ cmd_list() {
             label=$(label_for_display "$agent" "$profile" "$masked")
             if [ -n "$label" ]; then
                 printf '  %-14s %s\n' "$profile" "$label"
+            elif profile_signed_in "$agent" "$profile"; then
+                printf '  %-14s %s\n' "$profile" "(signed in, address not cached yet)"
             else
                 printf '  %-14s %s\n' "$profile" "(not signed in)"
             fi
@@ -688,9 +766,14 @@ cmd_json() {
             label=$(label_of "$agent" "$profile")
             [ "$first" -eq 1 ] || printf ','
             first=0
-            printf '{"name":"%s","email":"%s","active":%s}' \
+            # signedIn is asked of the keychain, not inferred from the address:
+            # a profile can hold credentials with no address cached yet, and
+            # reading that as "not signed in" is what made the panel offer to
+            # sign in an account that already was.
+            printf '{"name":"%s","email":"%s","active":%s,"signedIn":%s}' \
                 "$(json_escape "$profile")" "$(json_escape "$label")" \
-                "$([ "$profile" = "$current" ] && echo true || echo false)"
+                "$([ "$profile" = "$current" ] && echo true || echo false)" \
+                "$(profile_signed_in "$agent" "$profile" && echo true || echo false)"
         done
         printf ']}'
     done
@@ -857,6 +940,11 @@ cmd_login_status() {
     cmd_login_cancel "$profile" >/dev/null 2>&1 || true
     if [ -n "$email" ]; then
         printf 'ok %s\n' "$email"
+    elif profile_signed_in "$agent" "$profile"; then
+        # Credentials landed, the address has not been written to .claude.json
+        # yet. Reporting this as a failure was wrong, and it is what made a
+        # completed sign-in look like one that had not happened.
+        printf 'ok\n'
     else
         printf 'error %s\n' "$(tail -3 "$state/out" 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g')"
     fi
@@ -1131,10 +1219,29 @@ cmd_doctor() {
                 echo "warn:     $profile/$item is a real file, no longer shared with ~/.claude"
             fi
         done
-        if [ ! -f "$ACCOUNTS_ROOT/claude/$profile/.label" ]; then
+        if ! profile_signed_in claude "$profile"; then
             echo "warn:     profile '$profile' is not signed in"
             ok=0
         fi
+    done
+
+    # Two profiles on one account take turns logging each other out, and the
+    # symptom is baffling: an account you signed in five minutes ago asks again.
+    local agent seen dup
+    for agent in claude codex; do
+        seen=""
+        for profile in $(list_profiles "$agent"); do
+            dup=$(label_of "$agent" "$profile")
+            [ -n "$dup" ] || continue
+            case " $seen " in
+                *" $dup "*)
+                    echo "warn:     $agent profiles share the address $dup"
+                    echo "          one live token per account, so they will sign each other out"
+                    ok=0
+                    ;;
+                *) seen="$seen $dup" ;;
+            esac
+        done
     done
 
     # Every route must still point at a profile that exists.

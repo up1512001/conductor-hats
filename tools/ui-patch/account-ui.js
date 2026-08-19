@@ -272,6 +272,13 @@
     ".cma-row2:hover .cma-signout{opacity:.85}",
     ".cma-signout:hover,.cma-signout:focus-visible{opacity:1;",
     "background:var(--destructive,#ff5a5a);color:#fff}",
+    /* Signing in is not destructive, so it does not borrow the warning colour. */
+    ".cma-signin:hover,.cma-signin:focus-visible{background:var(--accent);",
+    "color:var(--foreground)}",
+    ".cma-slot{margin-bottom:5px}",
+    ".cma-slot:last-child{margin-bottom:0}",
+    ".cma-slot .cma-row2{margin-bottom:0}",
+    ".cma-slot .cma-form{margin-top:5px}",
 
     /* Masked by default. A recorded screen should not hand out an address, and
      * the profile name underneath already says which account this is. */
@@ -347,8 +354,9 @@
     back: ["M12.5 8H4", "M7.5 4.5 4 8l3.5 3.5"],
     /* Sign out, not a bin: the control signs the account out and leaves
      * everything else where it was. A bin would promise deletion it does not
-     * do. */
+     * do. Sign in is the same arrow, pointing the other way. */
     signout: ["M9.2 3.5H4.2v9h5", "M7.4 8h6.4", "M11.6 5.9 13.8 8l-2.2 2.1"],
+    signin: ["M6.8 3.5h5v9h-5", "M8.6 8H2.2", "M4.4 5.9 2.2 8l2.2 2.1"],
     tick: ["M3.5 8.6 6.4 11.5 12.5 5"],
     plus: ["M8 3.5v9", "M3.5 8h9"],
     /* Conductor's own Claude and Codex marks, lifted verbatim from its frontend
@@ -630,6 +638,7 @@
   /* -------------------------------------------------------- provider view -- */
 
   function accountSlot(state, provider, account) {
+    var slot = el("div", "cma-slot");
     var row = el("div", "cma-row2");
 
     var card = el("button", "cma-card");
@@ -638,11 +647,16 @@
     card.setAttribute("aria-checked", account.active ? "true" : "false");
 
     var main = el("div", "cma-grow");
+    /* Three states, because signed in and address-known are not the same thing:
+     * credentials can be in place before the address has been written anywhere
+     * this can read it. */
     var shown = account.email ? maskEmail(account.email) : cap(account.name);
     var line = el("div", "cma-name" + (account.email ? " cma-mask" : ""), shown);
     if (account.email) line.setAttribute("aria-label", "email hidden");
     main.appendChild(line);
-    main.appendChild(el("div", "cma-sub", account.email ? cap(account.name) : "Not signed in"));
+    main.appendChild(el("div", "cma-sub",
+      account.email ? cap(account.name)
+        : account.signedIn ? "Signed in" : "Not signed in"));
     card.appendChild(main);
 
     var tickslot = el("div", "cma-tickslot");
@@ -662,9 +676,9 @@
     }
     row.appendChild(card);
 
-    /* Only offered for an account that is actually signed in. Nothing to sign
-     * out of otherwise, and the row already says so. */
-    if (account.email) {
+    /* Whichever of the two applies. A signed-out row with no way back in is a
+     * dead end, and the row is the obvious place for the way back. */
+    if (account.signedIn) {
       var out = el("button", "cma-signout");
       out.type = "button";
       out.title = "Sign out of " + cap(account.name);
@@ -674,9 +688,24 @@
         confirmSignOut(provider, account);
       });
       row.appendChild(out);
+    } else {
+      var back = el("button", "cma-signout cma-signin");
+      back.type = "button";
+      back.title = "Sign in to " + cap(account.name);
+      back.setAttribute("aria-label", "Sign in to " + cap(account.name));
+      back.appendChild(icon("signin", 14));
+      back.addEventListener("click", function () {
+        signInForm(provider.agent, {
+          host: slot,
+          profile: account.name,
+          state: state
+        });
+      });
+      row.appendChild(back);
     }
 
-    return row;
+    slot.appendChild(row);
+    return slot;
   }
 
   /* Signing out drops that account's credentials and nothing else. The profile
@@ -689,8 +718,8 @@
   function confirmSignOut(provider, account) {
     dialog({
       title: "Sign out of " + cap(account.name) + "?",
-      body: "Signs " + maskEmail(account.email) + " out of " +
-            (AGENT_LABEL[provider.agent] || provider.agent) +
+      body: "Signs " + (account.email ? maskEmail(account.email) : cap(account.name)) +
+            " out of " + (AGENT_LABEL[provider.agent] || provider.agent) +
             ". Nothing else changes: the account stays in this list, and its " +
             "routes, sessions and transcripts are untouched. Sign back in from " +
             "here whenever you like.",
@@ -767,32 +796,75 @@
     setTimeout(function () { no.focus(); }, 0);
   }
 
-  function signInForm(agent, host, replaced) {
+  /* Two callers, one flow. "Add new account" needs a name typed; the sign-in
+   * control on a signed-out row already knows which profile it is for, so it
+   * skips straight to the button.
+   *
+   *   opts.host     where the form goes
+   *   opts.replace  node the form takes the place of, if any
+   *   opts.profile  fixed profile name, or null to ask for one
+   *   opts.state    current state, for the duplicate-address check
+   */
+  function signInForm(agent, opts) {
+    if (opts.host.querySelector(".cma-form")) return;
+    var fixed = opts.profile || null;
     var form = el("div", "cma-form");
 
-    var name = document.createElement("input");
-    name.className = "cma-input";
-    name.placeholder = "name, for example work";
-    name.spellcheck = false;
+    var name = null;
+    if (!fixed) {
+      name = document.createElement("input");
+      name.className = "cma-input";
+      name.placeholder = "name, for example work";
+      name.spellcheck = false;
+      form.appendChild(name);
+    } else {
+      form.appendChild(el("div", "cma-name", "Sign in to " + cap(fixed)));
+    }
 
     var go = el("button", "cma-go", "Sign in");
     go.type = "button";
 
     var status = el("div", "cma-note", "Your browser opens for approval.");
 
-    form.appendChild(name);
     form.appendChild(go);
     form.appendChild(status);
-    setTimeout(function () { name.focus(); }, 0);
 
     var codeField = null;
     function fail(msg) { status.textContent = msg; go.disabled = false; }
 
+    /* One live token per account, so two profiles on one address take turns
+     * signing each other out. Said here, where it just happened, rather than
+     * left for someone to work out from an account that keeps logging out. */
+    function warnIfDuplicate(profile, email) {
+      if (!email || !opts.state) return null;
+      var providers = opts.state.providers || [];
+      var mine = providers.filter(function (p) { return p.agent === agent; })[0];
+      if (!mine) return null;
+      var clash = (mine.accounts || []).filter(function (a) {
+        return a.name !== profile && a.email && a.email === email;
+      })[0];
+      return clash ? clash.name : null;
+    }
+
     function poll(profile, tries) {
       acct("login-status " + profile + " " + agent)
         .then(function (out) {
-          if (/^ok /.test(out)) {
-            status.textContent = "Signed in as " + maskEmail(out.slice(3));
+          if (/^ok\b/.test(out)) {
+            var email = out.slice(2).trim();
+            var clash = warnIfDuplicate(profile, email);
+            if (clash) {
+              status.textContent = cap(clash) + " is already signed in as " +
+                maskEmail(email) + ". One account cannot be two profiles: they " +
+                "will sign each other out. Remove one with conductor-acct remove " +
+                clash + ".";
+              go.remove();
+              if (codeField) codeField.remove();
+              setTimeout(function () { reload(); }, 4000);
+              return;
+            }
+            status.textContent = email
+              ? "Signed in as " + maskEmail(email)
+              : "Signed in.";
             setTimeout(reload, 600);
             return;
           }
@@ -804,7 +876,7 @@
     }
 
     go.addEventListener("click", function () {
-      var profile = name.value.trim();
+      var profile = fixed || (name ? name.value.trim() : "");
       if (!/^[A-Za-z0-9_-]+$/.test(profile)) return fail("Letters, digits, - and _ only.");
       go.disabled = true;
       status.textContent = "Starting sign-in…";
@@ -833,10 +905,19 @@
         })
         .catch(function (e) { fail(String(e.message || e)); });
     });
-    name.addEventListener("keydown", function (e) { if (e.key === "Enter") go.click(); });
 
-    if (replaced && replaced.parentNode) replaced.parentNode.replaceChild(form, replaced);
-    else host.appendChild(form);
+    if (name) {
+      name.addEventListener("keydown", function (e) { if (e.key === "Enter") go.click(); });
+      setTimeout(function () { name.focus(); }, 0);
+    } else {
+      setTimeout(function () { go.focus(); }, 0);
+    }
+
+    if (opts.replace && opts.replace.parentNode) {
+      opts.replace.parentNode.replaceChild(form, opts.replace);
+    } else {
+      opts.host.appendChild(form);
+    }
   }
 
   function providerView(state, host, agent) {
@@ -873,7 +954,9 @@
     add.type = "button";
     add.appendChild(icon("plus", 12));
     add.appendChild(el("span", null, "Add new account"));
-    add.addEventListener("click", function () { signInForm(agent, host, add); });
+    add.addEventListener("click", function () {
+      signInForm(agent, { host: host, replace: add, profile: null, state: state });
+    });
     host.appendChild(add);
 
     host.appendChild(el("div", "cma-note", footText(state)));

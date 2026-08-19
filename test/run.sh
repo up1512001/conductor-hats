@@ -655,8 +655,10 @@ test_the_panel_signs_out_and_deletes_nothing() {
     contains "it names what survives" "$body" "routes, sessions and transcripts are untouched"
     contains "the icon is a sign-out, not a bin" "$body" 'icon("signout"'
     is "no bin glyph is left" "$(printf '%s' "$body" | grep -c '^    trash: \[')" "0"
-    # Nothing to sign out of when the profile has no credentials.
-    contains "offered only when signed in" "$body" "if (account.email) {"
+    # Nothing to sign out of when the profile has no credentials, and a
+    # signed-out row gets a way back in instead of a dead end.
+    contains "offered only when signed in" "$body" "if (account.signedIn) {"
+    contains "and signed-out rows offer sign-in" "$body" 'icon("signin"'
 }
 
 # Sign-out still costs a browser round trip to undo, so it asks in a dialog with
@@ -691,11 +693,52 @@ test_the_panel_never_renders_a_full_address() {
     local body
     body=$(cat "$UI_JS")
     contains "rows mask" "$body" "maskEmail(account.email)"
-    contains "the sign-out dialog masks" "$body" "maskEmail(account.email) + \" out of \""
-    contains "sign-in confirmation masks" "$body" 'maskEmail(out.slice(3))'
+    contains "the sign-out dialog masks" "$body" "account.email ? maskEmail(account.email) : cap(account.name)"
+    contains "sign-in confirmation masks" "$body" '"Signed in as " + maskEmail(email)'
     # A tooltip is as visible on video as the text is.
     is "no address in a title attribute" \
         "$(printf '%s' "$body" | grep -c 'title = .*account\.email')" "0"
+}
+
+# Signed-in state has to come from where the credentials are, not from a cached
+# address. The old check was "does .label exist", and .label is only written when
+# an address can be read out of .claude.json, which does not always happen the
+# moment a sign-in finishes. A profile with working credentials then read as
+# signed out for ever, and the panel offered to sign in an account that already
+# was.
+test_signed_in_is_read_from_the_credentials_not_the_label() {
+    mkdir -p "$CONDUCTOR_ACCOUNTS_ROOT/claude/quiet"
+    printf '{"claudeAiOauth":{}}\n' > "$CONDUCTOR_ACCOUNTS_ROOT/claude/quiet/.credentials.json"
+    contains "signed in with no address cached" "$("$ACCT" json "$SANDBOX/ws-a")" \
+        '"name":"quiet","email":"","active":false,"signedIn":true'
+    contains "list says so rather than calling it signed out" "$("$ACCT" list)" \
+        "(signed in, address not cached yet)"
+
+    fake_profile claude loud "loud@example.com"
+    contains "and a labelled profile still reports its address" \
+        "$("$ACCT" json "$SANDBOX/ws-a")" '"email":"loud@example.com"'
+}
+
+test_a_profile_with_nothing_is_not_signed_in() {
+    mkdir -p "$CONDUCTOR_ACCOUNTS_ROOT/claude/empty"
+    contains "reported as signed out" "$("$ACCT" json "$SANDBOX/ws-a")" \
+        '"name":"empty","email":"","active":false,"signedIn":false'
+    contains "doctor warns" "$("$ACCT" doctor 2>&1)" "profile 'empty' is not signed in"
+}
+
+# Two profiles on one account is not two accounts: the provider keeps one live
+# token per account, so the second sign-in revokes the first and the pair take
+# turns logging each other out. The symptom is an account asking to sign in
+# minutes after it did.
+test_two_profiles_on_one_address_are_flagged() {
+    fake_profile claude hello "same@example.com"
+    fake_profile claude personal "same@example.com"
+    fake_profile claude work "other@example.com"
+    local out
+    out=$("$ACCT" doctor 2>&1)
+    contains "doctor names the shared address" "$out" "share the address same@example.com"
+    contains "and says why it matters" "$out" "sign each other out"
+    is "the unshared one is not flagged" "$(printf '%s' "$out" | grep -c 'other@example.com')" "0"
 }
 
 # ------------------------------------------------------------------ main ---
