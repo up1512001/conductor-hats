@@ -42,7 +42,7 @@ it. No other dependencies: everything here is POSIX shell.
 
 ```sh
 git clone <this repository>
-cd conductor-playground/conductor-hats
+cd conductor-hats
 bin/conductor-acct setup
 ```
 
