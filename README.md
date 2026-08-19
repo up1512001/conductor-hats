@@ -1,6 +1,6 @@
-# conductor-multi-account
+# conductor-hats
 
-Run a personal Claude account and a work Claude account in
+Run as many Claude Code or Codex accounts as you like in
 [Conductor](https://conductor.build) **at the same time**, one per workspace,
 with no signing in and out.
 
@@ -23,7 +23,7 @@ setting for agent environment variables. Point that setting at a config
 directory and *every* workspace moves to that account, which is the same churn
 as signing out and back in.
 
-This routes per workspace instead, so two accounts are live at once.
+This routes per workspace instead, so every account you add stays live at once.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ it. No other dependencies: everything here is POSIX shell.
 
 ```sh
 git clone <this repository>
-cd conductor-playground/conductor-multi-account
+cd conductor-playground/conductor-hats
 bin/conductor-acct setup
 ```
 
@@ -47,7 +47,7 @@ bin/conductor-acct add work
 ```
 
 `add` creates a config directory per account, symlinks your skills, plugins,
-commands and transcripts back to `~/.claude` so both accounts share them, and
+commands and transcripts back to `~/.claude` so every account shares them, and
 runs the sign in flow.
 
 Restart Conductor once, and check it:
@@ -79,7 +79,7 @@ Open a **new** chat for a switch to take effect. A chat that is already running
 keeps the account its agent process started on, because the account is fixed
 when that process spawns.
 
-### Two accounts at once
+### Several accounts at once
 
 ```sh
 cd ~/conductor/workspaces/company-app/one  && conductor-acct use work
@@ -209,8 +209,8 @@ doctor                           check the setup end to end
 ```
 
 Each Claude profile symlinks `projects`, `skills`, `plugins`, `commands`,
-`agents`, `settings.json` and `CLAUDE.md` back to `~/.claude`, so both accounts
-share your skills, hooks and transcripts. Only credentials and `.claude.json`
+`agents`, `settings.json` and `CLAUDE.md` back to `~/.claude`, so every account
+shares your skills, hooks and transcripts. Only credentials and `.claude.json`
 are per account. `doctor` warns if a symlink is replaced by a real file.
 
 ## Turning it off

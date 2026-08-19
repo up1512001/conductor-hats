@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-latest, ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      # Pinned to a full commit SHA, never a tag: a tag is mutable, so `@v7`
+      # means "whatever that name points at when the job runs".
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.22.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install shellcheck
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install shellcheck
+          else
+            sudo apt-get update && sudo apt-get install -y shellcheck
+          fi
+
+      # -x follows the sourced libraries instead of guessing at them, and
+      # --source-path=SCRIPTDIR resolves each `source=` directive relative to the
+      # script that carries it, so this passes from any working directory.
+      - name: Lint shell
+        run: |
+          shellcheck -x --source-path=SCRIPTDIR \
+            bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
+            lib/*.sh \
+            test/run.sh test/harness.sh test/*.test.sh \
+            install.sh tools/make-dev-conductor.sh tools/repersonalize.sh
+
+      - name: Typecheck the panel
+        run: pnpm typecheck
+
+      # dist/ is generated rather than committed, so the tests that read the
+      # artifact need it built first.
+      - name: Build the panel
+        run: pnpm build
+
+      # A release attaches this artifact, so two builds of the same source must
+      # produce the same bytes and none of them may name a build machine.
+      - name: Check the build is reproducible
+        run: pnpm verify
+
+      - name: Test
+        run: test/run.sh

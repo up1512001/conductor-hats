@@ -76,10 +76,10 @@ to the script carrying it, so the command passes from any working directory.
 Zero findings is the bar: shellcheck exits non-zero on info-level notes too.
 
 CI runs these and the test suite on macOS and Linux. Its workflow lives at
-`.github/workflows/conductor-multi-account.yml`, at the **repository root**,
+`.github/workflows/conductor-hats.yml`, at the **repository root**,
 because GitHub only runs workflows from there; a copy inside this directory
 would be ignored silently. It is filtered to paths under
-`conductor-multi-account/`.
+`conductor-hats/`.
 
 ## Manual checks before a release
 

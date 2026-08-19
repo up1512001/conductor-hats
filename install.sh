@@ -1,5 +1,5 @@
 #!/bin/sh
-# conductor-multi-account installer.
+# conductor-hats installer.
 #
 #   ./install.sh                 from a checkout
 #   curl -fsSL <raw-url>/install.sh | sh
@@ -8,11 +8,7 @@
 # Conductor up, and stops. Signing in needs a browser, so it is left to you.
 set -eu
 
-# Set at publish time, or overridden per run with CONDUCTOR_ACCT_REPO. Left as a
-# placeholder deliberately: a half-published URL that resolves to the wrong
-# repository is worse than one that fails loudly.
-REPO_URL="${CONDUCTOR_ACCT_REPO:-https://github.com/OWNER/REPO}"
-SUBDIR="${CONDUCTOR_ACCT_SUBDIR:-conductor-multi-account}"
+REPO_URL="${CONDUCTOR_ACCT_REPO:-https://github.com/up1512001/conductor-hats}"
 ROOT="${CONDUCTOR_ACCOUNTS_ROOT:-$HOME/.conductor-accounts}"
 SRC="$ROOT/src"
 
@@ -21,10 +17,6 @@ die() { printf 'install: %s\n' "$*" >&2; exit 1; }
 
 [ "$(uname -s)" = "Darwin" ] || die "Conductor is macOS only"
 
-case "$REPO_URL" in
-    *OWNER/REPO*) die "REPO_URL is still the placeholder.
-Set it in install.sh, or run with CONDUCTOR_ACCT_REPO=https://github.com/you/repo" ;;
-esac
 
 # Running from a checkout, or piped from curl?
 SELF_DIR=""
@@ -45,7 +37,7 @@ else
         say "Cloning into $SRC"
         git clone --depth 1 "$REPO_URL" "$SRC"
     fi
-    PROJECT="$SRC/$SUBDIR"
+    PROJECT="$SRC"
 fi
 
 [ -x "$PROJECT/bin/conductor-acct" ] || chmod +x "$PROJECT/bin/conductor-acct" \

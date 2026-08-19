@@ -1,5 +1,5 @@
 #!/bin/bash
-# routing tests for conductor-multi-account.
+# routing tests for conductor-hats.
 #
 # Sourced by test/run.sh, which owns the harness. Not executable on its own.
 #

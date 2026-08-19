@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test suite for conductor-multi-account.
+# Test suite for conductor-hats.
 #
 #   test/run.sh            run everything
 #   test/run.sh route      run tests whose name contains "route"

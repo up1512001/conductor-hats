@@ -58,7 +58,7 @@ const options = {
   charset: "utf8",
   plugins: [scssPlugin],
   banner: {
-    js: `/* conductor-multi-account: the account panel injected into Conductor's
+    js: `/* conductor-hats: the account panel injected into Conductor's
  * frontend by tools/patch-ui.py.
  *
  * GENERATED FILE. Do not edit. Source is src/panel/, styles are

@@ -1,4 +1,4 @@
-# Agent briefing: conductor-multi-account
+# Agent briefing: conductor-hats
 
 Read this before changing anything here. The parent repository's
 [AGENTS.md](../AGENTS.md) still applies: no AI attribution in git history,
@@ -7,8 +7,8 @@ rules specific to this subproject.
 
 ## What this is
 
-Two Claude or Codex accounts live at once in Conductor, one per workspace. Three
-ways to drive it, on purpose:
+Any number of Claude Code or Codex accounts live at once in Conductor, one per
+workspace. Three ways to drive it, on purpose:
 
 | Where you drive it | Survives a Conductor update | Code |
 |---|---|---|

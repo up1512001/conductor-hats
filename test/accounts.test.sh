@@ -1,5 +1,5 @@
 #!/bin/bash
-# accounts tests for conductor-multi-account.
+# accounts tests for conductor-hats.
 #
 # Sourced by test/run.sh, which owns the harness. Not executable on its own.
 #
@@ -54,3 +54,40 @@ test_the_cli_and_the_panel_agree_on_the_version() {
 # rather than an untidiness. Both rules are stated positively so the test itself
 # carries no personal data: every example address must sit on a domain RFC 2606
 # reserves for documentation, and no path may name a real account.
+
+# The README says any number of accounts, so that claim gets a test rather than a
+# hope. Nothing in the design caps it: profiles are directories, routes are lines
+# in a file, and each config directory gets its own keychain item. This checks the
+# whole chain at five, across five workspaces, which is more than anyone has asked
+# for and enough to catch a two-account assumption.
+test_any_number_of_accounts_route_independently() {
+    local names="alpha bravo charlie delta echo" n ws wrong=0
+    for n in $names; do
+        fake_profile claude "$n" "$n@example.com"
+        ws="$SANDBOX/ws-$n"
+        mkdir -p "$ws"
+        "$ACCT" use "$n" claude "$ws" >/dev/null
+    done
+
+    for n in $names; do
+        ws="$SANDBOX/ws-$n"
+        if [ "$(route_claude "$ws")" != "$CONDUCTOR_ACCOUNTS_ROOT/claude/$n" ]; then
+            echo "        ws-$n resolved to $(route_claude "$ws")"
+            wrong=$((wrong + 1))
+        fi
+    done
+    is "all five workspaces route to their own account" "$wrong" "0"
+
+    local listed
+    listed=$("$ACCT" json "$SANDBOX/ws-alpha")
+    for n in $names; do
+        case "$listed" in
+            *"\"name\":\"$n\""*) ;;
+            *) not_ok "json lists $n" "an entry for $n" "$listed"; return ;;
+        esac
+    done
+    ok "json lists every one of them"
+
+    is "and the routes file has one line each" \
+        "$(grep -c "$SANDBOX/ws-" "$CONDUCTOR_ACCOUNTS_ROOT/routes")" "5"
+}

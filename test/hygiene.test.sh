@@ -1,5 +1,5 @@
 #!/bin/bash
-# hygiene tests for conductor-multi-account.
+# hygiene tests for conductor-hats.
 #
 # Sourced by test/run.sh, which owns the harness. Not executable on its own.
 #

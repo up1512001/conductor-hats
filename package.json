@@ -1,5 +1,5 @@
 {
-  "name": "conductor-multi-account-panel",
+  "name": "conductor-hats-panel",
   "version": "0.2.0",
   "private": true,
   "description": "The account panel injected into Conductor's compiled frontend",

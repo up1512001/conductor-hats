@@ -1,5 +1,5 @@
 #!/bin/bash
-# panel tests for conductor-multi-account.
+# panel tests for conductor-hats.
 #
 # Sourced by test/run.sh, which owns the harness. Not executable on its own.
 #

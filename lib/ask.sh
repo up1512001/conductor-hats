@@ -5,7 +5,7 @@
 
 # Marks the block this writes into a repository's settings, so it can be found
 # again and replaced rather than appended to.
-ASK_MARKER="conductor-multi-account"
+ASK_MARKER="conductor-hats"
 
 ask_snippet() {
     cat <<EOF

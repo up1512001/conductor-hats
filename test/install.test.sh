@@ -1,5 +1,5 @@
 #!/bin/bash
-# install tests for conductor-multi-account.
+# install tests for conductor-hats.
 #
 # Sourced by test/run.sh, which owns the harness. Not executable on its own.
 #
