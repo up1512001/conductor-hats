@@ -1,8 +1,9 @@
-// Theme tokens and the one mixin shared by both triggers.
-//
-// Conductor is built on shadcn conventions, so its theme tokens are already on
-// :root. Using them rather than fixed colours means this panel takes the app's
-// palette, radii and light or dark handling instead of approximating them.
+/**
+ * Theme tokens and the one mixin shared by both triggers.
+ * Conductor is built on shadcn conventions, so its theme tokens are already on
+ * :root. Using them rather than fixed colours means this panel takes the app's
+ * palette, radii and light or dark handling instead of approximating them.
+ */
 
 $radius-inner: calc(var(--radius) - 2px);
 $radius-tight: calc(var(--radius) - 3px);

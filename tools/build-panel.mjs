@@ -1,18 +1,15 @@
-// Build src/panel into the single script that gets injected into Conductor.
-//
-//   node tools/build-panel.mjs           build dist/account-ui.js
-//   node tools/build-panel.mjs --check   fail unless the build is reproducible
-//   node tools/build-panel.mjs --watch   rebuild on change
-//
-// Why a bundler at all: the artifact is appended to Conductor's compiled
-// frontend, where there is no module loader and no second file to load. It has
-// to be one self-contained script. Bundling is what lets the source be many
-// small files instead of one unreadable one.
-//
-// Why not minified: there is ~194 KB of headroom in the asset slot, so minifying
-// buys nothing that matters, and unminified output can be read in the app's
-// devtools when an anchor breaks after a Conductor release. Legibility is worth
-// more here than bytes.
+/**
+ * Builds src/panel into dist/account-ui.js, the single script `hats patch`
+ * injects into Conductor.
+ *
+ *   node tools/build-panel.mjs           build
+ *   node tools/build-panel.mjs --check   fail unless the build is reproducible
+ *   node tools/build-panel.mjs --watch   rebuild on change
+ *
+ * One self-contained script, because the artifact is appended to a compiled
+ * bundle with no module loader. Not minified: there is around 194 KB of headroom
+ * in the asset slot, and readable output can be inspected in the app's devtools.
+ */
 
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
@@ -24,9 +21,7 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const ENTRY = path.join(ROOT, "src/panel/index.ts");
 const OUT = path.join(ROOT, "dist/account-ui.js");
 
-// Resolves `import css from "./styles.scss"` to a module exporting the compiled
-// CSS as a string, so styles live in a real .scss file rather than a JavaScript
-// array of string fragments.
+/** Resolves `import css from "./styles.scss"` to the compiled CSS as a string. */
 const scssPlugin = {
   name: "scss-text",
   setup(build) {
@@ -67,10 +62,13 @@ const options = {
   },
 };
 
-// esbuild labels each bundled module with its path. For a plugin namespace that
-// path is absolute, which would put whoever ran the build's home directory into
-// the artifact. Rewritten to repo-relative so the output is identical on any
-// machine, which matters for a release build and for reading a diff.
+/**
+ * Rewrites absolute module paths to repo-relative.
+ *
+ * esbuild labels each bundled module with its path, and for a plugin namespace
+ * that path is absolute, which would put the build machine's home directory into
+ * the artifact.
+ */
 function relativise(text) {
   return text.split(ROOT + "/").join("");
 }
@@ -83,9 +81,9 @@ if (args.has("--watch")) {
   console.log("watching src/panel");
 } else if (args.has("--check")) {
   /**
-   * Two builds of the same source must produce identical bytes, and none may name
-   * a build machine. A release attaches this artifact, so anyone should be able to
-   * rebuild what was published.
+   * Two builds of the same source must produce identical bytes, and none may
+   * name a build machine. A release attaches this artifact, so anyone should be
+   * able to rebuild what was published.
    */
   const first = relativise((await esbuild.build({ ...options, write: false })).outputFiles[0].text);
   const second = relativise((await esbuild.build({ ...options, write: false })).outputFiles[0].text);

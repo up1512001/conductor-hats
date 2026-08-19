@@ -23,8 +23,10 @@ above). The short version, and none of it is optional:
 - **pnpm 11 only**, settings in `pnpm-workspace.yaml`, `minimumReleaseAge: 10080`.
 - **Rust for the `hats` binary**, which carries the panel and needs no runtime.
   Stock macOS tools may be shelled out to; a Python or Node runtime may not.
-- **Docblocks, not commentary.** No inline comments in function bodies. A
-  load-bearing fact belongs in the enclosing docblock.
+- **Docblocks only, and no `//` comments in any file.** `/** */` in TypeScript,
+  JavaScript and SCSS; `//!` and `///` in Rust; `#` at column zero in shell, never
+  indented inside a body. Directives (`# shellcheck`, `cargo:`, `#!`) are exempt.
+  A test enforces it.
 
 The parent repository's [AGENTS.md](../AGENTS.md) also applies: no AI attribution
 anywhere in git history, `type/topic` branches, base `develop`, SHA-pinned

@@ -1,9 +1,11 @@
-// Provider rows, the routing switch, and the loading placeholder.
+/** Provider rows, the routing switch, and the loading placeholder. */
 
 @use "tokens" as *;
 
-// Rows are bordered cards, following the wireframe. One tap target each, clearly
-// separate, still legible with a dozen accounts in the list.
+/**
+ * Rows are bordered cards, following the wireframe. One tap target each, clearly
+ * separate, still legible with a dozen accounts in the list.
+ */
 .cma-card {
   display: flex;
   align-items: center;
@@ -95,8 +97,10 @@
   white-space: nowrap;
 }
 
-// The slot stays in the flow and only its contents change, so the tick moving
-// between accounts does not reflow the row it lands in.
+/**
+ * The slot stays in the flow and only its contents change, so the tick moving
+ * between accounts does not reflow the row it lands in.
+ */
 .cma-tickslot {
   flex: none;
   display: flex;

@@ -1,10 +1,12 @@
-// The confirmation dialog and its scrim.
+/** The confirmation dialog and its scrim. */
 
 @use "tokens" as *;
 
-// Signing back in costs a browser round trip, so the sign-out control asks first,
-// in a real dialog with a scrim. A control that merely arms on a first click is
-// still one stray click from acting, which is the thing being guarded against.
+/**
+ * Signing back in costs a browser round trip, so the sign-out control asks first,
+ * in a real dialog with a scrim. A control that merely arms on a first click is
+ * still one stray click from acting, which is the thing being guarded against.
+ */
 .cma-scrim {
   position: fixed;
   inset: 0;

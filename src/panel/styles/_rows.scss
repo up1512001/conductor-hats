@@ -1,13 +1,15 @@
-// Account rows: the selectable card plus its sign-in or sign-out control.
+/** Account rows: the selectable card plus its sign-in or sign-out control. */
 
 @use "tokens" as *;
 
-// An account row is one bordered card holding two buttons. The wide one selects,
-// the narrow one signs out. Nesting the second inside the first would be invalid
-// HTML and would swallow the row's click, so they are siblings inside a container
-// that carries the border. The sign-out control used to sit outside that border,
-// in the gutter, which read as unrelated to the row and put its target a few
-// pixels from "switch account" with nothing between them.
+/**
+ * An account row is one bordered card holding two buttons. The wide one selects,
+ * the narrow one signs out. Nesting the second inside the first would be invalid
+ * HTML and would swallow the row's click, so they are siblings inside a container
+ * that carries the border. The sign-out control used to sit outside that border,
+ * in the gutter, which read as unrelated to the row and put its target a few
+ * pixels from "switch account" with nothing between them.
+ */
 .cma-row2 {
   display: flex;
   align-items: stretch;
@@ -45,8 +47,10 @@
   }
 }
 
-// A divider, and a target the full height of the row. Deliberate to hit, hard to
-// hit by accident.
+/**
+ * A divider, and a target the full height of the row. Deliberate to hit, hard to
+ * hit by accident.
+ */
 .cma-signout {
   flex: none;
   display: inline-flex;
@@ -71,7 +75,7 @@
   }
 }
 
-// Signing in is not destructive, so it does not borrow the warning colour.
+/** Signing in is not destructive, so it does not borrow the warning colour. */
 .cma-signin:hover,
 .cma-signin:focus-visible {
   background: var(--accent);
@@ -94,8 +98,10 @@
   }
 }
 
-// Masked by default. A recorded screen should not hand out an address, and the
-// profile name underneath already says which account this is.
+/**
+ * Masked by default. A recorded screen should not hand out an address, and the
+ * profile name underneath already says which account this is.
+ */
 .cma-mask {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;

@@ -1,11 +1,13 @@
-// The popover itself, and the small text elements inside it.
+/** The popover itself, and the small text elements inside it. */
 
 @use "tokens" as *;
 
-// Fixed width and a capped height, both deliberate. The top left corner is
-// placed once when the panel opens and never moves again, so changing view or
-// account cannot shift anything under the pointer. A long account list scrolls
-// inside the panel rather than growing it.
+/**
+ * Fixed width and a capped height, both deliberate. The top left corner is
+ * placed once when the panel opens and never moves again, so changing view or
+ * account cannot shift anything under the pointer. A long account list scrolls
+ * inside the panel rather than growing it.
+ */
 .cma-panel {
   position: fixed;
   z-index: 99999;

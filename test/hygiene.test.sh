@@ -67,3 +67,40 @@ test_no_file_exceeds_the_line_limit() {
 
     is "every source file is under the limit" "$over" "0"
 }
+
+# Comments say what a file or a function is, at its top. Anything else is
+# commentary, and commentary rots. Enforced rather than asked for, because it was
+# asked for twice and drifted back both times.
+#
+# Shell has one comment character, so the rule there is placement: a header or a
+# docblock at column zero, never a remark inside a body.
+test_comments_are_docblocks_only() {
+    local files f bad=0 out
+
+    files=$(cd "$PROJECT_DIR" && git ls-files '*.ts' '*.mjs' '*.scss' '*.rs' 2>/dev/null)
+    for f in $files; do
+        [ -f "$PROJECT_DIR/$f" ] || continue
+        out=$(grep -nE '^[[:space:]]*//' "$PROJECT_DIR/$f" 2>/dev/null |
+              grep -vE '^[0-9]+:[[:space:]]*//[/!]' || true)
+        if [ -n "$out" ]; then
+            echo "        $f uses // comments, docblocks only:"
+            printf '        %s\n' "$out" | head -3
+            bad=$((bad + 1))
+        fi
+    done
+    is "no // comments in TypeScript, SCSS or Rust" "$bad" "0"
+
+    bad=0
+    files=$(cd "$PROJECT_DIR" && git ls-files 'bin/*' 'lib/*.sh' 'test/*.sh' install.sh 2>/dev/null)
+    for f in $files; do
+        [ -f "$PROJECT_DIR/$f" ] || continue
+        out=$(grep -nE '^[[:space:]]+#' "$PROJECT_DIR/$f" 2>/dev/null |
+              grep -vE 'shellcheck|#!/' || true)
+        if [ -n "$out" ]; then
+            echo "        $f comments inside a body:"
+            printf '        %s\n' "$out" | head -3
+            bad=$((bad + 1))
+        fi
+    done
+    is "no comments inside shell function bodies" "$bad" "0"
+}

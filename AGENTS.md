@@ -22,13 +22,25 @@ the panel does, `docs/panel-internals.md` is how it attaches, and
 
 ## Hard rules
 
-### Docblocks, not commentary
+### Docblocks only. No `//` comments anywhere
 
-Comments explain what a file or a function is, at its top. No inline comments
-inside function bodies. If a fact is load-bearing it goes in the enclosing
-docblock; if it only narrates what the next line does, it goes.
+One comment form per language, at the top of a file or a declaration:
 
-Directives are not comments: `# shellcheck disable=`, `cargo:` and friends stay.
+| Language | Allowed | Never |
+|---|---|---|
+| TypeScript, JavaScript, SCSS | `/** ... */` | `//` anything |
+| Rust | `//!` for a module, `///` for an item | `//` anything |
+| Shell | `#` at column zero | `#` indented inside a body |
+
+If a fact is load-bearing it belongs in the docblock of the thing it describes.
+If it narrates what the next line does, delete it. A comment inside a function
+body is the tell.
+
+Directives are not comments and are exempt: `# shellcheck disable=`, `cargo:`,
+`#!` shebangs.
+
+A test enforces all of this. It was asked for twice and drifted back both times,
+so it is no longer a matter of remembering.
 
 ### No file over 300 lines
 

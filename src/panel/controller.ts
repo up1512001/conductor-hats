@@ -23,7 +23,7 @@ export function closePanel(): void {
   document.removeEventListener("keydown", onDocKey, true);
 }
 
-// The dialog is a sibling, not a descendant, so both handlers must ignore it.
+/** The dialog is a sibling, not a descendant, so both handlers must ignore it. */
 
 function onDocDown(e: MouseEvent): void {
   if (!panel || openDialog()) return;
