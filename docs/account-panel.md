@@ -155,3 +155,41 @@ the signature does and does not allow.
 Each Conductor release ships a new bundle, so the patch has to be re-applied
 after every update. That is the standing cost of this route, and the reason
 `/account` in the chat exists as the version that never breaks.
+
+## After a Conductor update
+
+One command:
+
+```sh
+tools/repersonalize.sh
+```
+
+It quits the copy, rebuilds it from the freshly updated Conductor, injects the
+panel, redeploys the CLI, runs `doctor` and relaunches. `--no-launch` stops
+before the last step; `--keep-app` patches the existing copy instead of
+rebuilding it.
+
+Two steps in there exist because doing this by hand goes wrong in the same two
+ways every time.
+
+**The stale backup.** `patch-ui.py` keeps a pristine copy of the binary and
+always patches from it, so patching twice is not a stack. That backup is keyed by
+app name, not by version, so after an update it holds the *previous* Conductor's
+binary — and patching a freshly rebuilt copy against it silently reinstates the
+old version. The script deletes it whenever it rebuilds.
+
+**The leaked routing variable.** Launching the app with `open` from inside a
+routed agent session hands `CONDUCTOR_ACCOUNTS_ROUTING` to the app, which hands
+it to every agent it spawns, and the router's loop guard refuses all of them with
+`exited with code 70, refusing to route into itself`. The script scrubs the
+environment before launching. If you launch by hand, do the same:
+
+```sh
+env -u CONDUCTOR_ACCOUNTS_ROUTING -u CONDUCTOR_ACCOUNTS_DEPTH \
+    open -a "/Applications/Conductor Dev.app"
+```
+
+If the panel does not appear afterwards, the anchors moved in that release. The
+toolbar button falls back to floating at the top right when it cannot find the
+toolbar, so a button in the wrong place means the script ran and one selector
+needs updating; nothing at all means the injection itself did not take.
