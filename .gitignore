@@ -1,5 +1,6 @@
 node_modules/
 dist/
+target/
 .DS_Store
 *.dSYM/
 __pycache__/

@@ -1,0 +1,23 @@
+[package]
+name = "hats"
+version = "0.3.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Run any number of Claude Code or Codex accounts in Conductor, one per workspace"
+license = "MIT"
+repository = "https://github.com/up1512001/conductor-hats"
+default-run = "hats"
+
+[[bin]]
+name = "hats"
+path = "src/rust/main.rs"
+
+[dependencies]
+# Pure Rust, so the binary needs no C toolchain and cross-compiles cleanly.
+brotli = "8.0"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
