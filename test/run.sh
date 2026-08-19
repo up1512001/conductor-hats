@@ -32,7 +32,7 @@ sandbox() {
     unset CLAUDE_CONFIG_DIR CODEX_HOME
     # The suite may itself be running inside a routed agent session, where this
     # is set and the router's loop guard would refuse every spawn.
-    unset CONDUCTOR_ACCOUNTS_ROUTING
+    unset CONDUCTOR_ACCOUNTS_ROUTING CONDUCTOR_ACCOUNTS_DEPTH
 
     # Stubs stand in for the real agents: they report the two things the router
     # is responsible for, the config dir it exported and the argv it forwarded.
@@ -253,9 +253,24 @@ test_router_fails_open_when_the_library_is_missing() {
 
 test_router_refuses_to_route_into_itself() {
     local status=0
-    (cd "$SANDBOX/ws-a" && CONDUCTOR_ACCOUNTS_ROUTING=claude \
+    (cd "$SANDBOX/ws-a" && CONDUCTOR_ACCOUNTS_DEPTH=2 \
         "$PROJECT_DIR/bin/claude-router" >/dev/null 2>&1) || status=$?
-    is "loop guard exits 70" "$status" "70"
+    is "a real loop exits 70" "$status" "70"
+}
+
+test_router_tolerates_one_inherited_generation() {
+    fake_profile claude work
+    "$ACCT" use work claude "$SANDBOX/ws-a" >/dev/null
+    # Launching Conductor from a shell inside a routed session leaks these into
+    # the app, and from there into every agent it starts.
+    local out
+    out=$(cd "$SANDBOX/ws-a" && CONDUCTOR_WORKSPACE_PATH="$SANDBOX/ws-a" \
+        CONDUCTOR_ACCOUNTS_ROUTING=claude CONDUCTOR_ACCOUNTS_DEPTH=1 \
+        "$PROJECT_DIR/bin/claude-router" --model opus 2>/dev/null)
+    contains "the agent still starts" "$out" "ARGV=--model opus"
+    is "and is still routed" \
+        "$(printf '%s\n' "$out" | sed -n 's/^CLAUDE_CONFIG_DIR=//p')" \
+        "$CONDUCTOR_ACCOUNTS_ROOT/claude/work"
 }
 
 test_router_ignores_a_profile_with_no_directory() {
@@ -371,6 +386,29 @@ EOF
     else
         not_ok "written above the first table" "line < $table_line" "line $key_line"
     fi
+}
+
+test_install_replaces_a_stale_deployment() {
+    fake_profile claude work
+    "$ACCT" install >/dev/null
+    # Simulate an older layout, where the deployed path was a symlink.
+    rm -rf "$CONDUCTOR_ACCOUNTS_ROOT/bin"
+    ln -s "$PROJECT_DIR/bin" "$CONDUCTOR_ACCOUNTS_ROOT/bin"
+    "$ACCT" install >/dev/null
+
+    is "the deployment is a real directory" \
+        "$([ -d "$CONDUCTOR_ACCOUNTS_ROOT/bin" ] && [ ! -L "$CONDUCTOR_ACCOUNTS_ROOT/bin" ] && echo yes)" "yes"
+    is "and the deployed CLI is the current one" \
+        "$(cmp -s "$PROJECT_DIR/bin/conductor-acct" "$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct" && echo same)" "same"
+}
+
+test_install_redeploys_after_the_checkout_changes() {
+    fake_profile claude work
+    "$ACCT" install >/dev/null
+    printf '\n# drift\n' >> "$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct"
+    "$ACCT" install >/dev/null
+    is "a stale copy is overwritten" \
+        "$(cmp -s "$PROJECT_DIR/bin/conductor-acct" "$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct" && echo same)" "same"
 }
 
 test_uninstall_reverses_install() {

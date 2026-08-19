@@ -20,10 +20,22 @@ case "$SELF" in
 esac
 LIB="${SELF%/*}/_resolve.sh"
 
-if [ -n "${CONDUCTOR_ACCOUNTS_ROUTING:-}" ]; then
-    echo "claude-router: refusing to route into itself (loop guard)" >&2
+# Recursion guard. It counts depth rather than testing a flag, because the
+# variable is inherited by everything the agent starts: launch Conductor from a
+# shell inside a routed session and the app inherits it, hands it to every agent
+# it spawns, and a flag-based guard refuses them all with "refusing to route
+# into itself". One stale generation is therefore tolerated; a real loop still
+# trips on the second.
+CONDUCTOR_ACCOUNTS_DEPTH=${CONDUCTOR_ACCOUNTS_DEPTH:-0}
+case "$CONDUCTOR_ACCOUNTS_DEPTH" in
+    ''|*[!0-9]*) CONDUCTOR_ACCOUNTS_DEPTH=0 ;;
+esac
+if [ "$CONDUCTOR_ACCOUNTS_DEPTH" -ge 2 ]; then
+    echo "claude-router: refusing to route into itself (depth $CONDUCTOR_ACCOUNTS_DEPTH)" >&2
     exit 70
 fi
+CONDUCTOR_ACCOUNTS_DEPTH=$((CONDUCTOR_ACCOUNTS_DEPTH + 1))
+export CONDUCTOR_ACCOUNTS_DEPTH
 CONDUCTOR_ACCOUNTS_ROUTING=claude
 export CONDUCTOR_ACCOUNTS_ROUTING
 

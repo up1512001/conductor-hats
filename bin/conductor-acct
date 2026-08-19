@@ -131,10 +131,10 @@ router_dry_run() {
     # -u CONDUCTOR_ACCOUNTS_ROUTING because this may itself be running inside a
     # routed agent session, where the router's loop guard would refuse to start.
     case "$agent" in
-        claude) out=$(cd "$ws" && env -u CONDUCTOR_ACCOUNTS_ROUTING -u CLAUDE_CONFIG_DIR \
+        claude) out=$(cd "$ws" && env -u CONDUCTOR_ACCOUNTS_ROUTING -u CONDUCTOR_ACCOUNTS_DEPTH -u CLAUDE_CONFIG_DIR \
             CONDUCTOR_WORKSPACE_PATH="$ws" CONDUCTOR_ACCOUNTS_CLAUDE_BIN=/usr/bin/env \
             "$BIN_DIR/claude-router" 2>/dev/null) || return 1 ;;
-        codex) out=$(cd "$ws" && env -u CONDUCTOR_ACCOUNTS_ROUTING -u CODEX_HOME \
+        codex) out=$(cd "$ws" && env -u CONDUCTOR_ACCOUNTS_ROUTING -u CONDUCTOR_ACCOUNTS_DEPTH -u CODEX_HOME \
             CONDUCTOR_WORKSPACE_PATH="$ws" CONDUCTOR_ACCOUNTS_CODEX_BIN=/usr/bin/env \
             "$BIN_DIR/codex-router" 2>/dev/null) || return 1 ;;
     esac
@@ -600,26 +600,35 @@ cmd_update() {
 # jq dependency for four fields is not worth it.
 cmd_json() {
     ensure_root
-    local ws agent profile label resolved current first=1
+    local ws repo agent profile label resolved current first
     ws=$(current_workspace "${1:-}")
-    agent=$(agent_of "${2:-claude}")
-    if router_installed; then
-        resolved=$(router_dry_run "$agent" "$ws" || true)
-    else
-        resolved=$(repo_binding "$agent" "$(repo_root_for "$ws")" || true)
-    fi
-    current=$(profile_from_dir "$resolved")
+    repo=$(repo_root_for "$ws")
 
-    printf '{"workspace":"%s","agent":"%s","enabled":%s,"current":"%s","accounts":[' \
-        "$(json_escape "$ws")" "$agent" \
-        "$(router_installed && echo true || echo false)" "$(json_escape "$current")"
-    for profile in $(list_profiles "$agent"); do
-        label=$(label_of "$agent" "$profile")
-        [ "$first" -eq 1 ] || printf ','
-        first=0
-        printf '{"name":"%s","email":"%s","active":%s}' \
-            "$(json_escape "$profile")" "$(json_escape "$label")" \
-            "$([ "$profile" = "$current" ] && echo true || echo false)"
+    printf '{"workspace":"%s","repo":"%s","enabled":%s,"providers":[' \
+        "$(json_escape "$ws")" "$(json_escape "$repo")" \
+        "$(router_installed && echo true || echo false)"
+
+    local firstp=1
+    for agent in claude codex; do
+        if router_installed; then
+            resolved=$(router_dry_run "$agent" "$ws" || true)
+        else
+            resolved=$(repo_binding "$agent" "$repo" || true)
+        fi
+        current=$(profile_from_dir "$resolved")
+        [ "$firstp" -eq 1 ] || printf ','
+        firstp=0
+        printf '{"agent":"%s","current":"%s","accounts":[' "$agent" "$(json_escape "$current")"
+        first=1
+        for profile in $(list_profiles "$agent"); do
+            label=$(label_of "$agent" "$profile")
+            [ "$first" -eq 1 ] || printf ','
+            first=0
+            printf '{"name":"%s","email":"%s","active":%s}' \
+                "$(json_escape "$profile")" "$(json_escape "$label")" \
+                "$([ "$profile" = "$current" ] && echo true || echo false)"
+        done
+        printf ']}'
     done
     printf ']}\n'
 }
@@ -641,6 +650,126 @@ cmd_resolve() {
     command -v sqlite3 >/dev/null || die "sqlite3 not found"
     sqlite3 "file:$db?mode=ro" \
         "select workspace_path from workspaces where id='$id' and workspace_path is not null" 2>/dev/null
+}
+
+cmd_resolve_repo() {
+    local id="${1:-}" db
+    [ -n "$id" ] || die "usage: conductor-acct resolve-repo <repository-id>"
+    case "$id" in
+        *[!a-zA-Z0-9-]*) die "not a repository id" ;;
+    esac
+    db="${CONDUCTOR_DB:-$HOME/Library/Application Support/com.conductor.app/conductor.db}"
+    [ -f "$db" ] || die "no Conductor database at $db"
+    command -v sqlite3 >/dev/null || die "sqlite3 not found"
+    sqlite3 "file:$db?mode=ro" \
+        "select root_path from repos where id='$id' and root_path is not null" 2>/dev/null
+}
+
+# ------------------------------------------------------------ in-app login ---
+#
+# `claude auth login` prints an authorisation URL, opens a browser and then
+# blocks reading the code from stdin. That is scriptable if stdin is a pipe that
+# stays open: start the process with its stdin on a FIFO, hand the URL to
+# whoever asked, and write the code into the FIFO when it arrives. Which is what
+# lets the account panel run a sign-in without a terminal.
+
+login_dir() { printf '%s\n' "$ACCOUNTS_ROOT/login/$1"; }
+
+cmd_login_start() {
+    local profile="${1:-}" agent
+    agent=$(agent_of "${2:-claude}")
+    [ -n "$profile" ] || die "usage: conductor-acct login-start <profile> [agent]"
+    case "$profile" in
+        *[!a-zA-Z0-9_-]*) die "profile names may only contain letters, digits, - and _" ;;
+    esac
+    ensure_root
+
+    local dir state bin
+    dir="$ACCOUNTS_ROOT/$agent/$profile"
+    state=$(login_dir "$profile")
+    bin=$(resolve_agent_binary "$agent" "$SELF") || die "could not locate the real $agent binary"
+
+    cmd_login_cancel "$profile" >/dev/null 2>&1 || true
+    rm -rf "$state"
+    mkdir -p "$state" "$dir"
+
+    if [ "$agent" = "claude" ]; then
+        local item
+        for item in $SHARED_LINKS; do
+            [ -e "$HOME/.claude/$item" ] || continue
+            [ -e "$dir/$item" ] && continue
+            ln -s "$HOME/.claude/$item" "$dir/$item"
+        done
+    fi
+
+    mkfifo "$state/stdin"
+    # Held open by a sleeper so the CLI does not see EOF before the code lands.
+    ( exec 9<>"$state/stdin"; sleep 300 ) >/dev/null 2>&1 &
+    printf '%s\n' "$!" > "$state/holder.pid"
+
+    case "$agent" in
+        claude) env CLAUDE_CONFIG_DIR="$dir" "$bin" auth login ;;
+        codex) env CODEX_HOME="$dir" "$bin" login ;;
+    esac < "$state/stdin" > "$state/out" 2>&1 &
+    printf '%s\n' "$!" > "$state/pid"
+
+    # Wait for the URL rather than guessing how long the CLI takes to print it.
+    local i=0 url=""
+    while [ "$i" -lt 100 ]; do
+        url=$(sed -n 's|.*\(https://[^ ]*oauth[^ ]*\).*|\1|p' "$state/out" 2>/dev/null | head -1)
+        [ -n "$url" ] && break
+        kill -0 "$(cat "$state/pid")" 2>/dev/null || break
+        sleep 0.1
+        i=$((i + 1))
+    done
+
+    if [ -z "$url" ]; then
+        cmd_login_cancel "$profile" >/dev/null 2>&1 || true
+        die "sign-in did not produce a URL; run 'conductor-acct add $profile' in a terminal"
+    fi
+    printf '%s\n' "$url"
+}
+
+cmd_login_code() {
+    local profile="${1:-}" code="${2:-}" state
+    [ -n "$profile" ] && [ -n "$code" ] || die "usage: conductor-acct login-code <profile> <code>"
+    state=$(login_dir "$profile")
+    [ -p "$state/stdin" ] || die "no sign-in in progress for '$profile'"
+    printf '%s\n' "$code" > "$state/stdin"
+    echo "submitted"
+}
+
+cmd_login_status() {
+    local profile="${1:-}" agent state pid email
+    agent=$(agent_of "${2:-claude}")
+    [ -n "$profile" ] || die "usage: conductor-acct login-status <profile> [agent]"
+    state=$(login_dir "$profile")
+    [ -d "$state" ] || { echo "idle"; return 0; }
+
+    pid=$(read_line_from "$state/pid" 2>/dev/null || true)
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        echo "pending"
+        return 0
+    fi
+
+    email=$(refresh_label "$agent" "$profile" || true)
+    cmd_login_cancel "$profile" >/dev/null 2>&1 || true
+    if [ -n "$email" ]; then
+        printf 'ok %s\n' "$email"
+    else
+        printf 'error %s\n' "$(tail -3 "$state/out" 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g')"
+    fi
+}
+
+cmd_login_cancel() {
+    local profile="${1:-}" state pid
+    [ -n "$profile" ] || die "usage: conductor-acct login-cancel <profile>"
+    state=$(login_dir "$profile")
+    for pid in $(cat "$state/pid" "$state/holder.pid" 2>/dev/null); do
+        kill "$pid" 2>/dev/null || true
+    done
+    rm -rf "$state"
+    echo "cancelled"
 }
 
 cmd_sessions() {
@@ -764,7 +893,12 @@ cmd_install() {
     # ever disappears -- a deleted clone, or a Conductor workspace that gets
     # archived -- every agent in the app fails to start. A copy under
     # ~/.conductor-accounts cannot be taken away by git.
-    rm -f "$INSTALL_BIN"                    # an older install symlinked this
+    # Older versions symlinked this path to the checkout. Replace a symlink,
+    # keep a directory: `rm -f` on a directory fails, and under `set -e` that
+    # aborted the whole install and silently left a stale copy deployed.
+    if [ -L "$INSTALL_BIN" ]; then
+        rm -f "$INSTALL_BIN"
+    fi
     mkdir -p "$INSTALL_BIN" "$ACCOUNTS_ROOT/commands"
 
     if [ "$BIN_DIR" != "$INSTALL_BIN" ]; then
@@ -954,6 +1088,12 @@ conductor-acct $CONDUCTOR_ACCT_VERSION - one Claude/Codex account per Conductor 
   check [path]                     ACCOUNT/NEEDS_ACCOUNT, for the ask prompt
   json [path] [agent]              accounts and current selection, as JSON
   resolve <workspace-id>           workspace id to directory, for the UI panel
+  resolve-repo <repository-id>     repository id to its root directory
+
+  login-start <profile> [agent]    begin sign-in, print the authorisation URL
+  login-code <profile> <code>      hand the pasted code to a pending sign-in
+  login-status <profile> [agent]   idle | pending | ok <email> | error <msg>
+  login-cancel <profile>           abandon a pending sign-in
 
   install                          turn the router on, add /account
   uninstall                        turn it off again
@@ -986,6 +1126,11 @@ case "$cmd" in
     check) cmd_check "$@" ;;
     json) cmd_json "$@" ;;
     resolve) cmd_resolve "$@" ;;
+    resolve-repo) cmd_resolve_repo "$@" ;;
+    login-start) cmd_login_start "$@" ;;
+    login-code) cmd_login_code "$@" ;;
+    login-status) cmd_login_status "$@" ;;
+    login-cancel) cmd_login_cancel "$@" ;;
     ask) cmd_ask "$@" ;;
     update) cmd_update "$@" ;;
     sessions) cmd_sessions "$@" ;;

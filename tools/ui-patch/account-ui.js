@@ -48,50 +48,117 @@
 
   /* Conductor routes as /repository/<id>/workspace/<id>, and the router keys on
    * the directory, so the id has to be turned back into a path. */
-  function currentWorkspacePath() {
-    var m = location.hash.match(/workspace\/([0-9a-f-]{36})/i) ||
-            location.pathname.match(/workspace\/([0-9a-f-]{36})/i);
-    if (!m) return Promise.resolve("");
-    return acct("resolve " + m[1]).catch(function () { return ""; });
+  function q(s) {
+    return "'" + String(s).replace(/'/g, "'\\''") + "'";
+  }
+
+  function idsFromUrl() {
+    var url = location.hash + " " + location.pathname;
+    var ws = url.match(/workspace\/([0-9a-f-]{36})/i);
+    var repo = url.match(/repositor(?:y|ies)\/([0-9a-f-]{36})/i);
+    return { workspace: ws && ws[1], repository: repo && repo[1] };
+  }
+
+  /* Two targets, because the panel opens in two places. Inside a workspace the
+   * choice is that workspace's. In the New Workspace composer no workspace
+   * exists yet, so the choice belongs to the repository and takes effect for
+   * the workspace about to be created. */
+  function currentTarget() {
+    var ids = idsFromUrl();
+    if (ids.workspace) {
+      return acct("resolve " + ids.workspace)
+        .then(function (p) {
+          return p ? { kind: "workspace", path: p } : repoTarget(ids);
+        })
+        .catch(function () { return repoTarget(ids); });
+    }
+    return repoTarget(ids);
+  }
+
+  function repoTarget(ids) {
+    if (!ids.repository) return Promise.resolve({ kind: "none", path: "" });
+    return acct("resolve-repo " + ids.repository)
+      .then(function (p) {
+        return p ? { kind: "repository", path: p } : { kind: "none", path: "" };
+      })
+      .catch(function () { return { kind: "none", path: "" }; });
   }
 
   function loadState() {
-    return currentWorkspacePath().then(function (path) {
-      return acct("json " + (path ? "'" + path.replace(/'/g, "'\\''") + "'" : "")).then(function (out) {
-        var s = JSON.parse(out);
-        s.path = path;
-        return s;
+    return currentTarget().then(function (target) {
+      return acct("json " + (target.path ? q(target.path) : "")).then(function (out) {
+        var st = JSON.parse(out);
+        st.target = target;
+        return st;
       });
     });
   }
 
+  function applyAccount(state, agent, profile) {
+    var t = state.target;
+    if (t.kind === "workspace") return acct("use " + profile + " " + agent + " " + q(t.path));
+    if (t.kind === "repository") return acct("bind " + profile + " " + agent + " " + q(t.path));
+    return Promise.reject(new Error("no workspace or repository in view"));
+  }
+
   /* ------------------------------------------------------------------ css -- */
 
+  /* Conductor is built on shadcn conventions, so its theme tokens are already on
+   * :root. Using them rather than fixed colours means this panel inherits the
+   * app's palette, radii and light/dark handling instead of approximating them. */
   var CSS = [
-    ".cma-btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px;",
-    "border-radius:6px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);",
-    "color:inherit;font-size:12px;line-height:1;cursor:default;white-space:nowrap}",
-    ".cma-btn:hover{background:rgba(255,255,255,.09)}",
-    ".cma-dot{width:7px;height:7px;border-radius:50%;background:#5b9dff;flex:none}",
-    ".cma-dot.cma-off{background:#8b8b8b}",
-    ".cma-panel{position:fixed;z-index:99999;min-width:270px;max-width:340px;padding:6px;",
-    "border-radius:10px;border:1px solid rgba(255,255,255,.14);background:#1c1c1e;",
-    "box-shadow:0 12px 40px rgba(0,0,0,.5);font-size:12px;color:#e8e8ea}",
-    ".cma-head{padding:7px 9px 5px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;opacity:.5}",
-    ".cma-row{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:default}",
-    ".cma-row:hover{background:rgba(255,255,255,.08)}",
-    ".cma-row[aria-disabled=true]{opacity:.45}",
-    ".cma-name{font-weight:600}",
-    ".cma-mail{opacity:.55;font-size:11px;margin-top:1px}",
-    ".cma-tick{margin-left:auto;opacity:.9}",
-    ".cma-sep{height:1px;margin:5px 4px;background:rgba(255,255,255,.1)}",
-    ".cma-note{padding:6px 9px 8px;opacity:.55;font-size:11px;line-height:1.45}",
-    ".cma-code{display:block;margin-top:5px;padding:5px 7px;border-radius:5px;",
-    "background:rgba(255,255,255,.07);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;",
+    ".cma-btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;",
+    "border-radius:calc(var(--radius) - 2px);background:transparent;border:0;",
+    "color:var(--muted-foreground);font-size:12px;font-weight:500;line-height:1;",
+    "white-space:nowrap;cursor:default;transition:background .12s,color .12s}",
+    ".cma-btn:hover{background:var(--accent);color:var(--foreground)}",
+    ".cma-btn[aria-expanded=true]{background:var(--accent);color:var(--foreground)}",
+    ".cma-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;opacity:.75}",
+    ".cma-dot.cma-off{opacity:.35}",
+
+    ".cma-panel{position:fixed;z-index:99999;min-width:264px;max-width:328px;padding:4px;",
+    "border-radius:var(--radius);border:1px solid var(--border);",
+    "background:var(--popover);color:var(--popover-foreground);",
+    "box-shadow:0 10px 38px rgb(0 0 0/.28),0 2px 8px rgb(0 0 0/.16);",
+    "font-size:13px;transform-origin:top left;animation:cma-in .11s ease-out}",
+    "@keyframes cma-in{from{opacity:0;transform:scale(.97) translateY(-2px)}",
+    "to{opacity:1;transform:none}}",
+
+    ".cma-head{padding:8px 8px 5px;font-size:11px;font-weight:500;",
+    "color:var(--muted-foreground)}",
+    ".cma-row{display:flex;align-items:center;gap:8px;padding:6px 8px;",
+    "border-radius:calc(var(--radius) - 3px);cursor:default;outline:0}",
+    ".cma-row:hover,.cma-row:focus-visible{background:var(--popover-accent,var(--accent))}",
+    ".cma-row[aria-disabled=true]{opacity:.4}",
+    ".cma-row[aria-disabled=true]:hover{background:transparent}",
+    ".cma-name{font-size:13px;line-height:1.3}",
+    ".cma-mail{font-size:11px;line-height:1.3;margin-top:1px;color:var(--muted-foreground)}",
+    ".cma-tick{margin-left:auto;font-size:11px;opacity:.85}",
+    ".cma-sep{height:1px;margin:4px 6px;background:var(--border)}",
+    ".cma-note{padding:6px 8px 7px;font-size:11px;line-height:1.5;",
+    "color:var(--muted-foreground)}",
+    ".cma-code{display:block;margin-top:5px;padding:5px 7px;",
+    "border-radius:calc(var(--radius) - 3px);background:var(--muted);",
+    "color:var(--foreground);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;",
     "font-size:11px;user-select:all}",
-    ".cma-chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;",
-    "border-radius:6px;font-size:12px;color:inherit;opacity:.85;cursor:default}",
-    ".cma-chip:hover{background:rgba(255,255,255,.08);opacity:1}"
+
+    ".cma-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;",
+    "border-radius:calc(var(--radius) - 2px);background:transparent;border:0;",
+    "color:var(--muted-foreground);font-size:12px;font-weight:500;line-height:1;",
+    "cursor:default;transition:background .12s,color .12s}",
+    ".cma-chip:hover,.cma-chip[aria-expanded=true]{background:var(--accent);",
+    "color:var(--foreground)}",
+
+    ".cma-add{padding:6px 8px 4px;display:flex;flex-direction:column;gap:6px}",
+    ".cma-add .cma-note{padding:0}",
+    ".cma-input{width:100%;height:30px;padding:0 9px;box-sizing:border-box;",
+    "border-radius:calc(var(--radius) - 3px);border:1px solid var(--input-border,var(--border));",
+    "background:var(--input,transparent);color:var(--foreground);font-size:12px;outline:0}",
+    ".cma-input:focus{border-color:var(--popover-ring,var(--ring))}",
+    ".cma-go{height:30px;border:0;border-radius:calc(var(--radius) - 3px);",
+    "background:var(--foreground);color:var(--background);font-size:12px;font-weight:500;",
+    "cursor:default}",
+    ".cma-go:disabled{opacity:.5}"
   ].join("");
 
   function injectCss() {
@@ -105,10 +172,13 @@
   /* ---------------------------------------------------------------- panel -- */
 
   var openPanel = null;
+  var lastTrigger = null;
 
   function closePanel() {
     if (openPanel && openPanel.parentNode) openPanel.parentNode.removeChild(openPanel);
     openPanel = null;
+    if (lastTrigger) lastTrigger.setAttribute("aria-expanded", "false");
+    lastTrigger = null;
     document.removeEventListener("mousedown", onDocDown, true);
     document.removeEventListener("keydown", onDocKey, true);
   }
@@ -156,69 +226,172 @@
     return s;
   }
 
+  var AGENT_LABEL = { claude: "Claude Code", codex: "Codex" };
+
+  /* The label shows Claude's account, falling back to whichever provider has
+   * one, because that is the one people mean when they glance at it. */
+  function primary(state) {
+    var claude = (state.providers || []).filter(function (p) { return p.agent === "claude"; })[0];
+    if (claude && claude.current) return claude.current;
+    var any = (state.providers || []).filter(function (p) { return p.current; })[0];
+    return any ? any.current : "";
+  }
+
+  function sectionLabel(text) {
+    var el = document.createElement("div");
+    el.className = "cma-head";
+    el.textContent = text;
+    return el;
+  }
+
+  /* Sign-in, without a terminal. `claude auth login` prints a URL then blocks
+   * reading the code from stdin, so conductor-acct runs it with stdin on a FIFO
+   * and this collects the code. The browser step is unavoidable: it is OAuth. */
+  function addAccountFlow(panel, agent, onDone) {
+    var wrap = document.createElement("div");
+    wrap.className = "cma-add";
+
+    var name = document.createElement("input");
+    name.className = "cma-input";
+    name.placeholder = "name, for example work";
+    name.spellcheck = false;
+
+    var status = document.createElement("div");
+    status.className = "cma-note";
+    status.textContent = "Names the profile. Sign-in opens your browser.";
+
+    var go = document.createElement("button");
+    go.className = "cma-go";
+    go.type = "button";
+    go.textContent = "Sign in";
+
+    wrap.appendChild(name);
+    wrap.appendChild(go);
+    wrap.appendChild(status);
+    panel.appendChild(wrap);
+    setTimeout(function () { name.focus(); }, 0);
+
+    var codeField = null;
+
+    function fail(msg) {
+      status.textContent = msg;
+      go.disabled = false;
+    }
+
+    function poll(profile, tries) {
+      acct("login-status " + profile + " " + agent)
+        .then(function (out) {
+          if (/^ok /.test(out)) {
+            status.textContent = "Signed in as " + out.slice(3);
+            setTimeout(function () { closePanel(); if (onDone) onDone(); }, 700);
+            return;
+          }
+          if (/^error/.test(out)) return fail(out.replace(/^error\s*/, "") || "sign-in failed");
+          if (tries > 240) return fail("timed out waiting for the browser");
+          setTimeout(function () { poll(profile, tries + 1); }, 1000);
+        })
+        .catch(function (e) { fail(String(e.message || e)); });
+    }
+
+    go.addEventListener("click", function () {
+      var profile = name.value.trim();
+      if (!/^[A-Za-z0-9_-]+$/.test(profile))
+        return fail("Letters, digits, - and _ only.");
+      go.disabled = true;
+      status.textContent = "Starting sign-in…";
+
+      acct("login-start " + profile + " " + agent)
+        .then(function (url) {
+          status.textContent = "Approve in your browser, then paste the code below.";
+          sh("open " + q(url)).catch(function () {});
+          if (!codeField) {
+            codeField = document.createElement("input");
+            codeField.className = "cma-input";
+            codeField.placeholder = "paste the code";
+            codeField.spellcheck = false;
+            wrap.insertBefore(codeField, status);
+            codeField.addEventListener("keydown", function (e) {
+              if (e.key !== "Enter") return;
+              var code = codeField.value.trim();
+              if (!code) return;
+              status.textContent = "Checking…";
+              acct("login-code " + profile + " " + q(code))
+                .then(function () { poll(profile, 0); })
+                .catch(function (err) { fail(String(err.message || err)); });
+            });
+            setTimeout(function () { codeField.focus(); }, 0);
+          }
+          poll(profile, 0);
+        })
+        .catch(function (e) { fail(String(e.message || e)); });
+    });
+
+    name.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") go.click();
+    });
+  }
+
   function buildPanel(state, anchor, onChanged) {
     var panel = document.createElement("div");
     panel.className = "cma-panel";
     panel.setAttribute("role", "menu");
 
-    var head = document.createElement("div");
-    head.className = "cma-head";
-    head.textContent = state.path ? state.path.split("/").pop() : "Accounts";
-    panel.appendChild(head);
+    var scope = state.target.kind === "workspace"
+      ? state.target.path.split("/").pop()
+      : state.target.kind === "repository"
+        ? "New workspaces in " + state.target.path.split("/").pop()
+        : "No workspace in view";
+    panel.appendChild(sectionLabel(scope));
 
-    if (!state.accounts.length) {
-      panel.appendChild(row({ title: "No accounts yet", disabled: true }));
-    }
+    state.providers.forEach(function (p, i) {
+      if (i) panel.appendChild(separator());
+      panel.appendChild(sectionLabel(AGENT_LABEL[p.agent] || p.agent));
 
-    state.accounts.forEach(function (a) {
-      panel.appendChild(
-        row({
-          title: a.name,
-          subtitle: a.email || "not signed in",
-          tick: a.active,
-          disabled: !state.path,
-          onClick: function () {
-            acct("use " + a.name + " claude '" + state.path.replace(/'/g, "'\\''") + "'")
-              .then(function () {
-                closePanel();
-                if (onChanged) onChanged();
-              })
-              .catch(function (e) {
-                log("switch failed", e);
-              });
-          }
-        })
-      );
+      p.accounts.forEach(function (a) {
+        panel.appendChild(
+          row({
+            title: a.name,
+            subtitle: a.email || "not signed in",
+            tick: a.active,
+            disabled: state.target.kind === "none",
+            onClick: function () {
+              applyAccount(state, p.agent, a.name)
+                .then(function () {
+                  closePanel();
+                  if (onChanged) onChanged();
+                })
+                .catch(function (e) { log("switch failed", e); });
+            }
+          })
+        );
+      });
+
+      var add = row({
+        title: p.accounts.length ? "Add another account" : "Sign in to " + (AGENT_LABEL[p.agent] || p.agent),
+        subtitle: "opens your browser"
+      });
+      add.addEventListener("click", function () {
+        if (panel.querySelector(".cma-add")) return;
+        addAccountFlow(panel, p.agent, onChanged);
+      });
+      panel.appendChild(add);
     });
 
-    panel.appendChild(separator());
-
-    /* Signing in needs a browser round trip and a TTY, so the panel shows the
-     * command rather than pretending it can do it. */
-    var addRow = row({ title: "Add an account", subtitle: "needs a terminal" });
-    addRow.addEventListener("click", function () {
-      if (addRow.nextSibling && addRow.nextSibling.className === "cma-note") return;
-      var note = document.createElement("div");
-      note.className = "cma-note";
-      note.textContent = "Signing in opens a browser, so run this in a terminal:";
-      var code = document.createElement("code");
-      code.className = "cma-code";
-      code.textContent = "conductor-acct add <name>";
-      note.appendChild(code);
-      addRow.parentNode.insertBefore(note, addRow.nextSibling);
-    });
-    panel.appendChild(addRow);
-
-    if (state.accounts.length) {
+    if (state.providers.some(function (p) { return p.accounts.length; })) {
+      panel.appendChild(separator());
       panel.appendChild(
         row({
           title: "Remove an account",
           subtitle: "signs out and deletes the profile",
           onClick: function () {
-            var names = state.accounts.map(function (a) { return a.name; });
-            var pick = window.prompt("Remove which account?\n\n" + names.join("\n"), names[0]);
-            if (!pick || names.indexOf(pick) < 0) return;
-            acct("remove " + pick).then(function () {
+            var all = [];
+            state.providers.forEach(function (p) {
+              p.accounts.forEach(function (a) { all.push(p.agent + " " + a.name); });
+            });
+            var pick = window.prompt("Remove which account?\n\n" + all.join("\n"), all[0]);
+            if (!pick || all.indexOf(pick) < 0) return;
+            var parts = pick.split(" ");
+            acct("remove " + parts[1] + " " + parts[0]).then(function () {
               closePanel();
               if (onChanged) onChanged();
             });
@@ -243,15 +416,19 @@
 
     var foot = document.createElement("div");
     foot.className = "cma-note";
-    foot.textContent = "Applies to the next chat in this workspace. A chat already " +
-      "running keeps the account it started on.";
+    foot.textContent = state.target.kind === "workspace"
+      ? "Applies to the next chat here. A chat already running keeps the account it started on."
+      : "Applies to workspaces created from now on.";
     panel.appendChild(foot);
 
     document.body.appendChild(panel);
     var r = anchor.getBoundingClientRect();
-    panel.style.top = Math.round(r.bottom + 6) + "px";
-    var left = Math.min(r.left, window.innerWidth - panel.offsetWidth - 12);
-    panel.style.left = Math.round(Math.max(12, left)) + "px";
+    var top = r.bottom + 6;
+    if (top + panel.offsetHeight > window.innerHeight - 12)
+      top = Math.max(12, r.top - panel.offsetHeight - 6);
+    panel.style.top = Math.round(top) + "px";
+    panel.style.left =
+      Math.round(Math.max(12, Math.min(r.left, window.innerWidth - panel.offsetWidth - 12))) + "px";
 
     openPanel = panel;
     setTimeout(function () {
@@ -266,11 +443,39 @@
       closePanel();
       return;
     }
+    anchor.setAttribute("aria-expanded", "true");
+    lastTrigger = anchor;
     loadState()
       .then(function (state) {
         buildPanel(state, anchor, refresh);
       })
       .catch(function (e) {
+        /* A dead button teaches nobody anything. Show what went wrong, in the
+         * same panel the accounts would have appeared in. */
+        var panel = document.createElement("div");
+        panel.className = "cma-panel";
+        var head = document.createElement("div");
+        head.className = "cma-head";
+        head.textContent = "Accounts unavailable";
+        panel.appendChild(head);
+        var note = document.createElement("div");
+        note.className = "cma-note";
+        note.textContent = String((e && e.message) || e);
+        var code = document.createElement("code");
+        code.className = "cma-code";
+        code.textContent = CLI + " json";
+        note.appendChild(code);
+        panel.appendChild(note);
+        document.body.appendChild(panel);
+        var r = anchor.getBoundingClientRect();
+        panel.style.top = Math.round(r.bottom + 6) + "px";
+        panel.style.left =
+          Math.round(Math.max(12, Math.min(r.left, window.innerWidth - panel.offsetWidth - 12))) + "px";
+        openPanel = panel;
+        setTimeout(function () {
+          document.addEventListener("mousedown", onDocDown, true);
+          document.addEventListener("keydown", onDocKey, true);
+        }, 0);
         log("panel failed", e);
       });
   }
@@ -293,6 +498,14 @@
     for (var j = 0; j < nodes.length; j++) {
       var t = (nodes[j].textContent || "").trim();
       if (t.length < 24 && /open in/i.test(t)) return nodes[j];
+    }
+    /* Last resort, and in practice the reliable one: the control renders the
+     * chosen app's icon from /app-icons/, so find that image and climb to the
+     * button wrapping it. */
+    var icon = document.querySelector('img[src*="app-icons"],img[src*="finder.png"]');
+    while (icon && icon !== document.body) {
+      if (icon.tagName === "BUTTON" || icon.getAttribute("role") === "button") return icon;
+      icon = icon.parentElement;
     }
     return null;
   }
@@ -357,13 +570,12 @@
   function refreshToolbarLabel(btn) {
     loadState()
       .then(function (s) {
+        var cur = primary(s);
         var label = btn.querySelector(".cma-label");
         var dot = btn.querySelector(".cma-dot");
-        if (label) label.textContent = s.current || (s.enabled ? "default" : "off");
-        if (dot) dot.className = "cma-dot" + (s.enabled && s.current ? "" : " cma-off");
-        btn.title = s.current
-          ? "Agent account: " + s.current
-          : "No account chosen for this workspace";
+        if (label) label.textContent = cur || (s.enabled ? "default" : "off");
+        if (dot) dot.className = "cma-dot" + (s.enabled && cur ? "" : " cma-off");
+        btn.title = cur ? "Agent account: " + cur : "No account chosen here";
       })
       .catch(function (e) {
         var label = btn.querySelector(".cma-label");
@@ -435,9 +647,9 @@
       .then(function (s) {
         var label = chip.querySelector(".cma-label");
         var dot = chip.querySelector(".cma-dot");
-        var name = s.current || "default account";
+        var name = primary(s) || "default account";
         if (label) label.textContent = name;
-        if (dot) dot.className = "cma-dot" + (s.current ? "" : " cma-off");
+        if (dot) dot.className = "cma-dot" + (primary(s) ? "" : " cma-off");
         chip.title = "This workspace will run agents on: " + name;
       })
       .catch(function () {});

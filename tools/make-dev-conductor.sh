@@ -110,13 +110,27 @@ patch("Contents/Resources/bin/.internal/conductor-runtime",
 PY
 
 step "Re-signing ad-hoc"
-# Inner Mach-O files first, then the bundle, so the outer seal covers the
-# final bytes of everything it contains.
+# Inner Mach-O files first, then the bundle, so the outer seal covers the final
+# bytes of everything it contains.
+#
+# Each inner binary is re-signed with its OWN original entitlements, read back
+# from the pristine app. Signing them bare looks harmless and is not:
+# conductor-runtime is a Bun executable that JIT-compiles JavaScript, so without
+# com.apple.security.cs.allow-jit it starts, fails the moment it needs to
+# compile, and Conductor reports "Sidecar terminated unexpectedly, code 1".
 find "$DST/Contents/Resources/bin" -type f -perm -u+x -print0 2>/dev/null |
     while IFS= read -r -d '' f; do
-        if file "$f" | grep -q 'Mach-O'; then
+        file "$f" | grep -q 'Mach-O' || continue
+        rel=${f#"$DST/"}
+        inner_ent=$(mktemp -t conductor-inner-ent).plist
+        if codesign -d --entitlements - --xml "$SRC/$rel" 2>/dev/null > "$inner_ent" &&
+           [ -s "$inner_ent" ]; then
+            codesign -f -s - --options runtime --entitlements "$inner_ent" "$f" 2>/dev/null ||
+                codesign -f -s - --options runtime "$f" 2>/dev/null || true
+        else
             codesign -f -s - --options runtime "$f" 2>/dev/null || true
         fi
+        rm -f "$inner_ent"
     done
 codesign -f -s - --options runtime --entitlements "$ENT" "$DST"
 rm -f "$ENT"
