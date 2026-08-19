@@ -1,0 +1,57 @@
+name: Bug report
+description: Something behaves differently from how it is documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: `conductor-acct doctor` checks the whole setup end to end
+        and names most problems itself. Paste its output below either way.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+      placeholder: |
+        Ran `conductor-acct use work`, opened a new chat, and the agent still
+        answered on the personal account.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: conductor-acct doctor
+      description: Run it in the workspace where this happens. Addresses are yours to redact.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - The conductor-acct CLI
+        - The /account command in a chat
+        - The injected panel in a patched copy
+        - Routing, when an agent starts
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Output of `hats version`, and Conductor's version from its About window.
+      placeholder: hats 0.3.0, Conductor 0.81.0, macOS 15.3 arm64
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Panel problems are often visible in the webview console with `window.__conductorHatsDebug = true`.

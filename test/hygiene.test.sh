@@ -6,12 +6,21 @@
 # Rules about the repository itself: no personal data, no oversized files, no
 # version skew between the CLI and the panel.
 
-test_the_cli_and_the_panel_agree_on_the_version() {
-    local cli panel
+# Five files carry the version and they ship together, so a skew between any two
+# is a bug. tools/set-version.sh keeps them in step; this notices when one is
+# edited by hand.
+test_every_file_agrees_on_the_version() {
+    local out cli
+    if ! out=$("$PROJECT_DIR/tools/set-version.sh" --check 2>&1); then
+        printf '%s\n' "$out" | sed 's/^/        /'
+        not_ok "every file agrees on the version" "one version" "a skew"
+        return
+    fi
+    ok "Cargo.toml, package.json, the CLI, the panel and the changelog agree"
+
     cli=$("$ACCT" version | awk '{print $2}')
-    panel=$(sed -n 's/^const VERSION = "\([^"]*\)";/\1/p' "$UI_SRC_DIR/index.ts")
-    is "same version" "$cli" "$panel"
-    contains "and the changelog has an entry for it" "$(cat "$PROJECT_DIR/CHANGELOG.md")" "## $cli"
+    contains "and the CLI reports the same one" "$out" "all agree on $cli"
+    contains "which the changelog has an entry for" "$(cat "$PROJECT_DIR/CHANGELOG.md")" "## $cli"
 }
 
 # This is published, so an address or a home directory left in a file is a leak

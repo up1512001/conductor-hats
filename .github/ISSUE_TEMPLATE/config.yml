@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A per-workspace account picker in Conductor itself
+    url: https://conductor.build
+    about: >
+      The version that needs no patching and survives updates would be Conductor
+      shipping this. Help, then Send Feedback, asking for per-workspace agent
+      account selection. This project becomes unnecessary the day they do.

@@ -40,16 +40,6 @@ test_two_profiles_on_one_address_are_flagged() {
     is "the unshared one is not flagged" "$(printf '%s' "$out" | grep -c 'other@example.com')" "0"
 }
 
-# The CLI and the injected panel ship together, so a version skew between them is
-# a bug rather than a variation. Cheap to assert, and it has already drifted once.
-test_the_cli_and_the_panel_agree_on_the_version() {
-    local cli panel
-    cli=$("$ACCT" version | awk '{print $2}')
-    panel=$(sed -n 's/^const VERSION = "\([^"]*\)";/\1/p' "$UI_SRC_DIR/index.ts")
-    is "same version" "$cli" "$panel"
-    contains "and the changelog has an entry for it" "$(cat "$PROJECT_DIR/CHANGELOG.md")" "## $cli"
-}
-
 # This is published, so an address or a home directory left in a file is a leak
 # rather than an untidiness. Both rules are stated positively so the test itself
 # carries no personal data: every example address must sit on a domain RFC 2606

@@ -1,0 +1,25 @@
+name: Feature request
+description: Something this should do and does not
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and where this gets in the way. Not the solution yet.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: Optional. If you already know the shape of it, describe it.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Worth knowing
+      options:
+        - label: This works without patching Conductor, or I understand a patch is re-applied after every release
+        - label: I have read docs/patching-conductor.md if this asks for UI inside Conductor
