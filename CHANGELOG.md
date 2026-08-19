@@ -8,6 +8,15 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- A section for the Conductor team: how this modifies their app, that a copy is
+  patched and their binary never redistributed, that routing itself uses only
+  documented settings, and where to write if they want something changed.
+- CONTRIBUTING documents how to cut a release and how to verify the artifact
+  afterwards, since v0.3.0 shipped without an installer while the workflow looked
+  correct.
+
 ### Changed
 
 - The README gave the CLI a full command reference and left the panel described in

@@ -82,8 +82,37 @@ Zero findings is the bar: shellcheck exits non-zero on info-level notes too.
 CI runs these and the test suite on macOS and Linux. Its workflow lives at
 `.github/workflows/conductor-hats.yml`, at the **repository root**,
 because GitHub only runs workflows from there; a copy inside this directory
-would be ignored silently. It is filtered to paths under
-`conductor-hats/`.
+would be ignored silently.
+
+## Cutting a release
+
+```sh
+tools/set-version.sh 0.3.2      # five files, plus the changelog heading
+git commit -am "chore: 0.3.2"
+git tag -a v0.3.2 -m "hats 0.3.2"
+git push && git push origin v0.3.2
+```
+
+The tag is what publishes. `.github/workflows/release.yml` builds both macOS
+targets, packages the binary with `bin/`, `lib/`, `commands/` and `install.sh`,
+and attaches a tarball, a `.sha256` per target and a combined `sha256.sum`.
+
+Then check the artifact rather than the workflow, because v0.3.0 shipped without
+an installer and the workflow looked fine:
+
+```sh
+gh release download v0.3.2 --pattern '*aarch64*'
+shasum -a 256 -c hats-aarch64-apple-darwin.tar.gz.sha256
+tar xzf hats-aarch64-apple-darwin.tar.gz && cd hats-aarch64-apple-darwin
+S=$(mktemp -d)
+CONDUCTOR_ACCOUNTS_ROOT="$S/accounts" CONDUCTOR_HATS_BINDIR="$S/bin" \
+  CONDUCTOR_ACCT_SETTINGS_FILE="$S/settings.toml" \
+  CONDUCTOR_ACCT_COMMANDS_DIR="$S/commands" ./install.sh
+"$S/bin/hats" version
+```
+
+The sandbox variables matter: without them the check installs over your own
+setup.
 
 ## Manual checks before a release
 

@@ -27,6 +27,12 @@ test_every_file_agrees_on_the_version() {
 # rather than an untidiness. Both rules are stated positively so the test itself
 # carries no personal data: every example address must sit on a domain RFC 2606
 # reserves for documentation, and no path may name a real account.
+#
+# One address is exempt, and only one: the maintainer contact the README publishes
+# on purpose so the Conductor team has somewhere to write. Deliberate is the
+# difference. Anything else that looks like an address is a leak.
+MAINTAINER_CONTACT="utsav@up1512001.com"
+
 test_no_personal_information_is_committed() {
     local files bad
     files=$(cd "$PROJECT_DIR" && git ls-files 2>/dev/null)
@@ -35,7 +41,8 @@ test_no_personal_information_is_committed() {
     bad=$(cd "$PROJECT_DIR" && printf '%s\n' "$files" | while read -r f; do
         [ -f "$f" ] || continue
         grep -HoE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "$f" 2>/dev/null |
-            grep -vE '@(example\.(com|org|net)|[A-Za-z0-9.-]*\.(test|example|invalid|localhost))(\b|$)'
+            grep -vE '@(example\.(com|org|net)|[A-Za-z0-9.-]*\.(test|example|invalid|localhost))(\b|$)' |
+            grep -vF "$MAINTAINER_CONTACT"
     done)
     if [ -n "$bad" ]; then
         not_ok "example addresses use reserved domains" "only example.com/org/net and .test" "$bad"

@@ -320,6 +320,32 @@ usage policy. Choosing between a personal account and a work account that you
 or your employer separately pay for is not. This project is built for the
 second case.
 
+## For the Conductor team
+
+This project modifies Conductor, so you should know exactly how, and it is all
+documented rather than implied.
+
+- The patch is applied to a **copy** built by `hats dev-app`, which carries its own
+  bundle identifier, database and keychain items. `hats patch` refuses
+  `/Applications/Conductor.app` unless someone passes `--i-know`.
+- **Nothing of yours is redistributed.** The release ships our binary and our
+  scripts. The panel is injected on the user's own machine, against the Conductor
+  they already installed.
+- The copy is ad-hoc re-signed, which costs it notarization and its keychain
+  access. That cost is stated plainly in the README and in
+  [docs/patching-conductor.md](docs/patching-conductor.md), along with the fact
+  that every Conductor release undoes the patch.
+- Routing itself uses only your documented settings,
+  `claude_code_executable_path` and `environment_variables`, and needs no patching
+  at all.
+
+**What we would rather have.** A per-workspace agent account selector in
+Conductor. Everything here becomes unnecessary the day you ship one, which is the
+right outcome and one we would be glad to see.
+
+If any of this is a problem, or you want it changed or taken down, say so and it
+will be: **utsav@up1512001.com**.
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).

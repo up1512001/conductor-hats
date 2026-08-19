@@ -6,3 +6,8 @@ contact_links:
       The version that needs no patching and survives updates would be Conductor
       shipping this. Help, then Send Feedback, asking for per-workspace agent
       account selection. This project becomes unnecessary the day they do.
+  - name: Conductor team
+    url: https://github.com/up1512001/conductor-hats#for-the-conductor-team
+    about: >
+      How this modifies Conductor, what it never redistributes, and where to
+      reach the maintainer if you want something changed.
