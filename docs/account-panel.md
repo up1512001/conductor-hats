@@ -28,11 +28,11 @@ with ten.
 ```
 Workspace: antananarivo
 
-  ✳  Claude Code      2 accounts        work    ›
-  ◆  Codex            0 accounts        none    ›
+  Claude Code       2 Accounts         Work    >
+  Codex             0 Accounts         None    >
   ───────────────────────────────────────────────
-     Turn routing off
-     agents go back to one account
+  Turn routing off
+  agents go back to one account
 
 Applies to the next chat here. A chat already running keeps
 the account it started on.
@@ -41,17 +41,21 @@ the account it started on.
 **Level two**, after choosing a provider:
 
 ```
-  ←  Back
-  ✳  Claude Code
+  <  Back
+  Claude Code
 
-  up1512001@gmail.com                        🗑
-  personal
+  up1512001@gmail.com                     delete
+  Personal
 
-  utsav.patel@rtcamp.com               ✓     🗑
-  work
+  utsav.patel@rtcamp.com          tick    delete
+  Work
 
   +  Add new account
 ```
+
+Profile names are lower case on disk, because they are typed at a CLI and used
+as directory names. They are capitalised for display through one `cap()` helper
+and never fed back to `conductor-acct` in that form.
 
 The email leads, because that is what identifies an account; the profile name
 sits under it, because that is what you type at the CLI.
@@ -98,6 +102,23 @@ id. `conductor-acct workspaces` and `repos` list every name and path from every
 against them, longest name first so `belo-horizonte` cannot be beaten by a repo
 called `belo`. Globbing the databases matters: a patched copy keeps its own, and
 asking the real app about a workspace it has never heard of returns nothing.
+
+## Nothing moves once it is open
+
+A popover that reflows while you are aiming at it is worse than one that is
+plain, so four things are pinned deliberately. Changing any of them brings the
+jumping back, and the test suite guards each one.
+
+| Pinned | Why it moved before |
+|---|---|
+| the top left corner, measured once on open | re-measuring on every render moved the panel when the provider view came in at a different height, and right-edge clamping moved it sideways |
+| the width, in CSS, with a capped scrolling height | a card at `width:100%` with the delete control as a flex sibling overflowed 300px, so the provider view was wider than the root view |
+| the tick's slot, always in the flow | adding and removing the tick reflowed both the row it left and the row it landed in |
+| the trigger labels, hidden until known | both rendered "Account" and replaced it with the real name a moment later, shifting the toolbar on every workspace open |
+
+There is no status dot next to either trigger label. The label already reads
+`Work`, `Default` or `Off`; a dot beside it is decoration standing in for a word
+that is right there.
 
 ## Two traps worth knowing about
 
