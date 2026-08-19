@@ -140,8 +140,11 @@ what was learned by reading Conductor's runtime.
 
 A toolbar button next to "Open in" and an account chip in the New Workspace
 composer both exist, and both open a two-level panel: providers first, then that
-provider's accounts with a delete each and one "Add new account" at the foot.
-Signing in happens in the panel, no terminal.
+provider's accounts with a sign-out each and one "Add new account" at the foot.
+Signing in happens in the panel, no terminal. The panel never deletes anything:
+signing out drops credentials and leaves the profile, its routes, its session pins
+and its transcripts alone. `conductor-acct remove` in a terminal is the only way
+to delete a profile, deliberately.
 
 Addresses are masked wherever they render, as `uts**tel@rt**p.com`, so a recorded
 session or a shared screenshot cannot hand one out. `conductor-acct list` in a

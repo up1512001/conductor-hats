@@ -3,14 +3,20 @@
  * Appended to Conductor's main bundle by tools/patch-ui.py. It adds:
  *
  *   - a button in the workspace toolbar, next to "Open in", opening a panel to
- *     switch, add, remove and enable/disable accounts
+ *     switch accounts, sign in, sign out and turn routing on or off
  *   - an account row in the New Workspace composer, so a workspace starts on
  *     the account you meant
  *
  * The panel is two levels deep, on purpose. Level one lists providers only;
- * choosing one opens its accounts, each with its own delete control, and a
+ * choosing one opens its accounts, each with its own sign-out control, and a
  * single "Add new account" at the foot. A flat tree of provider groups looked
  * tidy with two accounts and would not with ten.
+ *
+ * The panel never deletes anything. Signing out drops that account's
+ * credentials and leaves its profile, routes, session pins and transcripts
+ * alone. Deleting a profile outright is `conductor-acct remove` in a terminal,
+ * because it is the one irreversible operation here and a popover you can open
+ * by accident is the wrong place for it.
  *
  * Everything is done against the DOM rather than by editing Conductor's React
  * code. Minified component names change on every release; "the element next to
@@ -59,11 +65,16 @@
    * there is no id to read. The panel works out where it is by matching what is
    * on screen against the workspaces and repositories Conductor knows about,
    * longest name first so "belo-horizonte" is not beaten by a repo called
-   * "belo". Cached, because it is two SQLite reads. */
+   * "belo". Cached, because it is two SQLite reads, but not forever: a workspace
+   * created after the app started would otherwise never be recognised. */
+  var PLACES_TTL = 30000;
   var placesCache = null;
+  var placesAt = 0;
 
   function places() {
-    if (placesCache) return Promise.resolve(placesCache);
+    if (placesCache && Date.now() - placesAt < PLACES_TTL) {
+      return Promise.resolve(placesCache);
+    }
     return Promise.all([
       acct("workspaces").catch(function () { return ""; }),
       acct("repos").catch(function () { return ""; })
@@ -77,6 +88,7 @@
       }
       placesCache = parse(out[0], "workspace").concat(parse(out[1], "repository"));
       placesCache.sort(function (a, b) { return b.name.length - a.name.length; });
+      placesAt = Date.now();
       return placesCache;
     });
   }
@@ -111,14 +123,51 @@
     });
   }
 
-  function loadState() {
-    return currentTarget().then(function (target) {
-      return acct("json " + (target.path ? q(target.path) : "")).then(function (out) {
-        var st = JSON.parse(out);
-        st.target = target;
-        return st;
-      });
-    });
+  /* Every read costs a shell out to conductor-acct, and `json` runs the router
+   * twice inside itself to answer. Conductor re-renders constantly, so an
+   * uncached read per render pass meant several process spawns a second, and a
+   * click's own read then queued behind that backlog: the panel appeared late
+   * enough to look like the click had been ignored.
+   *
+   * So: one in-flight read shared by every caller, and a short cache after it.
+   * Anything that writes calls invalidate(), so the cache can never be the
+   * reason a change fails to show. */
+  var STATE_TTL = 4000;
+  var stateCache = null;
+  var stateAt = 0;
+  var statePending = null;
+
+  function invalidate() {
+    stateCache = null;
+    stateAt = 0;
+  }
+
+  function loadState(fresh) {
+    if (!fresh && stateCache && Date.now() - stateAt < STATE_TTL) {
+      return Promise.resolve(stateCache);
+    }
+    if (statePending) return statePending;
+    statePending = currentTarget()
+      .then(function (target) {
+        return acct("json " + (target.path ? q(target.path) : "")).then(function (out) {
+          var st = JSON.parse(out);
+          st.target = target;
+          return st;
+        });
+      })
+      .then(
+        function (st) {
+          stateCache = st;
+          stateAt = Date.now();
+          statePending = null;
+          return st;
+        },
+        function (e) {
+          statePending = null;
+          throw e;
+        }
+      );
+    return statePending;
   }
 
   function applyAccount(state, agent, profile) {
@@ -184,6 +233,8 @@
     "border-color:var(--ring,var(--border))}",
     ".cma-card[aria-disabled=true]{opacity:.45;cursor:not-allowed}",
     ".cma-card[aria-disabled=true]:hover{background:transparent;border-color:var(--border)}",
+    ".cma-ghost{opacity:.4;cursor:default;animation:cma-pulse 1.1s ease-in-out infinite}",
+    "@keyframes cma-pulse{0%,100%{opacity:.4}50%{opacity:.62}}",
     ".cma-grow{flex:1;min-width:0}",
     ".cma-name{font-size:13px;line-height:1.35;overflow:hidden;text-overflow:ellipsis;",
     "white-space:nowrap}",
@@ -214,12 +265,12 @@
 
     /* A divider, and a target the full height of the row: deliberate to hit,
      * hard to hit by accident. */
-    ".cma-trash{flex:none;display:inline-flex;align-items:center;justify-content:center;",
+    ".cma-signout{flex:none;display:inline-flex;align-items:center;justify-content:center;",
     "width:36px;align-self:stretch;border:0;border-left:1px solid var(--border);",
     "border-radius:0;background:transparent;color:var(--muted-foreground);",
     "cursor:pointer;opacity:.6;transition:opacity .12s,background .12s,color .12s}",
-    ".cma-row2:hover .cma-trash{opacity:.85}",
-    ".cma-trash:hover,.cma-trash:focus-visible{opacity:1;",
+    ".cma-row2:hover .cma-signout{opacity:.85}",
+    ".cma-signout:hover,.cma-signout:focus-visible{opacity:1;",
     "background:var(--destructive,#ff5a5a);color:#fff}",
 
     /* Masked by default. A recorded screen should not hand out an address, and
@@ -294,23 +345,44 @@
   var PATHS = {
     chevron: ["M6 3.5 10.5 8 6 12.5"],
     back: ["M12.5 8H4", "M7.5 4.5 4 8l3.5 3.5"],
-    trash: ["M3 5h10", "M6.5 5V3.5h3V5", "M4.5 5.5 5 13h6l.5-7.5", "M7 7.5v3.5", "M9 7.5v3.5"],
+    /* Sign out, not a bin: the control signs the account out and leaves
+     * everything else where it was. A bin would promise deletion it does not
+     * do. */
+    signout: ["M9.2 3.5H4.2v9h5", "M7.4 8h6.4", "M11.6 5.9 13.8 8l-2.2 2.1"],
     tick: ["M3.5 8.6 6.4 11.5 12.5 5"],
     plus: ["M8 3.5v9", "M3.5 8h9"],
-    claude: ["M8 2.2v11.6", "M2.2 8h11.6", "M3.9 3.9l8.2 8.2", "M12.1 3.9l-8.2 8.2"],
-    codex: ["M8 2.6a5.4 5.4 0 1 0 0 10.8A5.4 5.4 0 0 0 8 2.6z", "M8 6.4a1.6 1.6 0 1 0 0 3.2 1.6 1.6 0 0 0 0-3.2z"]
+    /* Conductor's own Claude and Codex marks, lifted verbatim from its frontend
+     * rather than approximated. Hand-drawn stand-ins read as the wrong glyph
+     * next to the real ones in the model picker two rows away: an eight-line
+     * asterisk is not the Anthropic sunburst, and a ringed dot is not the
+     * OpenAI knot. Both are filled, on a 24-unit grid, and use currentColor, so
+     * they inherit this panel's text colour like every other icon here.
+     *
+     * Re-extract after a Conductor release if either ever changes shape:
+     *   tools/extract-assets.py grep 'M22.2819'   # the Codex path
+     * The Claude mark is the path inside the component rendered beside a Claude
+     * session; both are 0 0 24 24. */
+    claude: ["m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"],
+    codex: ["M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"]
   };
+
+  var FILLED = { claude: 1, codex: 1 };
+  var GRID24 = { claude: 1, codex: 1 };
 
   function icon(name, size) {
     var svg = document.createElementNS(SVG, "svg");
-    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("viewBox", GRID24[name] ? "0 0 24 24" : "0 0 16 16");
     svg.setAttribute("width", size || 14);
     svg.setAttribute("height", size || 14);
-    svg.setAttribute("fill", "none");
-    svg.setAttribute("stroke", "currentColor");
-    svg.setAttribute("stroke-width", "1.4");
-    svg.setAttribute("stroke-linecap", "round");
-    svg.setAttribute("stroke-linejoin", "round");
+    if (FILLED[name]) {
+      svg.setAttribute("fill", "currentColor");
+    } else {
+      svg.setAttribute("fill", "none");
+      svg.setAttribute("stroke", "currentColor");
+      svg.setAttribute("stroke-width", "1.4");
+      svg.setAttribute("stroke-linecap", "round");
+      svg.setAttribute("stroke-linejoin", "round");
+    }
     svg.setAttribute("aria-hidden", "true");
     (PATHS[name] || []).forEach(function (d) {
       var p = document.createElementNS(SVG, "path");
@@ -499,11 +571,12 @@
   }
 
   function reload() {
-    return loadState().then(function (st) {
+    invalidate();
+    return loadState(true).then(function (st) {
       if (!open) return;
       open.state = st;
       render();
-      refreshTriggers();
+      refreshTriggers(st);
     });
   }
 
@@ -589,34 +662,42 @@
     }
     row.appendChild(card);
 
-    var del = el("button", "cma-trash");
-    del.type = "button";
-    del.title = "Sign out and delete " + cap(account.name);
-    del.setAttribute("aria-label", "Delete " + cap(account.name));
-    del.appendChild(icon("trash", 14));
-    del.addEventListener("click", function () {
-      confirmDelete(provider, account);
-    });
-    row.appendChild(del);
+    /* Only offered for an account that is actually signed in. Nothing to sign
+     * out of otherwise, and the row already says so. */
+    if (account.email) {
+      var out = el("button", "cma-signout");
+      out.type = "button";
+      out.title = "Sign out of " + cap(account.name);
+      out.setAttribute("aria-label", "Sign out of " + cap(account.name));
+      out.appendChild(icon("signout", 14));
+      out.addEventListener("click", function () {
+        confirmSignOut(provider, account);
+      });
+      row.appendChild(out);
+    }
 
     return row;
   }
 
-  /* Deleting signs the account out, removes its profile directory and drops any
-   * route pointing at it. None of that is undoable, so it asks in a dialog with
-   * a scrim: a control that merely arms on a first click is still one stray
-   * click from destruction, which is the thing being guarded against. */
-  function confirmDelete(provider, account) {
+  /* Signing out drops that account's credentials and nothing else. The profile
+   * stays, so do its routes, its session pins and its transcripts, and it
+   * reappears here as "Not signed in", ready to sign back in.
+   *
+   * Deleting a profile outright is `conductor-acct remove` in a terminal, on
+   * purpose: it is the one irreversible operation here, and a panel you open by
+   * accident is the wrong place for it. */
+  function confirmSignOut(provider, account) {
     dialog({
-      title: "Delete " + cap(account.name) + "?",
-      body: "Signs " + (account.email ? maskEmail(account.email) : cap(account.name)) +
-            " out of " + (AGENT_LABEL[provider.agent] || provider.agent) +
-            ", deletes its profile and drops every workspace routed to it. " +
-            "This cannot be undone.",
-      confirm: "Delete",
+      title: "Sign out of " + cap(account.name) + "?",
+      body: "Signs " + maskEmail(account.email) + " out of " +
+            (AGENT_LABEL[provider.agent] || provider.agent) +
+            ". Nothing else changes: the account stays in this list, and its " +
+            "routes, sessions and transcripts are untouched. Sign back in from " +
+            "here whenever you like.",
+      confirm: "Sign out",
       danger: true,
       onConfirm: function (done, fail) {
-        acct("remove " + account.name + " " + provider.agent)
+        acct("logout " + account.name + " " + provider.agent)
           .then(function () { done(); reload(); })
           .catch(function (e) { fail(String((e && e.message) || e)); });
       }
@@ -806,30 +887,45 @@
 
   /* --------------------------------------------------------------- render -- */
 
+  /* Shown while the first read is in flight, with a placeholder row per provider
+   * so the panel opens at roughly its real height. It has to be roughly right:
+   * the corner is pinned on this first measurement, and a panel that opened two
+   * rows tall would decide it fits below the anchor and then grow off screen. */
+  function loadingView(host) {
+    host.appendChild(label("Loading accounts"));
+    ["claude", "codex"].forEach(function (agent) {
+      var card = el("div", "cma-card cma-ghost");
+      card.appendChild(icon(AGENT_ICON[agent], 13));
+      var main = el("div", "cma-grow");
+      main.appendChild(el("div", "cma-name", AGENT_LABEL[agent]));
+      main.appendChild(el("div", "cma-sub", "reading accounts"));
+      card.appendChild(main);
+      host.appendChild(card);
+    });
+    host.appendChild(el("div", "cma-sep"));
+    host.appendChild(el("div", "cma-note",
+      "conductor-acct is answering. This is quick once warmed up."));
+  }
+
+  function errorView(host, e) {
+    /* A dead button teaches nobody anything. Show what went wrong, in the same
+     * panel the accounts would have appeared in. */
+    host.appendChild(label("Accounts unavailable"));
+    var n = el("div", "cma-note", String((e && e.message) || e));
+    n.appendChild(el("code", "cma-code", CLI + " json"));
+    host.appendChild(n);
+    log("panel failed", e);
+  }
+
   function render() {
     if (!open) return;
     var host = open.el;
     host.replaceChildren();
-    if (open.view.level === "provider") providerView(open.state, host, open.view.agent);
+    if (open.error) errorView(host, open.error);
+    else if (!open.state) loadingView(host);
+    else if (open.view.level === "provider") providerView(open.state, host, open.view.agent);
     else rootView(open.state, host);
     place(host, open.anchor);
-  }
-
-  function errorPanel(anchor, e) {
-    /* A dead button teaches nobody anything. Show what went wrong, in the same
-     * panel the accounts would have appeared in. */
-    var panel = el("div", "cma-panel");
-    panel.appendChild(label("Accounts unavailable"));
-    var n = el("div", "cma-note", String((e && e.message) || e));
-    var code = el("code", "cma-code", CLI + " json");
-    n.appendChild(code);
-    panel.appendChild(n);
-    seal(panel);
-    mountFor(anchor).appendChild(panel);
-    open = { el: panel, anchor: anchor, state: null, view: { level: "root" }, refresh: null };
-    place(panel, anchor);
-    listen();
-    log("panel failed", e);
   }
 
   function listen() {
@@ -839,6 +935,9 @@
     }, 0);
   }
 
+  /* Opens on the first event rather than after a round trip. Waiting for the
+   * state read before showing anything is what made a click look ignored, and
+   * clicking again then only toggled the panel that had not appeared yet. */
   function togglePanel(anchor) {
     if (open) {
       var same = open.anchor === anchor;
@@ -849,18 +948,48 @@
     var panel = el("div", "cma-panel");
     panel.setAttribute("role", "menu");
     seal(panel);
+    mountFor(anchor).appendChild(panel);
+    open = { el: panel, anchor: anchor, state: null, error: null, view: { level: "root" } };
+    render();
+    listen();
+
     loadState()
       .then(function (state) {
-        mountFor(anchor).appendChild(panel);
-        open = { el: panel, anchor: anchor, state: state, view: { level: "root" } };
+        /* Closed, or reopened against another trigger, while this was in flight. */
+        if (!open || open.el !== panel) return;
+        open.state = state;
         render();
-        listen();
         refreshTriggers(state);
       })
       .catch(function (e) {
-        anchor.setAttribute("aria-expanded", "false");
-        errorPanel(anchor, e);
+        if (!open || open.el !== panel) return;
+        open.error = e;
+        render();
       });
+  }
+
+  /* Opens on press rather than on click, for one specific reason: Conductor
+   * re-renders its toolbar constantly, and when React replaces the container the
+   * trigger is rebuilt with it. A rebuild landing between mousedown and mouseup
+   * means the browser fires no click at all, so the press did nothing and you
+   * pressed again. A single event cannot be split that way.
+   *
+   * This is also how native menus behave, so it feels faster besides. `click` is
+   * still handled for keyboard activation, guarded so a real pointer press does
+   * not toggle twice. */
+  function openOnPress(trigger) {
+    var pressedAt = 0;
+    trigger.addEventListener("pointerdown", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      pressedAt = Date.now();
+      togglePanel(trigger);
+    });
+    trigger.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (Date.now() - pressedAt < 700) return;
+      togglePanel(trigger);
+    });
   }
 
   /* Both triggers are refreshed from state already in hand. They can each fetch
@@ -932,10 +1061,10 @@
       host = floatingHost();
     }
 
-    if (existing && existing.parentElement === host) {
-      refreshToolbarLabel(existing);
-      return;
-    }
+    /* Left alone while it is still in the document and still in the right place.
+     * Re-reading the label here ran on every render pass Conductor made, which
+     * during a streaming chat is several a second, each one a process spawn. */
+    if (existing && existing.isConnected && existing.parentElement === host) return;
     if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
 
     var btn = document.createElement("button");
@@ -946,10 +1075,7 @@
     btn.hidden = true;
     btn.appendChild(el("span", "cma-label"));
     seal(btn);
-    btn.addEventListener("click", function (e) {
-      e.preventDefault();
-      togglePanel(btn);
-    });
+    openOnPress(btn);
 
     if (before) host.insertBefore(btn, before);
     else host.appendChild(btn);
@@ -1008,10 +1134,9 @@
     if (!composer) return;
     var foot = composerFooter(composer);
     if (!foot) return;
-    if (foot.querySelector("#cma-chip")) {
-      refreshComposerChip();
-      return;
-    }
+    /* Same as the toolbar button: left alone while it is where it belongs, so a
+     * render pass does not cost a state read. */
+    if (foot.querySelector("#cma-chip")) return;
 
     var chip = document.createElement("button");
     chip.id = "cma-chip";
@@ -1020,10 +1145,7 @@
     chip.hidden = true;
     chip.appendChild(el("span", "cma-label"));
     seal(chip);
-    chip.addEventListener("click", function (e) {
-      e.preventDefault();
-      togglePanel(chip);
-    });
+    openOnPress(chip);
     foot.insertBefore(chip, foot.firstChild);
     refreshComposerChip();
     log("composer chip attached");
@@ -1059,7 +1181,7 @@
     tick();
     /* Conductor re-renders constantly, so rather than fight React, re-attach on
      * a coalesced observer. Cheap: both attach paths bail immediately when the
-     * elements are already in place. */
+     * elements are already in place, and neither reads any state. */
     var pending = null;
     new MutationObserver(function () {
       if (pending) return;
@@ -1068,6 +1190,16 @@
         tick();
       }, 250);
     }).observe(document.body, { childList: true, subtree: true });
+
+    /* The labels used to be refreshed by the observer, which meant a process
+     * spawn per render pass. A slow timer keeps them current at a fixed, small
+     * cost instead: switching from a terminal shows up within a few seconds, and
+     * switching from the panel is immediate because the panel already knows. */
+    setInterval(function () {
+      if (!document.getElementById("cma-toolbar-btn") &&
+          !document.getElementById("cma-chip")) return;
+      loadState().then(refreshTriggers).catch(function () {});
+    }, 8000);
     log("ready");
   }
 

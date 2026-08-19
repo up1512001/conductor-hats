@@ -533,12 +533,14 @@ test_every_clickable_thing_says_it_is_clickable() {
     local css
     css=$(sed -n '/^  var CSS = \[/,/\].join("");/p' "$UI_JS")
     local sel
-    for sel in ".cma-btn,.cma-chip" ".cma-card" ".cma-trash" ".cma-back" ".cma-add" ".cma-go" ".cma-act"; do
+    for sel in ".cma-btn,.cma-chip" ".cma-card" ".cma-signout" ".cma-back" ".cma-add" ".cma-go" ".cma-act"; do
         contains "$sel exists" "$css" "$sel"
     done
-    # cursor:default is only ever right on something that cannot be clicked.
-    is "the arrow cursor is only on disabled states" \
-        "$(printf '%s\n' "$css" | tr ',' '\n' | grep 'cursor:default' | grep -vc ':disabled')" "0"
+    # cursor:default is only ever right on something that cannot be clicked: a
+    # disabled control, or a loading placeholder.
+    is "the arrow cursor is only on unclickable things" \
+        "$(printf '%s\n' "$css" | tr ',' '\n' | grep 'cursor:default' |
+           grep -vc -e ':disabled' -e 'cma-ghost')" "0"
 }
 
 MASK_CASES="someone.long@example.com joe@mail.co.uk ab@x.io a@b.c up1512001@gmail.com
@@ -625,8 +627,8 @@ test_display_names_are_capitalised_without_touching_the_cli() {
     contains "the trigger label uses it" "$body" "cap(cur)"
     is "and writes still send the raw name" \
         "$(printf '%s' "$body" | grep -c 'applyAccount(state, provider.agent, account.name)')" "1"
-    is "as does remove" \
-        "$(printf '%s' "$body" | grep -c 'acct("remove " + account.name')" "1"
+    is "as does sign-out" \
+        "$(printf '%s' "$body" | grep -c 'acct("logout " + account.name')" "1"
 }
 
 # The wireframe is a drill-down: providers first, then that provider's accounts
@@ -638,14 +640,28 @@ test_the_panel_is_a_two_level_drill_down() {
     contains "a provider view" "$body" "function providerView("
     contains "a back control" "$body" 'el("button", "cma-back")'
     contains "add at the foot of the provider view" "$body" '"Add new account"'
-    contains "a named delete confirmation" "$body" "function confirmDelete("
+    contains "a named sign-out confirmation" "$body" "function confirmSignOut("
     contains "escape steps back before it closes" "$body" 'open.view.level === "provider"'
 }
 
-# Delete signs an account out, removes its profile and drops its routes. It asks
-# in a dialog with a scrim, because a control that arms on first click is still
-# one stray click from destruction.
-test_delete_asks_in_a_dialog() {
+# The panel signs an account out and touches nothing else. Deleting a profile
+# outright stays in the terminal, where an accidental click cannot reach it.
+test_the_panel_signs_out_and_deletes_nothing() {
+    local body
+    body=$(cat "$UI_JS")
+    contains "it calls logout" "$body" 'acct("logout " + account.name'
+    is "and never remove" "$(printf '%s' "$body" | grep -c 'acct("remove ')" "0"
+    contains "the copy says nothing else changes" "$body" "Nothing else changes"
+    contains "it names what survives" "$body" "routes, sessions and transcripts are untouched"
+    contains "the icon is a sign-out, not a bin" "$body" 'icon("signout"'
+    is "no bin glyph is left" "$(printf '%s' "$body" | grep -c '^    trash: \[')" "0"
+    # Nothing to sign out of when the profile has no credentials.
+    contains "offered only when signed in" "$body" "if (account.email) {"
+}
+
+# Sign-out still costs a browser round trip to undo, so it asks in a dialog with
+# a scrim, not a control that arms on a first click.
+test_sign_out_asks_in_a_dialog() {
     local body css
     body=$(cat "$UI_JS")
     css=$(sed -n '/^  var CSS = \[/,/\].join("");/p' "$UI_JS")
@@ -654,15 +670,15 @@ test_delete_asks_in_a_dialog() {
     contains "announced as a modal alert" "$body" '"alertdialog"'
     contains "escape cancels it" "$body" 'if (e.key === "Escape") { e.stopPropagation(); shut(); }'
     contains "the scrim cancels, the box does not" "$body" "if (e.target === scrim) shut()"
-    contains "and it says the change cannot be undone" "$body" "cannot be undone"
+    contains "and it says what will happen" "$body" "Signs " 
     # A dialog is a sibling of the panel, so clicking it must not read as
     # clicking away from the panel.
     contains "the panel ignores clicks while it is open" "$body" "if (!open || openDialog) return"
 }
 
-# The delete control lives inside the row's border, divided from the selectable
+# The sign-out control lives inside the row's border, divided from the selectable
 # area, rather than floating in the gutter beside it.
-test_delete_sits_inside_the_row() {
+test_sign_out_sits_inside_the_row() {
     local css
     css=$(sed -n '/^  var CSS = \[/,/\].join("");/p' "$UI_JS")
     contains "the row carries the border" "$css" ".cma-row2{display:flex"
@@ -675,7 +691,7 @@ test_the_panel_never_renders_a_full_address() {
     local body
     body=$(cat "$UI_JS")
     contains "rows mask" "$body" "maskEmail(account.email)"
-    contains "the delete dialog masks" "$body" "maskEmail(account.email) : cap(account.name)"
+    contains "the sign-out dialog masks" "$body" "maskEmail(account.email) + \" out of \""
     contains "sign-in confirmation masks" "$body" 'maskEmail(out.slice(3))'
     # A tooltip is as visible on video as the text is.
     is "no address in a title attribute" \

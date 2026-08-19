@@ -44,10 +44,10 @@ the account it started on.
   <  Back
   Claude Code
 
-  up1**001@g**.com                      | delete
+  up1**001@g**.com                    | sign out
   Personal
 
-  uts**tel@rt**p.com              tick  | delete
+  uts**tel@rt**p.com            tick  | sign out
   Work
 
   +  Add new account
@@ -56,6 +56,23 @@ the account it started on.
 Profile names are lower case on disk, because they are typed at a CLI and used
 as directory names. They are capitalised for display through one `cap()` helper
 and never fed back to `conductor-acct` in that form.
+
+### Provider icons
+
+Both marks are Conductor's own, lifted verbatim out of its frontend rather than
+approximated. Hand-drawn stand-ins read as the wrong glyph sitting two rows from
+the real ones in the model picker: an eight-line asterisk is not the Anthropic
+sunburst, and a ringed dot is not the OpenAI knot. Both are filled paths on a
+24-unit grid using `currentColor`, so they inherit the panel's text colour.
+
+If a release ever changes them, re-extract:
+
+```sh
+tools/extract-assets.py grep 'M22.2819'   # the Codex mark
+```
+
+The Claude mark is the path inside the component rendered beside a Claude
+session, next to the Codex one in the same chunk.
 
 ### Addresses are masked
 
@@ -87,18 +104,28 @@ The rule exists twice, because the panel cannot shell out once per row: in
 chat card use, and in `maskEmail` in `account-ui.js`. A test runs both over the
 same cases and fails if they disagree.
 
-### Deleting an account
+### Signing out, and what the panel will not do
 
-The delete control sits **inside** the row's border, divided from the selectable
-area by a rule and running the full height of the row: deliberate to hit, hard to
-hit by accident. It used to float in the gutter outside the border, which read as
-unrelated to the row and put a destructive target a few pixels from "switch
-account" with nothing between them.
+**The panel never deletes anything.** Signing out drops that account's
+credentials and nothing else: the profile stays, so do its routes, its session
+pins and its transcripts. The account reappears in the list as "Not signed in",
+ready to sign back in from the same place.
+
+Deleting a profile outright is `conductor-acct remove` in a terminal, on purpose.
+It is the one irreversible operation here, and a popover you can open by accident
+is the wrong place for it.
+
+The sign-out control sits **inside** the row's border, divided from the
+selectable area by a rule and running the full height of the row: deliberate to
+hit, hard to hit by accident. It used to float in the gutter outside the border,
+which read as unrelated to the row and put its target a few pixels from "switch
+account" with nothing between them. It is only rendered for an account that is
+signed in, because there is otherwise nothing to sign out of.
 
 Clicking it opens a dialog with a scrim, not an inline confirmation and not a
-control that arms on first click, because an armed control is still one stray
-click from destruction. The dialog names the account, says what will be lost and
-that it cannot be undone, and focuses Cancel. Escape cancels, clicking the scrim
+control that arms on first click. Signing back in costs a browser round trip, so
+it is worth one deliberate confirmation. The dialog names the account, says what
+happens and what stays, and focuses Cancel. Escape cancels, clicking the scrim
 cancels, clicking the dialog itself does not.
 
 The dialog is a sibling of the panel rather than a descendant, so the panel
@@ -111,9 +138,8 @@ sits under it, because that is what you type at the CLI.
 - **Clicking a row** switches to that account and the tick moves in place. The
   panel deliberately stays open, so the change is visible rather than inferred
   from the panel disappearing.
-- **The delete control** asks first, naming the account: signing out, deleting
-  the profile directory and dropping every route that pointed at it is not
-  undoable.
+- **The sign-out control** asks first, naming the account. It signs that account
+  out and changes nothing else.
 - **Add new account** signs in without a terminal. Type a profile name, your
   browser opens at the OAuth URL, paste the code back into the panel. `claude
   auth login` prints the URL then blocks reading a code from stdin, so
@@ -132,9 +158,34 @@ sits under it, because that is what you type at the CLI.
 ## Why it is built the way it is
 
 **No state of its own.** Every read is `conductor-acct json`, every write is
-`use`, `bind`, `remove` or `login-*`, run through Conductor's own
+`use`, `bind`, `logout` or `login-*`, run through Conductor's own
 `execute_shell_command` Tauri command. The panel, the CLI and `/account` cannot
 disagree, because only one of them owns anything.
+
+**It opens on press, and reads state sparingly.** Both were bugs first: the panel
+sometimes needed two or three clicks to appear. Two independent causes, both
+fixed, and both easy to reintroduce.
+
+*The trigger was rebuilt underneath the pointer.* Conductor re-renders its toolbar
+constantly, and when React replaces the container the injected button goes with
+it. A rebuild landing between `mousedown` and `mouseup` means the browser fires no
+`click` at all, so the press did nothing. The trigger now opens on `pointerdown`,
+a single event that cannot be split that way, which is also how native menus
+behave. `click` is still handled for keyboard activation, guarded against
+double-toggling.
+
+*Every render pass cost a process spawn.* The label refresh ran from the mutation
+observer, and each refresh shells out to `conductor-acct json`, which runs the
+router twice internally to answer. During a streaming chat that was several spawns
+a second, and a press's own read then queued behind the backlog. Now: one
+in-flight read shared by all callers, a four-second cache after it, invalidated by
+every write, and the labels kept current by one slow timer rather than by the
+observer. The observer only re-attaches controls, and both attach paths return
+immediately when the control is already in place.
+
+The panel also opens **before** the read finishes, showing a placeholder row per
+provider. A control that does nothing for half a second reads as broken, and the
+placeholder is sized so the corner is pinned at roughly the right height.
 
 **It finds anchors by product copy, not by class.** Class names are hashed per
 build. "The control whose tooltip says Open in" and "the field whose
@@ -160,7 +211,7 @@ jumping back, and the test suite guards each one.
 | Pinned | Why it moved before |
 |---|---|
 | the top left corner, measured once on open | re-measuring on every render moved the panel when the provider view came in at a different height, and right-edge clamping moved it sideways |
-| the width, in CSS, with a capped scrolling height | a card at `width:100%` with the delete control as a flex sibling overflowed 300px, so the provider view was wider than the root view |
+| the width, in CSS, with a capped scrolling height | a card at `width:100%` with the sign-out control as a flex sibling overflowed 300px, so the provider view was wider than the root view |
 | the tick's slot, always in the flow | adding and removing the tick reflowed both the row it left and the row it landed in |
 | the trigger labels, hidden until known | both rendered "Account" and replaced it with the real name a moment later, shifting the toolbar on every workspace open |
 
