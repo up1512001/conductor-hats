@@ -543,8 +543,8 @@ test_every_clickable_thing_says_it_is_clickable() {
            grep -vc -e ':disabled' -e 'cma-ghost')" "0"
 }
 
-MASK_CASES="someone.long@example.com joe@mail.co.uk ab@x.io a@b.c up1512001@gmail.com
-utsav.patel@rtcamp.com noatsign x@y"
+MASK_CASES="someone.long@example.com joe@mail.example.com ab@x.test a@b.test someone.else@example.org
+first.last@example.com noatsign x@y"
 
 test_masking_never_reveals_a_whole_part() {
     local addr out part head leaked=0
@@ -749,6 +749,74 @@ test_the_cli_and_the_panel_agree_on_the_version() {
     panel=$(sed -n 's/.*__conductorMultiAccount = { version: "\([^"]*\)".*/\1/p' "$UI_JS")
     is "same version" "$cli" "$panel"
     contains "and the changelog has an entry for it" "$(cat "$PROJECT_DIR/CHANGELOG.md")" "## $cli"
+}
+
+# This is published, so an address or a home directory left in a file is a leak
+# rather than an untidiness. Both rules are stated positively so the test itself
+# carries no personal data: every example address must sit on a domain RFC 2606
+# reserves for documentation, and no path may name a real account.
+test_no_personal_information_is_committed() {
+    local files bad
+    files=$(cd "$PROJECT_DIR" && git ls-files 2>/dev/null)
+    if [ -z "$files" ]; then skip "not a git checkout"; return; fi
+
+    # Addresses on any domain other than the reserved ones.
+    bad=$(cd "$PROJECT_DIR" && printf '%s\n' "$files" | while read -r f; do
+        [ -f "$f" ] || continue
+        grep -HoE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "$f" 2>/dev/null |
+            grep -vE '@(example\.(com|org|net)|[A-Za-z0-9.-]*\.(test|example|invalid|localhost))(\b|$)'
+    done)
+    if [ -n "$bad" ]; then
+        not_ok "example addresses use reserved domains" "only example.com/org/net and .test" "$bad"
+    else
+        ok "example addresses use reserved domains"
+    fi
+
+    # Home directories of a real account, as opposed to ~ or /Users/you.
+    bad=$(cd "$PROJECT_DIR" && printf '%s\n' "$files" | while read -r f; do
+        [ -f "$f" ] || continue
+        grep -HoE '/Users/[A-Za-z0-9._-]+' "$f" 2>/dev/null | grep -vE '/Users/(you|USER|username)\b'
+    done)
+    if [ -n "$bad" ]; then
+        not_ok "no real home directories" "~ or /Users/you" "$bad"
+    else
+        ok "no real home directories"
+    fi
+}
+
+# AGENTS.md says no file over 300 lines, so the rule is enforced rather than
+# asserted. The three files that break it today are listed with the length they
+# are at, which means the debt cannot quietly grow: adding a line to one of them
+# fails this test until it is split.
+LINE_LIMIT=300
+KNOWN_LONG="bin/conductor-acct:1360 test/run.sh:834 tools/ui-patch/account-ui.js:1294"
+
+test_no_file_exceeds_the_line_limit() {
+    local files f n allowed entry over=0 grew=0
+    files=$(cd "$PROJECT_DIR" && git ls-files 2>/dev/null)
+    if [ -z "$files" ]; then skip "not a git checkout"; return; fi
+
+    for f in $files; do
+        case "$f" in dist/*|pnpm-lock.yaml|LICENSE) continue ;; esac
+        [ -f "$PROJECT_DIR/$f" ] || continue
+        n=$(wc -l < "$PROJECT_DIR/$f" | tr -d ' ')
+        [ "$n" -gt "$LINE_LIMIT" ] || continue
+
+        allowed=""
+        for entry in $KNOWN_LONG; do
+            [ "${entry%%:*}" = "$f" ] && allowed="${entry##*:}"
+        done
+        if [ -z "$allowed" ]; then
+            echo "        $f is $n lines, limit is $LINE_LIMIT"
+            over=1
+        elif [ "$n" -gt "$allowed" ]; then
+            echo "        $f grew to $n lines, was $allowed and already over the limit"
+            grew=1
+        fi
+    done
+
+    is "nothing new is over the limit" "$over" "0"
+    is "the files already over it did not grow" "$grew" "0"
 }
 
 # ------------------------------------------------------------------ main ---
