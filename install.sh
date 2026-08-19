@@ -8,7 +8,10 @@
 # Conductor up, and stops. Signing in needs a browser, so it is left to you.
 set -eu
 
-REPO_URL="${CONDUCTOR_ACCT_REPO:-https://github.com/up1512001/conductor-playground}"
+# Set at publish time, or overridden per run with CONDUCTOR_ACCT_REPO. Left as a
+# placeholder deliberately: a half-published URL that resolves to the wrong
+# repository is worse than one that fails loudly.
+REPO_URL="${CONDUCTOR_ACCT_REPO:-https://github.com/OWNER/REPO}"
 SUBDIR="${CONDUCTOR_ACCT_SUBDIR:-conductor-multi-account}"
 ROOT="${CONDUCTOR_ACCOUNTS_ROOT:-$HOME/.conductor-accounts}"
 SRC="$ROOT/src"
@@ -17,6 +20,11 @@ say() { printf '%s\n' "$*"; }
 die() { printf 'install: %s\n' "$*" >&2; exit 1; }
 
 [ "$(uname -s)" = "Darwin" ] || die "Conductor is macOS only"
+
+case "$REPO_URL" in
+    *OWNER/REPO*) die "REPO_URL is still the placeholder.
+Set it in install.sh, or run with CONDUCTOR_ACCT_REPO=https://github.com/you/repo" ;;
+esac
 
 # Running from a checkout, or piped from curl?
 SELF_DIR=""

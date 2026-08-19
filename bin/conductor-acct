@@ -246,8 +246,8 @@ profile_from_dir() {
 # shared screenshot should not hand one out. Local part and host are masked
 # separately and the suffix is kept, so the result still reads as an email:
 #
-#   someone.long@example.com  ->  som**ong@exa**le.com
-#   joe@mail.co.uk            ->  j**@m**.co.uk
+#   someone.long@example.com  ->  som**ong@ex**e.com
+#   joe@mail.example.com      ->  j**@m**.example.com
 #
 # How much is revealed scales with length, so a short part is not handed over in
 # full for want of characters to hide. This rule is duplicated in

@@ -64,8 +64,8 @@
   /* Conductor's webview runs an in-memory router, so location never changes and
    * there is no id to read. The panel works out where it is by matching what is
    * on screen against the workspaces and repositories Conductor knows about,
-   * longest name first so "belo-horizonte" is not beaten by a repo called
-   * "belo". Cached, because it is two SQLite reads, but not forever: a workspace
+   * longest name first so "rio-branch" is not beaten by a repo called
+   * "rio". Cached, because it is two SQLite reads, but not forever: a workspace
    * created after the app started would otherwise never be recognised. */
   var PLACES_TTL = 30000;
   var placesCache = null;
@@ -521,8 +521,8 @@
    * and last three characters with ** between; the domain keeps its suffix so
    * the string still reads as an email:
    *
-   *   someone.long@example.com  ->  som**ong@exa**le.com
-   *   joe@mail.co.uk            ->  j**@m**.co.uk
+   *   someone.long@example.com  ->  som**ong@ex**e.com
+   *   joe@mail.example.com            ->  j**@m**.example.com
    *
    * Enough to tell two accounts apart at a glance, and the profile name sits
    * right underneath for when it is not. The full address is never put in a
