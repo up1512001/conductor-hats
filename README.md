@@ -38,11 +38,10 @@ This routes per workspace instead, so every account you add stays live at once.
 macOS, Conductor 0.81 or newer, and Claude Code or Codex already working inside
 it. No other dependencies: everything here is POSIX shell.
 
-## Install
+## Getting started
 
-Download the tarball for your Mac from the
-[latest release](https://github.com/up1512001/conductor-hats/releases/latest),
-then:
+**1. Install.** Download the tarball for your Mac from the
+[latest release](https://github.com/up1512001/conductor-hats/releases/latest):
 
 ```sh
 tar xzf hats-aarch64-apple-darwin.tar.gz     # or x86_64 on an Intel Mac
@@ -50,121 +49,57 @@ cd hats-aarch64-apple-darwin
 ./install.sh
 ```
 
-Every release publishes a `.sha256` beside each tarball, and `install.sh`
-verifies whatever it downloads itself. It installs `hats` to `~/.local/bin`,
-deploys the router under `~/.conductor-accounts`, and touches nothing else.
-
-Once the repository is public, the same script installs in one line:
+That verifies the download against its published `.sha256`, deploys the router
+under `~/.conductor-accounts`, and puts `hats` on `~/.local/bin`. Once the
+repository is public the same script works in one line:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/up1512001/conductor-hats/main/install.sh | sh
 ```
 
-From a checkout, `./install.sh` uses the files beside it rather than downloading.
-
-Then sign in to each account, in a real terminal, because the browser has to
-open:
+**2. Sign in to each account.** A browser opens, so this needs a terminal:
 
 ```sh
 conductor-acct add personal
 conductor-acct add work
 ```
 
-`add` creates a config directory per account, symlinks your skills, plugins,
-commands and transcripts back to `~/.claude` so every account shares them, and
-runs the sign in flow.
+Each account gets its own config directory and therefore its own keychain item.
+Your skills, plugins, commands and transcripts stay shared.
 
-Restart Conductor once, and check it:
-
-```sh
-conductor-acct doctor
-```
-
-## Use it
-
-**From the toolbar.** The button next to "Open in" shows the account this
-workspace runs on. Click it for the panel: providers first, then that provider's
-accounts, each with a sign-in or sign-out control and one "Add new account" at
-the foot. Signing in happens in the panel, no terminal. Addresses are masked, so a
-recorded session cannot hand one out.
-
-**From the New Workspace composer.** The chip beside the model picker binds the
-repository, so the workspace you are about to create starts on the account you
-meant.
-
-**From the chat**, with `/account`, which needs no patching and survives every
-Conductor update. This is the fallback rather than the point: a slash command is
-something anyone can write, and it is here so the feature still works on a
-Conductor you have not patched.
-
-**From a terminal**, in any workspace directory:
+**3. Build a Conductor copy to patch.** The panel is injected into the app, and
+that costs the copy its notarization, so it never touches the Conductor you rely
+on:
 
 ```sh
-conductor-acct use work           # this workspace runs on the work account
-conductor-acct status             # claude  work  you@example.com
-conductor-acct which              # the same, with every layer that fed into it
+hats dev-app
 ```
 
-Open a **new** chat for a switch to take effect. A chat that is already running
-keeps the account its agent process started on, because the account is fixed
-when that process spawns.
+This produces `/Applications/Conductor Dev.app` with its own bundle identifier,
+database and keychain items. Both apps run at the same time.
 
-### Several accounts at once
+**4. Inject the panel:**
 
 ```sh
-cd ~/conductor/workspaces/company-app/one  && conductor-acct use work
-cd ~/conductor/workspaces/side-project/two && conductor-acct use personal
+hats patch
+open "/Applications/Conductor Dev.app"
 ```
 
-Open a chat in each. Conductor keeps a separate agent host per workspace, so
-both run at the same time without interfering.
+**5. Use it.** Open a workspace. The account button sits next to "Open in", top
+right. Click it, pick an account, and the next chat in that workspace runs on it.
+The chip in the New Workspace composer does the same for a repository.
 
-### A whole repository on one account
-
-For a repository where every workspace should use the same account, bind the
-repository instead of each workspace:
+**6. After a Conductor update**, which replaces the bundle and removes the panel:
 
 ```sh
-cd ~/conductor/repos/company-app
-conductor-acct bind work
+hats repatch
 ```
 
-That writes `.conductor/settings.local.toml`, which Conductor reads per
-repository. It needs no router at all, so it keeps working even with this
-extension turned off. Add the file to `.gitignore`; it is machine local.
+Check any of it with `conductor-acct doctor`, which reports what every layer
+resolves to.
 
-A `use` route on a specific workspace overrides its repository binding.
-
-## How it works
-
-Claude Code namespaces credentials by config directory. With `CLAUDE_CONFIG_DIR`
-set, the macOS keychain item becomes `Claude Code-credentials-<sha256(dir)[0:8]>`
-instead of `Claude Code-credentials`, so each directory is a separate login.
-That is Anthropic's own mechanism for several accounts, not a workaround.
-
-Conductor exposes two documented settings that let you aim it:
-
-| Setting | Scope | What this project does with it |
-|---|---|---|
-| `claude_code_executable_path` | user or repository | points at `bin/claude-router` |
-| `environment_variables` | repository | holds a `CLAUDE_CONFIG_DIR` binding |
-
-`claude-router` is a small shell script. Conductor spawns it instead of
-`claude`, it works out which account this workspace should use, exports
-`CLAUDE_CONFIG_DIR`, and `exec`s the real binary with the argv it was given.
-
-Precedence, highest first:
-
-1. `CONDUCTOR_ACCOUNT` in the environment, for one spawn
-2. the session pin, so a running conversation never changes account mid flight
-3. a route naming this exact workspace, from `use` or `/account`
-4. a repository binding from `bind`
-5. a route on a parent directory, then the `default` route
-
-If none of those match, nothing is exported and you get your normal account.
-
-[docs/how-it-works.md](docs/how-it-works.md) has the full picture, including
-what was learned by reading Conductor's runtime.
+Prefer to skip steps 3 and 4? `/account` in any Conductor chat works on an
+unpatched install, and `conductor-acct use work` works from a terminal.
 
 ## What the panel does
 
@@ -197,7 +132,22 @@ it moves once it is open. [docs/account-panel.md](docs/account-panel.md) covers
 the behaviour and [docs/panel-internals.md](docs/panel-internals.md) how it
 attaches.
 
-## What the panel costs
+## Everything else
+
+| Page | What it covers |
+|---|---|
+| [docs/usage.md](docs/usage.md) | picking an account, several at once, binding a repository |
+| [docs/cli.md](docs/cli.md) | every `conductor-acct` command, the layout on disk, turning it off |
+| [docs/how-it-works.md](docs/how-it-works.md) | how credentials are namespaced, the router, precedence |
+| [docs/account-panel.md](docs/account-panel.md) | the panel: layout, masking, signing in and out |
+| [docs/panel-internals.md](docs/panel-internals.md) | how the panel attaches, and the update path |
+| [docs/patching-conductor.md](docs/patching-conductor.md) | what the app bundle allows, with the evidence |
+| [docs/dev-conductor.md](docs/dev-conductor.md) | building a Conductor copy that is safe to modify |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | tests, linting, releases |
+| [AGENTS.md](AGENTS.md) | rules for changing this code, human or agent |
+| [CHANGELOG.md](CHANGELOG.md) | what changed, by version |
+
+## What patching costs
 
 The panel never deletes anything: signing out drops credentials and leaves the
 profile, its routes, its session pins and its transcripts alone.
@@ -224,94 +174,6 @@ claims are in [docs/patching-conductor.md](docs/patching-conductor.md).
 
 If you would rather have this natively, ask Conductor for it: Help, then Send
 Feedback, asking for per-workspace agent account selection.
-
-## Commands
-
-```
-setup                            guided first run
-add <profile> [claude|codex]     create a profile and sign in to it
-use <profile> [agent] [path]     point this workspace at a profile
-status [path] [--mask]           what this workspace resolves to, in two lines
-which [path] [agent]             the same, with every layer that fed into it
-list [--mask]                    profiles, accounts and routes
-mask <email>                     the masked form the UI shows on screen
-
-login <profile> [agent]          re-run sign in for a profile
-logout <profile> [agent]         sign out, keep the profile
-remove <profile> [agent]         sign out, delete the profile and its routes
-
-bind <profile> [agent] [repo]    bind a whole repository to a profile
-unbind [agent] [repo]            drop a repository binding
-assign default <profile>         account for workspaces with no route
-unassign [path|default]          drop a route
-
-install                          turn the router on, add /account
-uninstall                        turn it off again
-sessions [clear]                 show or reset per-session pins
-doctor                           check the setup end to end
-```
-
-## Layout
-
-```
-~/.conductor-accounts/
-  routes                  workspace path -> profile
-  config                  reserved
-  claude/<profile>/       CLAUDE_CONFIG_DIR, one per account
-  codex/<profile>/        CODEX_HOME, one per account
-  sessions/claude/<id>    which account a session started on
-  bin -> <checkout>/bin   stable path for /account
-```
-
-Each Claude profile symlinks `projects`, `skills`, `plugins`, `commands`,
-`agents`, `settings.json` and `CLAUDE.md` back to `~/.claude`, so every account
-shares your skills, hooks and transcripts. Only credentials and `.claude.json`
-are per account. `doctor` warns if a symlink is replaced by a real file.
-
-## Turning it off
-
-```sh
-conductor-acct uninstall     # router off, /account removed
-conductor-acct unbind        # per repository
-rm -rf ~/.conductor-accounts # removes both logins
-```
-
-Restart Conductor. That removes the routing side completely: no modified
-`~/.claude`, no changes to Conductor's database, nothing left in
-`~/.conductor/settings.toml`.
-
-If you also patched a copy for the in-app panel, that copy is separate and stays
-until you remove it:
-
-```sh
-hats revert                                # the injected UI only
-rm -rf "/Applications/Conductor Dev.app"   # the whole copy
-```
-
-Your real Conductor was never touched by either.
-
-## Documentation
-
-| Page | What it covers |
-|---|---|
-| [docs/how-it-works.md](docs/how-it-works.md) | how credentials are namespaced, the router, precedence |
-| [docs/account-panel.md](docs/account-panel.md) | the in-app panel: layout, masking, sign-out |
-| [docs/panel-internals.md](docs/panel-internals.md) | how the panel attaches, and the update path |
-| [docs/patching-conductor.md](docs/patching-conductor.md) | what the app bundle allows, with the evidence |
-| [docs/dev-conductor.md](docs/dev-conductor.md) | building a Conductor copy that is safe to modify |
-| [AGENTS.md](AGENTS.md) | rules for changing this code, human or agent |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | tests, linting, changelog, versions |
-| [CHANGELOG.md](CHANGELOG.md) | what changed, by version |
-
-## Tests
-
-```sh
-test/run.sh              # everything
-test/run.sh route        # tests matching "route"
-```
-
-They run against a sandbox under `$TMPDIR` with a stub agent binary, so no real
-Conductor install, `~/.claude` directory or keychain item is involved.
 
 ## A note on accounts
 

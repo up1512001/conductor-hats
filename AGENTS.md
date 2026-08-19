@@ -1,9 +1,11 @@
 # Agent briefing: conductor-hats
 
-Read this before changing anything here. The parent repository's
-[AGENTS.md](../AGENTS.md) still applies: no AI attribution in git history,
-`type/topic` branches, base `develop`, SHA-pinned actions. This file adds the
-rules specific to this subproject.
+Read this before changing anything here.
+
+Git rules, carried over from where this project started and still in force: no AI
+attribution anywhere in history, `type/topic` branches, and every GitHub Action
+pinned to a full commit SHA fetched from the API rather than written from
+memory.
 
 ## What this is
 

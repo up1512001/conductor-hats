@@ -28,9 +28,8 @@ above). The short version, and none of it is optional:
   indented inside a body. Directives (`# shellcheck`, `cargo:`, `#!`) are exempt.
   A test enforces it.
 
-The parent repository's [AGENTS.md](../AGENTS.md) also applies: no AI attribution
-anywhere in git history, `type/topic` branches, base `develop`, SHA-pinned
-actions.
+Git rules: no AI attribution anywhere in history, `type/topic` branches, and
+every GitHub Action pinned to a commit SHA fetched from the API.
 
 Every source file is under 300 lines and a test enforces it, with no allowlist.
 The next file over the limit fails the suite.

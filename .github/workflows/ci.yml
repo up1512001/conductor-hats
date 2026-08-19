@@ -10,11 +10,7 @@ permissions:
 
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ macos-latest, ubuntu-latest ]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
     steps:
       # Pinned to a full commit SHA, never a tag: a tag is mutable, so `@v7`
       # means "whatever that name points at when the job runs".
@@ -34,12 +30,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install shellcheck
-        run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            brew install shellcheck
-          else
-            sudo apt-get update && sudo apt-get install -y shellcheck
-          fi
+        run: brew install shellcheck
 
       # -x follows the sourced libraries instead of guessing at them, and
       # --source-path=SCRIPTDIR resolves each `source=` directive relative to the

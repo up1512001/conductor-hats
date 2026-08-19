@@ -6,6 +6,24 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- CI runs on macOS only. Conductor is macOS software, `install.sh` refuses any
+  other system, and the tests shell out to `security`, which does not exist on
+  Linux, so a Linux run either failed as noise or passed for the wrong reason. It
+  was also the slow half: on the last run macOS had finished while Ubuntu was
+  still installing shellcheck through apt.
+- The README was 351 lines. It is the pitch, a numbered walkthrough from download
+  to a working panel, what the panel does, and links. Day to day usage moved to
+  `docs/usage.md` and the command reference to `docs/cli.md`.
+
+### Fixed
+
+- `AGENTS.md` and `CLAUDE.md` linked to a parent repository that stopped existing
+  when this became its own repo.
+
 ## 0.3.2
 
 ### Added
