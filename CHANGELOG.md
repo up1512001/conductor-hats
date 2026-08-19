@@ -6,6 +6,14 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- The README gave the CLI a full command reference and left the panel described in
+  a paragraph. The panel now has a section of its own, listing what each control
+  does, ahead of the section on what patching costs rather than after it.
+
 ## 0.3.1
 
 ### Fixed

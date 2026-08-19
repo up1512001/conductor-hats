@@ -166,6 +166,37 @@ If none of those match, nothing is exported and you get your normal account.
 [docs/how-it-works.md](docs/how-it-works.md) has the full picture, including
 what was learned by reading Conductor's runtime.
 
+## What the panel does
+
+The CLI list below is the terminal half. This is the half that matters, and it is
+all inside Conductor:
+
+| In the panel | What it does |
+|---|---|
+| Click a provider | Drills into that provider's accounts. Claude Code and Codex are listed separately, each showing its current account. |
+| Click an account | Routes this workspace to it. The tick moves in place and the panel stays open, so the change is visible rather than inferred. |
+| From the New Workspace chip | Binds the repository instead, so the workspace you are about to create starts on the account you picked. |
+| Add new account | Signs in without a terminal. Type a name, your browser opens at the OAuth URL, paste the code back into the panel. |
+| Sign out | Drops that account's credentials and nothing else, after a dialog that names the account and says what stays. |
+| Sign in, on a signed-out row | The same flow, with the profile already known. A signed-out row is never a dead end. |
+| Turn routing off | Puts every workspace back on one account without uninstalling anything. |
+| Escape | Steps back from a provider to the list, then closes. |
+
+Everything it shows is masked: addresses render as `fir**ast@ex**e.com`, so a
+recorded session or a shared screenshot cannot hand one out. Signed in, signed in
+with no address cached yet, and signed out are three distinct states, because
+credentials can exist before an address is readable anywhere.
+
+If two profiles end up on one address, the panel says so during sign-in: one live
+token per account means the pair would otherwise take turns signing each other
+out.
+
+The panel is drawn with Conductor's own theme tokens, so it follows the app's
+palette, radii and light or dark mode rather than approximating them. Nothing in
+it moves once it is open. [docs/account-panel.md](docs/account-panel.md) covers
+the behaviour and [docs/panel-internals.md](docs/panel-internals.md) how it
+attaches.
+
 ## What the panel costs
 
 The panel never deletes anything: signing out drops credentials and leaves the
