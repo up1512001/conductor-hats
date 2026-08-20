@@ -97,25 +97,21 @@ else
     fetch_release
 fi
 
-chmod +x "$PROJECT/bin/conductor-acct" "$PROJECT/bin/claude-router" \
-    "$PROJECT/bin/codex-router" 2>/dev/null || true
+[ -x "$PROJECT/hats" ] || chmod +x "$PROJECT/hats" 2>/dev/null || true
 
-"$PROJECT/bin/conductor-acct" install
+"$PROJECT/hats" install
 
-if [ -x "$PROJECT/hats" ]; then
-    mkdir -p "$BINDIR"
-    cp "$PROJECT/hats" "$BINDIR/hats"
-    chmod +x "$BINDIR/hats"
-    say ""
-    say "hats -> $BINDIR/hats"
-    case ":$PATH:" in
-        *":$BINDIR:"*) ;;
-        *) say "  $BINDIR is not on your PATH. Add it:"
-           say "    echo 'export PATH=\"$BINDIR:\$PATH\"' >> ~/.zshrc" ;;
-    esac
-fi
-
-ln -sf "$ROOT/bin/conductor-acct" "$BINDIR/conductor-acct" 2>/dev/null || true
+mkdir -p "$BINDIR"
+cp "$PROJECT/hats" "$BINDIR/hats"
+chmod +x "$BINDIR/hats"
+ln -sf "$BINDIR/hats" "$BINDIR/conductor-acct"
+say ""
+say "hats -> $BINDIR/hats"
+case ":$PATH:" in
+    *":$BINDIR:"*) ;;
+    *) say "  $BINDIR is not on your PATH. Add it:"
+       say "    echo 'export PATH=\"$BINDIR:\$PATH\"' >> ~/.zshrc" ;;
+esac
 
 say ""
 say "Next, add your accounts. The panel signs in without a terminal:"

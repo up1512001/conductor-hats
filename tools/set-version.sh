@@ -4,9 +4,9 @@
 #   tools/set-version.sh 0.3.0     set it
 #   tools/set-version.sh --check   print each file's version, fail if they differ
 #
-# The version lives in five files. They ship together, so a skew between them is a
+# The version lives in four files. They ship together, so a skew between them is a
 # bug, and a test asserts they match. This is what keeps that true without anyone
-# having to remember all five.
+# having to remember all four.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -16,14 +16,12 @@ die() { echo "set-version: $*" >&2; exit 1; }
 
 read_cargo() { sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1; }
 read_package() { sed -n 's/^  "version": "\(.*\)",$/\1/p' package.json | head -1; }
-read_cli() { sed -n 's/^CONDUCTOR_ACCT_VERSION=\(.*\)$/\1/p' bin/conductor-acct | head -1; }
 read_panel() { sed -n 's/^const VERSION = "\(.*\)";$/\1/p' src/panel/index.ts | head -1; }
 read_changelog() { sed -n 's/^## \([0-9][0-9.]*\).*$/\1/p' CHANGELOG.md | head -1; }
 
 report() {
     printf '%-16s %s\n' "Cargo.toml" "$(read_cargo)"
     printf '%-16s %s\n' "package.json" "$(read_package)"
-    printf '%-16s %s\n' "bin/conductor-acct" "$(read_cli)"
     printf '%-16s %s\n' "src/panel/index.ts" "$(read_panel)"
     printf '%-16s %s\n' "CHANGELOG.md" "$(read_changelog)"
 }
@@ -60,11 +58,6 @@ awk -v v="$NEW" 'NR==1,/^version = / { sub(/^version = ".*"$/, "version = \"" v 
 tmp=$(mktemp)
 awk -v v="$NEW" '{ sub(/^  "version": ".*",$/, "  \"version\": \"" v "\",") } 1' \
     package.json > "$tmp" && mv "$tmp" package.json
-
-tmp=$(mktemp)
-awk -v v="$NEW" '{ sub(/^CONDUCTOR_ACCT_VERSION=.*$/, "CONDUCTOR_ACCT_VERSION=" v) } 1' \
-    bin/conductor-acct > "$tmp" && mv "$tmp" bin/conductor-acct
-chmod +x bin/conductor-acct
 
 tmp=$(mktemp)
 awk -v v="$NEW" '{ sub(/^const VERSION = ".*";$/, "const VERSION = \"" v "\";") } 1' \

@@ -65,17 +65,20 @@ responsibility, not by line count: `lib/routes.sh` and `lib/keychain.sh`, never
 ### Everything in the folder that owns it
 
 ```
-bin/            entrypoints only. conductor-acct is dispatch, the routers are
-                the hot path and source bin/_resolve.sh directly
-lib/            sourced shell libraries, one concern per file
+src/rust/       the hats binary: routing, the CLI, patching, the dev app
 src/panel/      TypeScript for the injected UI
 src/panel/styles/  SCSS partials, one per group of elements
-dist/           build output, generated and gitignored
-tools/          patching and dev-app tooling (Python and shell)
+dist/           built panel, generated and gitignored
+target/         Rust build output, gitignored
+tools/          the panel build and the version script
 test/           harness.sh plus one *.test.sh per area
 docs/           prose
 commands/       the /account slash command
 ```
+
+One binary answers to four names. `install.sh` symlinks `conductor-acct`,
+`claude-router` and `codex-router` at `hats`, and it reports itself as whichever
+name invoked it.
 
 `dist/` is generated and never committed. Build output in git goes stale, muddies
 diffs, and in this case leaked a real home directory: esbuild labels each bundled
@@ -119,15 +122,17 @@ fails if they differ. Any future duplication needs the same treatment.
 
 ### The router is on the hot path
 
-`bin/claude-router` runs on **every agent spawn**. Therefore:
+The router runs on **every agent spawn**, so:
 
-- POSIX shell, no runtime dependency, no build step
-- fails open: all resolution runs in a subshell whose failure leaves the agent
-  starting normally. A broken install must never stop someone working.
-- no forks on the path where the answer is already known
-
-Do not rewrite this in a language that needs a runtime or a build. The cost lands
-on every spawn, and the fail-open property is the whole safety story.
+- **fails open.** The decision runs inside `catch_unwind`, and any failure leaves
+  the environment untouched and still `exec`s the agent. A broken install costs
+  the routing, never the agent. Three tests cover it: an unreadable routes file,
+  a nonsense one, and no accounts root at all.
+- **`exec`, never fork.** The agent's spare host and Conductor's stdio pipes both
+  assume a direct child.
+- `panic = "abort"` must stay out of the release profile. An abort in the router
+  means no agent starts, which is the exact catastrophe fail-open exists to
+  prevent.
 
 ### The panel must not be able to break the app
 
@@ -146,14 +151,11 @@ screen. Rules that follow from that:
   `package.json` and `.npmrc`. `minimumReleaseAge: 10080` holds every dependency
   back a week, and `allowBuilds` answers which packages may run install scripts so
   an install never waits on a prompt.
-- **Shell** for `bin/` and `lib/`: the hot path, per above.
+- **Rust** for everything the user runs: routing, the CLI, patching, the dev app.
 - **TypeScript + esbuild** for `src/panel/`, bundled to one self-contained IIFE.
   The injected artifact has to be a single script with no module loader, so many
   small sources plus a build step is the only way to keep the 300-line rule.
 - **SCSS** for panel styles, compiled and inlined into the bundle at build time.
-- **Rust** for the `hats` binary: Mach-O parsing, brotli, building the isolated
-  copy, and injecting the panel. It carries the compiled panel inside it, so a
-  user needs no Python, Node or brotli command.
 - Stock macOS tools are shelled out to freely. codesign, security, PlistBuddy and
   xattr cost a user nothing to have; a runtime does. That is the line.
 - Rust buys no extra *access* to Conductor, which `docs/patching-conductor.md`

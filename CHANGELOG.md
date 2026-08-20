@@ -15,6 +15,21 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   later, with the manual download first, which was true while private and
   misleading the moment it was not.
 
+## Unreleased
+
+### Changed
+
+- **The CLI and the routers are Rust.** `bin/conductor-acct`, both routers and all
+  thirteen `lib/*.sh` files are gone, replaced by modules in `src/rust`. One
+  binary answers to four names: `install.sh` symlinks `conductor-acct`,
+  `claude-router` and `codex-router` at `hats`, and it reports itself as whichever
+  name invoked it.
+- A release tarball is now the binary, `install.sh` and `commands/`. No shell
+  implementation travels with it.
+- The router fails open through `catch_unwind` rather than a subshell, and
+  `panic = "abort"` is out of the release profile: an abort there would mean no
+  agent starts at all, which is the failure fail-open exists to prevent.
+
 ## 0.3.4
 
 ### Fixed

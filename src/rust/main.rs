@@ -3,15 +3,23 @@
 //! Carries the panel inside it, so patching needs no Python, Node or brotli
 //! command installed.
 
+mod cli;
 mod devapp;
 mod macho;
+mod manage;
+mod mask;
 mod patch;
 mod paths;
+mod profile;
 mod repatch;
+mod report;
 mod resolve;
 mod router;
 mod routes;
+mod settings;
 mod sign;
+mod store;
+mod wiring;
 
 use std::path::{Path, PathBuf};
 
@@ -169,6 +177,15 @@ fn cmd_assets(args: &Args) -> Result<(), String> {
     Ok(())
 }
 
+/// The name this binary was invoked by. It answers to several through symlinks,
+/// and reports itself as whichever was used.
+fn invoked_as() -> String {
+    std::env::args()
+        .next()
+        .and_then(|a| a.rsplit('/').next().map(str::to_string))
+        .unwrap_or_else(|| "hats".into())
+}
+
 /// Conductor spawns the router by path, so the same binary answers to
 /// `claude-router` and `codex-router` through symlinks install.sh creates.
 fn router_agent() -> Option<&'static str> {
@@ -212,12 +229,13 @@ fn main() {
         "assets" => cmd_assets(&args),
         "claude-router" => router::run("claude", rest),
         "codex-router" => router::run("codex", rest),
+        other if cli::is_account_command(other) => cli::run(other, &rest),
         "panel" => {
             print!("{}", patch::PANEL);
             Ok(())
         }
         "version" | "--version" | "-V" => {
-            println!("hats {}", env!("CARGO_PKG_VERSION"));
+            println!("{} {}", invoked_as(), env!("CARGO_PKG_VERSION"));
             Ok(())
         }
         "help" | "-h" | "--help" => {

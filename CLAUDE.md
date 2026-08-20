@@ -7,17 +7,17 @@ above). The short version, and none of it is optional:
 
 - **No file over 300 lines.** 301 is a failure. Build output, the lockfile, the
   licence and Markdown are the only exemptions.
-- **Everything in the folder that owns it.** `bin/` entrypoints, `lib/` shell
-  libraries, `src/panel/` TypeScript with `src/panel/styles/` SCSS partials,
-  `dist/` build output (generated, gitignored), `tools/` patching,
-  `test/`, `docs/`, `commands/`.
+- **Everything in the folder that owns it.** `src/rust/` the binary, `src/panel/`
+  TypeScript with `src/panel/styles/` SCSS partials, `dist/` and `target/`
+  generated, `tools/`, `test/`, `docs/`, `commands/`.
 - **Build before patching.** `pnpm install && pnpm build`, then
   `hats patch`. `dist/` is generated, never committed.
 - **No personal information.** This is published. Example addresses use
   RFC 2606 reserved domains; paths use `~` or `/Users/you`. A test enforces it.
 - **`conductor-acct` owns all state.** The panel and the chat command read and
   write through it, never around it.
-- **The router runs on every agent spawn**: POSIX shell, no runtime, fails open.
+- **The router runs on every agent spawn**: fails open through `catch_unwind`, and
+  `panic = "abort"` must stay out of the release profile.
 - **The panel must never throw.** It is injected into a compiled bundle, so an
   exception is somebody's white screen.
 - **pnpm 11 only**, settings in `pnpm-workspace.yaml`, `minimumReleaseAge: 10080`.

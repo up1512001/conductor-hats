@@ -52,12 +52,12 @@ fake_profile() {
 # route_claude <workspace> -- runs the router as Conductor would and prints the
 # config dir the agent actually received.
 route_claude() {
-    (cd "$1" && CONDUCTOR_WORKSPACE_PATH="$1" "$PROJECT_DIR/bin/claude-router" "${@:2}") 2>/dev/null |
+    (cd "$1" && CONDUCTOR_WORKSPACE_PATH="$1" "$PROJECT_DIR/target/release/claude-router" "${@:2}") 2>/dev/null |
         sed -n 's/^CLAUDE_CONFIG_DIR=//p'
 }
 
 route_codex() {
-    (cd "$1" && CONDUCTOR_WORKSPACE_PATH="$1" "$PROJECT_DIR/bin/codex-router" "${@:2}") 2>/dev/null |
+    (cd "$1" && CONDUCTOR_WORKSPACE_PATH="$1" "$PROJECT_DIR/target/release/codex-router" "${@:2}") 2>/dev/null |
         sed -n 's/^CODEX_HOME=//p'
 }
 

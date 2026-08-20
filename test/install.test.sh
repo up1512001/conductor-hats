@@ -29,6 +29,8 @@ EOF
     fi
 }
 
+# Older versions symlinked the deployment at the checkout. `rm -f` on a directory
+# fails, and under `set -e` that aborted the install and left a stale copy behind.
 test_install_replaces_a_stale_deployment() {
     fake_profile claude work
     "$ACCT" install >/dev/null
@@ -38,17 +40,26 @@ test_install_replaces_a_stale_deployment() {
 
     is "the deployment is a real directory" \
         "$([ -d "$CONDUCTOR_ACCOUNTS_ROOT/bin" ] && [ ! -L "$CONDUCTOR_ACCOUNTS_ROOT/bin" ] && echo yes)" "yes"
-    is "and the deployed CLI is the current one" \
-        "$(cmp -s "$PROJECT_DIR/bin/conductor-acct" "$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct" && echo same)" "same"
+    is "and the deployed CLI answers" \
+        "$("$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct" version | awk '{print $1}')" "conductor-acct"
 }
 
+# What matters is that a deployment which drifted is replaced by a working one,
+# whichever way it is deployed: a copied script, or a binary plus symlinks.
 test_install_redeploys_after_the_checkout_changes() {
     fake_profile claude work
     "$ACCT" install >/dev/null
-    printf '\n# drift\n' >> "$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct"
+    local deployed="$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct"
+    local before
+    before=$("$deployed" version)
+
+    rm -f "$deployed"
+    printf '#!/bin/sh\necho broken\n' > "$deployed"
+    chmod +x "$deployed"
+    is "the deployment is now broken" "$("$deployed" version)" "broken"
+
     "$ACCT" install >/dev/null
-    is "a stale copy is overwritten" \
-        "$(cmp -s "$PROJECT_DIR/bin/conductor-acct" "$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct" && echo same)" "same"
+    is "a stale copy is overwritten" "$("$deployed" version)" "$before"
 }
 
 test_uninstall_reverses_install() {
@@ -118,7 +129,7 @@ test_profile_names_are_validated() {
 test_the_cli_works_through_a_symlink() {
     fake_profile claude work
     mkdir -p "$SANDBOX/onpath"
-    ln -sf "$PROJECT_DIR/bin/conductor-acct" "$SANDBOX/onpath/conductor-acct"
+    ln -sf "$PROJECT_DIR/target/release/conductor-acct" "$SANDBOX/onpath/conductor-acct"
 
     local out status=0
     out=$("$SANDBOX/onpath/conductor-acct" version 2>&1) || status=$?
@@ -133,7 +144,7 @@ test_the_router_works_through_a_symlink() {
     fake_profile claude work
     "$ACCT" use work claude "$SANDBOX/ws-a" >/dev/null
     mkdir -p "$SANDBOX/onpath"
-    ln -sf "$PROJECT_DIR/bin/claude-router" "$SANDBOX/onpath/claude-router"
+    ln -sf "$PROJECT_DIR/target/release/claude-router" "$SANDBOX/onpath/claude-router"
 
     local got
     got=$(cd "$SANDBOX/ws-a" && CONDUCTOR_WORKSPACE_PATH="$SANDBOX/ws-a" \

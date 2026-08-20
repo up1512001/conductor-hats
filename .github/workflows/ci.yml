@@ -38,10 +38,8 @@ jobs:
       - name: Lint shell
         run: |
           shellcheck -x --source-path=SCRIPTDIR \
-            bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
-            lib/*.sh \
             test/run.sh test/harness.sh test/*.test.sh \
-            install.sh
+            install.sh tools/set-version.sh
 
       - name: Typecheck the panel
         run: pnpm typecheck
@@ -55,6 +53,13 @@ jobs:
       # produce the same bytes and none of them may name a build machine.
       - name: Check the build is reproducible
         run: pnpm verify
+
+      - name: Build the binary
+        run: |
+          cargo build --release
+          ln -sf hats target/release/conductor-acct
+          ln -sf hats target/release/claude-router
+          ln -sf hats target/release/codex-router
 
       - name: Test
         run: test/run.sh

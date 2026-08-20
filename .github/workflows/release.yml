@@ -57,7 +57,7 @@ jobs:
           mkdir -p "$STAGE"
           cp target/${{ matrix.target }}/release/hats "$STAGE/"
           cp README.md LICENSE CHANGELOG.md install.sh "$STAGE/"
-          cp -R bin lib commands "$STAGE/"
+          cp -R commands "$STAGE/"
           tar czf "$STAGE.tar.gz" "$STAGE"
           shasum -a 256 "$STAGE.tar.gz" > "$STAGE.tar.gz.sha256"
           ls -l "$STAGE.tar.gz"*
