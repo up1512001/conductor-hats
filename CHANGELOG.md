@@ -6,6 +6,15 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- The README leads with the one-line install now that the repository is public
+  and it works. It previously described the one-liner as something that would work
+  later, with the manual download first, which was true while private and
+  misleading the moment it was not.
+
 ## 0.3.4
 
 ### Fixed

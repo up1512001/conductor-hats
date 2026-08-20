@@ -40,21 +40,25 @@ it. No other dependencies: everything here is POSIX shell.
 
 ## Getting started
 
-**1. Install.** Download the tarball for your Mac from the
-[latest release](https://github.com/up1512001/conductor-hats/releases/latest):
+**1. Install.**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/up1512001/conductor-hats/main/install.sh | sh
+```
+
+That picks the build for your Mac, verifies it against its published `.sha256`,
+deploys the router under `~/.conductor-accounts`, and puts `hats` on
+`~/.local/bin`. Add that to your `PATH` if it is not already there; the script
+prints the line.
+
+Prefer to look before you run it? Download the tarball for your Mac from the
+[latest release](https://github.com/up1512001/conductor-hats/releases/latest) and
+use the copy inside:
 
 ```sh
 tar xzf hats-aarch64-apple-darwin.tar.gz     # or x86_64 on an Intel Mac
 cd hats-aarch64-apple-darwin
 ./install.sh
-```
-
-That verifies the download against its published `.sha256`, deploys the router
-under `~/.conductor-accounts`, and puts `hats` on `~/.local/bin`. Once the
-repository is public the same script works in one line:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/up1512001/conductor-hats/main/install.sh | sh
 ```
 
 **2. Sign in to each account.** A browser opens, so this needs a terminal:
