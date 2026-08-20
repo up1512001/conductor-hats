@@ -5,6 +5,7 @@
 
 mod cli;
 mod id;
+mod lock;
 mod devapp;
 mod macho;
 mod manage;
