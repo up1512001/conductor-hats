@@ -129,3 +129,79 @@ test_reverting_without_a_backup_fails_loudly() {
     not_zero "revert refuses and exits non-zero" "$status"
     teardown
 }
+
+# A sign-out that failed means the provider still holds a live session. Deleting
+# the local profile at that point throws away the only record of it.
+failing_agent() {
+    cat > "$SANDBOX/stub-claude" <<'STUB'
+#!/bin/sh
+echo "refusing" >&2
+exit 3
+STUB
+    chmod +x "$SANDBOX/stub-claude"
+}
+
+test_remove_refuses_when_sign_out_fails() {
+    sandbox
+    fake_profile claude work
+    printf '{"x":1}' > "$CONDUCTOR_ACCOUNTS_ROOT/claude/work/.credentials.json"
+    failing_agent
+
+    local out status=0
+    out=$("$ACCT" remove work claude 2>&1) || status=$?
+    not_zero "remove refuses" "$status"
+    contains "and says the exit status" "$out" "exited with status 3"
+    is "the profile is still there" "$([ -d "$CONDUCTOR_ACCOUNTS_ROOT/claude/work" ] && echo yes)" "yes"
+    teardown
+}
+
+test_remove_force_deletes_and_warns() {
+    sandbox
+    fake_profile claude work
+    printf '{"x":1}' > "$CONDUCTOR_ACCOUNTS_ROOT/claude/work/.credentials.json"
+    failing_agent
+
+    local out status=0
+    out=$("$ACCT" remove work claude --force 2>&1) || status=$?
+    is "remove succeeds" "$status" "0"
+    contains "with a warning" "$out" "may still consider this account signed in"
+    is "the profile is gone" "$([ -d "$CONDUCTOR_ACCOUNTS_ROOT/claude/work" ] && echo yes)" ""
+    teardown
+}
+
+test_logout_reports_a_refusal_rather_than_claiming_success() {
+    sandbox
+    fake_profile claude work
+    printf '{"x":1}' > "$CONDUCTOR_ACCOUNTS_ROOT/claude/work/.credentials.json"
+    failing_agent
+
+    local out status=0
+    out=$("$ACCT" logout work claude 2>&1) || status=$?
+    not_zero "logout fails" "$status"
+    contains "naming what happened" "$out" "signing 'work' out failed"
+    teardown
+}
+
+test_logout_of_a_signed_out_profile_is_not_an_error() {
+    sandbox
+    fake_profile claude work
+
+    local out status=0
+    out=$("$ACCT" logout work claude 2>&1) || status=$?
+    is "it succeeds" "$status" "0"
+    contains "and says why there was nothing to do" "$out" "nothing to sign out of"
+    teardown
+}
+
+test_remove_of_a_signed_out_profile_still_works() {
+    sandbox
+    fake_profile claude work
+    mkdir -p "$SANDBOX/ws-a"
+    "$ACCT" use work claude "$SANDBOX/ws-a" >/dev/null
+
+    local status=0
+    "$ACCT" remove work claude >/dev/null 2>&1 || status=$?
+    is "it succeeds" "$status" "0"
+    is "the profile is gone" "$([ -d "$CONDUCTOR_ACCOUNTS_ROOT/claude/work" ] && echo yes)" ""
+    teardown
+}

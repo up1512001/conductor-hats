@@ -1,7 +1,7 @@
 //! Commands that change something: routes, bindings, profiles, the router.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, ExitStatus};
 
 use crate::{id, paths, profile, resolve, settings, store};
 
@@ -57,27 +57,83 @@ pub fn unbind(agent: &str, repo: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub fn logout(name: &str, agent: &str) -> Result<(), String> {
-    profile::require(agent, name)?;
+/// What the provider's own sign-out actually did.
+///
+/// `remove` has to know. Deleting the local profile after a sign-out that failed
+/// destroys the only record of a session the provider still considers live, and
+/// the user is left with no way to find it.
+enum SignOut {
+    NotSignedIn,
+    Done,
+}
+
+/// Distinguishes the failures that mean different things: the agent could not be
+/// found, could not be started, refused the operation, or died on a signal.
+fn describe(binary: &Path, status: ExitStatus) -> String {
+    use std::os::unix::process::ExitStatusExt;
+    match (status.code(), status.signal()) {
+        (Some(code), _) => format!("{} exited with status {code}", binary.display()),
+        (None, Some(signal)) => format!("{} was terminated by signal {signal}", binary.display()),
+        _ => format!("{} failed for an unknown reason", binary.display()),
+    }
+}
+
+fn sign_out(name: &str, agent: &str) -> Result<SignOut, String> {
     let dir = paths::profile_dir(agent, name);
-    let binary = resolve::agent_binary(agent).ok_or("could not locate the real agent binary")?;
+    if !profile::signed_in(agent, name) {
+        return Ok(SignOut::NotSignedIn);
+    }
+    let binary = resolve::agent_binary(agent).ok_or_else(|| {
+        format!("could not locate the {agent} binary, so '{name}' could not be signed out")
+    })?;
     let args: &[&str] = if agent == "codex" { &["logout"] } else { &["auth", "logout"] };
-    let _ = Command::new(&binary)
+    let status = Command::new(&binary)
         .args(args)
         .env(paths::env_var_for(agent), &dir)
-        .status();
+        .status()
+        .map_err(|e| format!("could not run {}: {e}", binary.display()))?;
+    if !status.success() {
+        return Err(format!("signing '{name}' out failed: {}", describe(&binary, status)));
+    }
     let _ = std::fs::remove_file(dir.join(".label"));
-    println!(
-        "Signed out of '{name}'. The profile directory is still there; \
-         hats remove {name} deletes it."
-    );
+    Ok(SignOut::Done)
+}
+
+pub fn logout(name: &str, agent: &str) -> Result<(), String> {
+    profile::require(agent, name)?;
+    match sign_out(name, agent)? {
+        SignOut::NotSignedIn => {
+            println!("'{name}' holds no credentials, so there was nothing to sign out of.");
+        }
+        SignOut::Done => println!(
+            "Signed out of '{name}'. The profile directory is still there; \
+             hats remove {name} deletes it."
+        ),
+    }
     Ok(())
 }
 
-pub fn remove(name: &str, agent: &str) -> Result<(), String> {
+pub fn remove(name: &str, agent: &str, force: bool) -> Result<(), String> {
     profile::require(agent, name)?;
     store::ensure_root()?;
-    let _ = logout(name, agent);
+
+    match sign_out(name, agent) {
+        Ok(_) => {}
+        Err(e) if force => {
+            eprintln!("Warning: {e}");
+            eprintln!("  --force was given, so the profile is being deleted anyway. The provider");
+            eprintln!("  may still consider this account signed in.");
+        }
+        Err(e) => {
+            return Err(format!(
+                "{e}\n\n\
+                 The profile was left alone. Deleting it now would throw away the only local\n\
+                 record of a session the provider still treats as live. Fix the sign-out and\n\
+                 try again, or pass --force to delete it regardless."
+            ));
+        }
+    }
+
     let dir = paths::profile_dir(agent, name);
     id::contained(&paths::accounts_root().join(agent), &dir)?;
     std::fs::remove_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -133,10 +189,18 @@ pub fn login(name: &str, agent: &str) -> Result<(), String> {
     println!();
 
     let args: &[&str] = if agent == "codex" { &["login"] } else { &["auth", "login"] };
-    let _ = Command::new(&binary)
+    let status = Command::new(&binary)
         .args(args)
         .env(paths::env_var_for(agent), &dir)
-        .status();
+        .status()
+        .map_err(|e| format!("could not run {}: {e}", binary.display()))?;
+    if !status.success() {
+        return Err(format!(
+            "signing in to '{name}' failed: {}\n\
+             The profile directory is still there, so hats login {name} retries it.",
+            describe(&binary, status)
+        ));
+    }
 
     println!();
     match profile::refresh_label(agent, name) {

@@ -37,7 +37,7 @@ Accounts
   add <profile> [agent]              create a profile and sign in to it
   login <profile> [agent]            sign in again
   logout <profile> [agent]           sign out, keep the profile
-  remove <profile> [agent]           sign out, delete the profile and its routes
+  remove <profile> [agent] [--force] sign out, delete the profile and its routes
   list [--mask]                      profiles, accounts and routes
 
 Choosing one

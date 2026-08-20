@@ -102,8 +102,9 @@ pub fn run(cmd: &str, rest: &[String]) -> Result<(), String> {
             &agent_of(positional.get(1))?,
         ),
         "remove" => manage::remove(
-            positional.first().ok_or("usage: hats remove <profile> [agent]")?,
+            positional.first().ok_or("usage: hats remove <profile> [agent] [--force]")?,
             &agent_of(positional.get(1))?,
+            rest.iter().any(|a| a == "--force"),
         ),
         "sessions" => manage::sessions(positional.first().map(String::as_str) == Some("clear")),
         "install" => wiring::install(),
