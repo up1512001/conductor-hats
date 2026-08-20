@@ -12,7 +12,9 @@ pub fn accounts_root() -> PathBuf {
 }
 
 pub fn home() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default()
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default()
 }
 
 pub fn routes_file() -> PathBuf {

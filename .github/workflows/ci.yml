@@ -32,14 +32,10 @@ jobs:
       - name: Install shellcheck
         run: brew install shellcheck
 
-      # -x follows the sourced libraries instead of guessing at them, and
-      # --source-path=SCRIPTDIR resolves each `source=` directive relative to the
-      # script that carries it, so this passes from any working directory.
-      - name: Lint shell
-        run: |
-          shellcheck -x --source-path=SCRIPTDIR \
-            test/run.sh test/harness.sh test/*.test.sh \
-            install.sh tools/set-version.sh
+      # install.sh is the only shell left: it is the curl | sh bootstrap, so it
+      # runs before there is a binary to run anything else with.
+      - name: Lint the installer
+        run: shellcheck -x --source-path=SCRIPTDIR install.sh
 
       - name: Typecheck the panel
         run: pnpm typecheck
@@ -54,11 +50,14 @@ jobs:
       - name: Check the build is reproducible
         run: pnpm verify
 
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
       - name: Build the binary
-        run: |
-          cargo build --release
-          ln -sf hats target/release/claude-router
-          ln -sf hats target/release/codex-router
+        run: cargo build --release
 
       - name: Test
-        run: test/run.sh
+        run: cargo test --all

@@ -26,7 +26,11 @@ impl Lock {
         }
         let deadline = SystemTime::now() + WAIT_FOR;
         loop {
-            match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
                 Ok(mut file) => {
                     let _ = write!(file, "{}", std::process::id());
                     return Ok(Self(path));
@@ -57,14 +61,22 @@ impl Drop for Lock {
 }
 
 fn lock_path(target: &Path) -> PathBuf {
-    let name = target.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = target
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     target.with_file_name(format!(".{name}.lock"))
 }
 
 fn stale(path: &Path) -> bool {
     std::fs::metadata(path)
         .and_then(|m| m.modified())
-        .map(|t| SystemTime::now().duration_since(t).map(|d| d > STALE_AFTER).unwrap_or(false))
+        .map(|t| {
+            SystemTime::now()
+                .duration_since(t)
+                .map(|d| d > STALE_AFTER)
+                .unwrap_or(false)
+        })
         .unwrap_or(false)
 }
 
@@ -74,7 +86,10 @@ fn stale(path: &Path) -> bool {
 pub fn write_atomic(target: &Path, body: &str) -> Result<(), String> {
     let dir = target.parent().unwrap_or(Path::new("."));
     std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let name = target.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = target
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let tmp = dir.join(format!(".{name}.{}.tmp", std::process::id()));
 
     let result = (|| -> std::io::Result<()> {

@@ -175,15 +175,16 @@ cargo build --release   # embeds dist/account-ui.js into the binary
 ```sh
 pnpm install
 pnpm typecheck
-pnpm build            # tests that read the artifact need it built
-test/run.sh
-shellcheck -x --source-path=SCRIPTDIR \
-  bin/hats bin/_resolve.sh bin/claude-router bin/codex-router \
-  lib/*.sh test/run.sh test/harness.sh test/*.test.sh \
-  install.sh
+pnpm build            # the binary embeds dist/account-ui.js
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all
+shellcheck -x --source-path=SCRIPTDIR install.sh
 ```
 
-Zero shellcheck findings is the bar; it exits non-zero on info notes too.
+Zero findings is the bar in each. install.sh is the only shell in the
+repository: it is the `curl | sh` bootstrap, so it runs before there is a binary
+to run anything else with.
 
 Then: add a `CHANGELOG.md` entry, and keep `CONDUCTOR_ACCT_VERSION` in step with
 the version in the panel source. They ship together, so a skew is a bug. A test

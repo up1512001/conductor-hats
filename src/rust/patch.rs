@@ -24,9 +24,11 @@ pub fn decompress(blob: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 pub fn compress(data: &[u8]) -> Result<Vec<u8>, String> {
-    let mut params = brotli::enc::BrotliEncoderParams::default();
-    params.quality = 11;
-    params.size_hint = data.len();
+    let params = brotli::enc::BrotliEncoderParams {
+        quality: 11,
+        size_hint: data.len(),
+        ..Default::default()
+    };
     let mut out = Vec::new();
     {
         let mut writer = brotli::CompressorWriter::with_params(&mut out, 4096, &params);

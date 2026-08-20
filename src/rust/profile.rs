@@ -75,11 +75,16 @@ pub fn signed_in(agent: &str, profile: &str) -> bool {
 }
 
 fn non_empty(path: &Path) -> bool {
-    std::fs::metadata(path).map(|m| m.len() > 0).unwrap_or(false)
+    std::fs::metadata(path)
+        .map(|m| m.len() > 0)
+        .unwrap_or(false)
 }
 
 fn keychain_service(dir: &Path) -> String {
-    format!("Claude Code-credentials-{}", sha256_prefix(&dir.to_string_lossy()))
+    format!(
+        "Claude Code-credentials-{}",
+        sha256_prefix(&dir.to_string_lossy())
+    )
 }
 
 fn keychain_has(service: &str) -> bool {
@@ -107,7 +112,10 @@ fn sha256_prefix(input: &str) -> String {
     let Ok(out) = child.wait_with_output() else {
         return String::new();
     };
-    String::from_utf8_lossy(&out.stdout).chars().take(8).collect()
+    String::from_utf8_lossy(&out.stdout)
+        .chars()
+        .take(8)
+        .collect()
 }
 
 /// Which other profile already holds this address. One live token per account, so

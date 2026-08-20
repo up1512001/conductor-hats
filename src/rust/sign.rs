@@ -73,7 +73,13 @@ fn entitlements(app: &Path, name: &str, scratch: &Scratch) -> Option<PathBuf> {
 }
 
 fn codesign(target: &Path, ents: Option<&Path>) -> Result<(), String> {
-    let mut args: Vec<String> = vec!["-f".into(), "-s".into(), "-".into(), "--options".into(), "runtime".into()];
+    let mut args: Vec<String> = vec![
+        "-f".into(),
+        "-s".into(),
+        "-".into(),
+        "--options".into(),
+        "runtime".into(),
+    ];
     if let Some(path) = ents {
         args.push("--entitlements".into());
         args.push(path.to_string_lossy().to_string());

@@ -13,8 +13,15 @@ pub fn use_route(name: &str, agent: &str, dir: &Path) -> Result<(), String> {
     profile::require(agent, name)?;
     store::write_route(&dir.to_string_lossy(), name)?;
     let label = profile::label(agent, name).unwrap_or_default();
-    let suffix = if label.is_empty() { String::new() } else { format!(" ({label})") };
-    let leaf = dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let suffix = if label.is_empty() {
+        String::new()
+    } else {
+        format!(" ({label})")
+    };
+    let leaf = dir
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     println!("{leaf} now uses '{name}'{suffix}");
     println!("  {}", dir.display());
     println!();
@@ -86,14 +93,21 @@ fn sign_out(name: &str, agent: &str) -> Result<SignOut, String> {
     let binary = resolve::agent_binary(agent).ok_or_else(|| {
         format!("could not locate the {agent} binary, so '{name}' could not be signed out")
     })?;
-    let args: &[&str] = if agent == "codex" { &["logout"] } else { &["auth", "logout"] };
+    let args: &[&str] = if agent == "codex" {
+        &["logout"]
+    } else {
+        &["auth", "logout"]
+    };
     let status = Command::new(&binary)
         .args(args)
         .env(paths::env_var_for(agent), &dir)
         .status()
         .map_err(|e| format!("could not run {}: {e}", binary.display()))?;
     if !status.success() {
-        return Err(format!("signing '{name}' out failed: {}", describe(&binary, status)));
+        return Err(format!(
+            "signing '{name}' out failed: {}",
+            describe(&binary, status)
+        ));
     }
     let _ = std::fs::remove_file(dir.join(".label"));
     Ok(SignOut::Done)
@@ -188,7 +202,11 @@ pub fn login(name: &str, agent: &str) -> Result<(), String> {
     println!("  {}={}", paths::env_var_for(agent), dir.display());
     println!();
 
-    let args: &[&str] = if agent == "codex" { &["login"] } else { &["auth", "login"] };
+    let args: &[&str] = if agent == "codex" {
+        &["login"]
+    } else {
+        &["auth", "login"]
+    };
     let status = Command::new(&binary)
         .args(args)
         .env(paths::env_var_for(agent), &dir)

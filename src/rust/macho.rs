@@ -60,9 +60,7 @@ impl MachO {
                 return Err("load command of zero length".into());
             }
             if cmd == LC_SEGMENT_64 {
-                let raw = data
-                    .get(at + 8..at + 24)
-                    .ok_or("truncated segment name")?;
+                let raw = data.get(at + 8..at + 24).ok_or("truncated segment name")?;
                 let name = String::from_utf8_lossy(raw)
                     .trim_end_matches('\0')
                     .to_string();
@@ -120,7 +118,7 @@ impl MachO {
         let val_ptr = u64_at(&self.data, at + 16)?;
         let val_len = u64_at(&self.data, at + 24)? as usize;
 
-        if !(2..=512).contains(&key_len) || val_len < 4 || val_len > 64 << 20 {
+        if !(2..=512).contains(&key_len) || !(4..=64 << 20).contains(&val_len) {
             return None;
         }
         let key_at = self.file_offset(key_ptr)?;

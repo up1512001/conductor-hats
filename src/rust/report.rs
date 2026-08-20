@@ -59,7 +59,11 @@ pub fn status(dir: &Path, masked: bool) -> Result<(), String> {
             Some(resolved) => {
                 let name = store::profile_from_dir(&resolved).unwrap_or(resolved.clone());
                 let label = store::label_for_display(agent, &name, masked);
-                let suffix = if label.is_empty() { String::new() } else { format!("  {label}") };
+                let suffix = if label.is_empty() {
+                    String::new()
+                } else {
+                    format!("  {label}")
+                };
                 println!("{agent:<7} {name}{suffix}");
             }
             None => println!("{agent:<7} (default account)"),

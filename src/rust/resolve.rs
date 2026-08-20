@@ -85,9 +85,7 @@ pub fn agent_binary(agent: &str) -> Option<PathBuf> {
 
     let bundled_dir = std::env::var_os("CONDUCTOR_AGENT_BIN_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            paths::home().join("Library/Application Support/com.conductor.app/bin")
-        });
+        .unwrap_or_else(|| paths::home().join("Library/Application Support/com.conductor.app/bin"));
     let bundled = bundled_dir.join(agent);
     if is_executable(&bundled) {
         return Some(bundled);

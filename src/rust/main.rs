@@ -4,9 +4,9 @@
 //! command installed.
 
 mod cli;
+mod devapp;
 mod id;
 mod lock;
-mod devapp;
 mod macho;
 mod manage;
 mod mask;
@@ -124,7 +124,9 @@ fn parse(rest: &[String]) -> Args {
 }
 
 fn env_path(key: &str, fallback: &str) -> PathBuf {
-    std::env::var_os(key).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(fallback))
+    std::env::var_os(key)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(fallback))
 }
 
 fn binary_in(app: &Path) -> PathBuf {
@@ -141,13 +143,11 @@ fn guard(app: &Path, i_know: bool) -> Result<(), String> {
         .map(|(a, b)| a == b)
         .unwrap_or(false);
     if same && !i_know {
-        return Err(
-            "refusing to patch your real Conductor.\n\
+        return Err("refusing to patch your real Conductor.\n\
              Build a copy first:  hats dev-app\n\
              Then:                hats patch\n\
              Override with --i-know if you really mean it."
-                .into(),
-        );
+            .into());
     }
     Ok(())
 }
@@ -171,7 +171,11 @@ pub(crate) fn cmd_patch_app(app: &Path, i_know: bool) -> Result<(), String> {
     let report = patch::inject(&binary, &backup, patch::PANEL)?;
     println!("    target   {}", report.key);
     println!("    {} compressed -> {} bytes", report.was, report.plain);
-    println!("    + {} bytes of panel -> {} compressed", patch::PANEL.len(), report.now);
+    println!(
+        "    + {} bytes of panel -> {} compressed",
+        patch::PANEL.len(),
+        report.now
+    );
     println!("    {} bytes of headroom left over", report.headroom);
 
     sign::resign(app)?;

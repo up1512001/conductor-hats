@@ -12,10 +12,10 @@
 Say what you ran, not that you were careful. Delete rows that do not apply.
 -->
 
-- [ ] `test/run.sh`
-- [ ] `shellcheck -x --source-path=SCRIPTDIR test/*.sh install.sh tools/set-version.sh`
+- [ ] `cargo test --all`
+- [ ] `shellcheck -x --source-path=SCRIPTDIR install.sh`
 - [ ] `pnpm typecheck && pnpm build`
-- [ ] `cargo build --release` with no warnings, and `test/run.sh` against it
+- [ ] `cargo fmt --all -- --check` and `cargo clippy --all-targets -- -D warnings`
 - [ ] Patched a Conductor copy and used the panel: `hats repatch`
 
 Anything exercised by hand rather than by a test, and anything left unexercised:
@@ -26,5 +26,5 @@ Anything exercised by hand rather than by a test, and anything left unexercised:
 - [ ] Docblocks only, no `//` comments and no comments inside shell bodies
 - [ ] No personal information: example addresses on reserved domains, paths as `~`
 - [ ] `CHANGELOG.md` updated under `## Unreleased`
-- [ ] Version left alone, or changed with `tools/set-version.sh`
+- [ ] Version left alone, or changed with `cargo run --example set-version`
 - [ ] Docblocks only: no `//` comments, no comments inside shell bodies

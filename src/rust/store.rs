@@ -103,12 +103,19 @@ pub fn target_dir(arg: Option<&String>) -> Result<PathBuf, String> {
 fn logical(path: &Path) -> PathBuf {
     Command::new("sh")
         .arg("-c")
-        .arg(format!("cd {} && pwd", shell_quote(&path.to_string_lossy())))
+        .arg(format!(
+            "cd {} && pwd",
+            shell_quote(&path.to_string_lossy())
+        ))
         .output()
         .ok()
         .and_then(|o| {
             let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if s.is_empty() { None } else { Some(PathBuf::from(s)) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(PathBuf::from(s))
+            }
         })
         .unwrap_or_else(|| path.to_path_buf())
 }

@@ -47,16 +47,26 @@ pub fn resolve(dir: &Path) -> Option<Match> {
         let Some(exact) = compare(&forms, &candidates) else {
             continue;
         };
-        if best.as_ref().map(|(len, _)| path.len() > *len).unwrap_or(true) {
+        if best
+            .as_ref()
+            .map(|(len, _)| path.len() > *len)
+            .unwrap_or(true)
+        {
             best = Some((
                 path.len(),
-                Match { profile: profile.to_string(), exact },
+                Match {
+                    profile: profile.to_string(),
+                    exact,
+                },
             ));
         }
     }
 
     best.map(|(_, m)| m).or_else(|| {
-        fallback.map(|profile| Match { profile, exact: false })
+        fallback.map(|profile| Match {
+            profile,
+            exact: false,
+        })
     })
 }
 

@@ -50,7 +50,9 @@ pub fn agent(name: &str) -> Result<&'static str, String> {
     match name {
         "claude" => Ok("claude"),
         "codex" => Ok("codex"),
-        other => Err(format!("unknown agent '{other}' (expected claude or codex)")),
+        other => Err(format!(
+            "unknown agent '{other}' (expected claude or codex)"
+        )),
     }
 }
 
