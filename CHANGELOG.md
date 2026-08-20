@@ -8,27 +8,69 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Security
+
+- **A profile name could escape the accounts root.** Validation existed but was
+  called from one place, so `hats remove ../../foo` resolved outside the root and
+  recursively deleted whatever was there. A crafted `--session-id` wrote a pin
+  file to any path the user could write to. Every identifier that becomes a path
+  component is now validated in one module, at each of the five boundaries it can
+  arrive through: argv, `CONDUCTOR_ACCOUNT`, the session id Conductor passes, the
+  pin file, and the routes file. `remove` checks containment before deleting.
+- **A bad signature no longer reports success.** `patch`, `revert` and `dev-app`
+  printed `INVALID` beside the signature and exited 0, so an application macOS
+  would refuse to launch looked installed.
+- **Signing no longer falls back to dropping entitlements.** The retry produced
+  the worst outcome available: a bundle that verifies and dies the moment the
+  WebView needs to JIT.
+- Entitlements were written to a fixed path in a world-writable temporary
+  directory. They now go in a directory created with `create_dir`, which fails
+  rather than follows if the name is taken.
+- Every offset read out of a Mach-O is bounds-checked. A malformed binary
+  produces an error rather than a panic or a read past the buffer.
+
+### Fixed
+
+- **Concurrent account changes lost each other.** Every workspace shares one
+  routes file and each write read it, edited a copy and wrote it back. With the
+  lock removed, 100 concurrent writers lost 9 routes. Writes now take a lock and
+  land by atomic rename.
+- **A failed sign-out no longer deletes the account anyway.** `login`, `logout`
+  and `remove` discarded the agent's exit status. `remove` now refuses when
+  sign-out fails, and `--force` deletes with a warning that the provider may
+  still consider the account signed in.
+- **Uninstall no longer edits somebody else's TOML table.** The settings keys were
+  matched by name anywhere in the file. Install followed by uninstall now returns
+  Conductor's settings byte for byte.
+- **The account address is parsed rather than scanned.** Looking for the literal
+  `"emailAddress"` returned the wrong value on a state file that mentions the key
+  before the field.
+- **Patching is transactional.** The live binary was overwritten before the
+  patched image existed. It is now built from the pristine copy and renamed into
+  place in one step, so a refusal leaves the previous installation byte for byte.
+- **The bundle is identified rather than guessed.** The patcher fell back to the
+  largest JavaScript asset, which in a future build would produce an application
+  that launches with a rewritten bundle and no panel. It now requires exactly one
+  `renderApp` asset carrying the expected anchors, and refuses otherwise.
+
 ### Changed
 
-- The README leads with the one-line install now that the repository is public
-  and it works. It previously described the one-liner as something that would work
-  later, with the manual download first, which was true while private and
-  misleading the moment it was not.
-
-## Unreleased
-
-### Changed
-
-- **The CLI and the routers are Rust.** `bin/conductor-acct`, both routers and all
-  thirteen `lib/*.sh` files are gone, replaced by modules in `src/rust`. One
-  binary answers to four names: `install.sh` symlinks `conductor-acct`,
-  `claude-router` and `codex-router` at `hats`, and it reports itself as whichever
-  name invoked it.
-- A release tarball is now the binary, `install.sh` and `commands/`. No shell
+- **The CLI and the routers are Rust.** The shell implementation is gone,
+  replaced by modules in `src/rust`. One binary answers to three names:
+  `install.sh` symlinks `claude-router` and `codex-router` at `hats`, and it
+  reports itself as whichever name invoked it.
+- **The test suite is `cargo test`.** 1550 lines of shell became 96 integration
+  tests sharing one sandbox. `tools/set-version.sh` is now
+  `examples/set-version.rs`. `install.sh` is the only shell left in the
+  repository, because it runs before there is a binary to run.
+- CI runs `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test --all`.
+- A release tarball is the binary, `install.sh` and `commands/`. No shell
   implementation travels with it.
 - The router fails open through `catch_unwind` rather than a subshell, and
   `panic = "abort"` is out of the release profile: an abort there would mean no
   agent starts at all, which is the failure fail-open exists to prevent.
+- The README leads with the one-line install now that the repository is public
+  and it works.
 
 ## 0.3.4
 

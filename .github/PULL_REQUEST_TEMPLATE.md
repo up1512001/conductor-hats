@@ -27,4 +27,3 @@ Anything exercised by hand rather than by a test, and anything left unexercised:
 - [ ] No personal information: example addresses on reserved domains, paths as `~`
 - [ ] `CHANGELOG.md` updated under `## Unreleased`
 - [ ] Version left alone, or changed with `cargo run --example set-version`
-- [ ] Docblocks only: no `//` comments, no comments inside shell bodies
