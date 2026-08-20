@@ -61,17 +61,7 @@ cd hats-aarch64-apple-darwin
 ./install.sh
 ```
 
-**2. Sign in to each account.** A browser opens, so this needs a terminal:
-
-```sh
-conductor-acct add personal
-conductor-acct add work
-```
-
-Each account gets its own config directory and therefore its own keychain item.
-Your skills, plugins, commands and transcripts stay shared.
-
-**3. Build a Conductor copy to patch.** The panel is injected into the app, and
+**2. Build a Conductor copy to patch.** The panel is injected into the app, and
 that costs the copy its notarization, so it never touches the Conductor you rely
 on:
 
@@ -82,16 +72,26 @@ hats dev-app
 This produces `/Applications/Conductor Dev.app` with its own bundle identifier,
 database and keychain items. Both apps run at the same time.
 
-**4. Inject the panel:**
+**3. Inject the panel:**
 
 ```sh
 hats patch
 open "/Applications/Conductor Dev.app"
 ```
 
-**5. Use it.** Open a workspace. The account button sits next to "Open in", top
-right. Click it, pick an account, and the next chat in that workspace runs on it.
-The chip in the New Workspace composer does the same for a repository.
+**4. Add your accounts, in the panel.** Click the account button next to "Open
+in", pick a provider, then **Add new account**. Type a name, your browser opens
+for approval, and you paste the code back into the panel. No terminal.
+
+Each account gets its own config directory and therefore its own keychain item.
+Your skills, plugins, commands and transcripts stay shared.
+
+If you would rather not patch anything, `conductor-acct add work` does the same
+from a terminal, and `/account` in any chat covers the rest.
+
+**5. Pick an account per workspace.** Open a workspace, click the account button,
+choose one. The next chat there runs on it. The chip in the New Workspace composer
+does the same for a whole repository.
 
 **6. After a Conductor update**, which replaces the bundle and removes the panel:
 
@@ -102,8 +102,9 @@ hats repatch
 Check any of it with `conductor-acct doctor`, which reports what every layer
 resolves to.
 
-Prefer to skip steps 3 and 4? `/account` in any Conductor chat works on an
-unpatched install, and `conductor-acct use work` works from a terminal.
+Prefer to skip the patching entirely? `/account` in any Conductor chat works on an
+unpatched install, and `conductor-acct use work` works from a terminal. You lose
+the toolbar button, not the feature.
 
 ## What the panel does
 

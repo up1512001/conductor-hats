@@ -6,7 +6,11 @@
 mod devapp;
 mod macho;
 mod patch;
+mod paths;
 mod repatch;
+mod resolve;
+mod router;
+mod routes;
 mod sign;
 
 use std::path::{Path, PathBuf};
@@ -165,7 +169,23 @@ fn cmd_assets(args: &Args) -> Result<(), String> {
     Ok(())
 }
 
+/// Conductor spawns the router by path, so the same binary answers to
+/// `claude-router` and `codex-router` through symlinks install.sh creates.
+fn router_agent() -> Option<&'static str> {
+    let arg0 = std::env::args().next()?;
+    let name = arg0.rsplit('/').next()?.to_string();
+    match name.as_str() {
+        "claude-router" => Some("claude"),
+        "codex-router" => Some("codex"),
+        _ => None,
+    }
+}
+
 fn main() {
+    if let Some(agent) = router_agent() {
+        router::run(agent, std::env::args().skip(1).collect());
+    }
+
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let (cmd, rest) = argv
         .split_first()
@@ -190,6 +210,8 @@ fn main() {
             launch: args.launch,
         }),
         "assets" => cmd_assets(&args),
+        "claude-router" => router::run("claude", rest),
+        "codex-router" => router::run("codex", rest),
         "panel" => {
             print!("{}", patch::PANEL);
             Ok(())

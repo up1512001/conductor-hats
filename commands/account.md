@@ -75,8 +75,8 @@ plus one line saying which one this workspace uses.
 
 ### `add`
 
-Signing in needs an OAuth browser round trip, which cannot be driven from a chat
-message. Two ways forward, offer both:
+Signing in needs an OAuth browser round trip, which a chat message cannot drive.
+Two ways forward. Offer the panel first, because it needs no terminal:
 
 1. **The account panel**, if they run a patched Conductor copy: the toolbar
    button, then "Add new account". It runs the sign-in itself, opens the browser

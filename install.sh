@@ -118,7 +118,12 @@ fi
 ln -sf "$ROOT/bin/conductor-acct" "$BINDIR/conductor-acct" 2>/dev/null || true
 
 say ""
-say "Next, sign in to each account. A browser opens, so this needs a terminal:"
+say "Next, add your accounts. The panel signs in without a terminal:"
+say ""
+say "  hats dev-app     # an isolated copy of Conductor, safe to modify"
+say "  hats patch       # inject the account panel into it"
+say ""
+say "Then open it and use Add new account. From a terminal instead:"
 say ""
 say "  conductor-acct add personal"
 say "  conductor-acct add work"
@@ -129,11 +134,4 @@ say ""
 say "  conductor-acct use work"
 say "  conductor-acct status"
 say ""
-if [ -x "$PROJECT/hats" ]; then
-    say "For the account panel inside Conductor, on a copy of the app:"
-    say ""
-    say "  hats dev-app     # an isolated copy, safe to modify"
-    say "  hats patch       # inject the panel into it"
-    say ""
-fi
 say "Undo everything:  conductor-acct uninstall"
