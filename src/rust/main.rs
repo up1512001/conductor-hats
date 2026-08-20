@@ -173,8 +173,8 @@ pub(crate) fn cmd_patch_app(app: &Path, i_know: bool) -> Result<(), String> {
     println!("    + {} bytes of panel -> {} compressed", patch::PANEL.len(), report.now);
     println!("    {} bytes of headroom left over", report.headroom);
 
-    let valid = sign::resign(app)?;
-    println!("    signature {}", if valid { "valid" } else { "INVALID" });
+    sign::resign(app)?;
+    println!("    signature valid");
     Ok(())
 }
 
@@ -186,8 +186,8 @@ fn cmd_revert(args: &Args) -> Result<(), String> {
     }
     std::fs::copy(&backup, &binary).map_err(|e| format!("restoring: {e}"))?;
     println!("restored {}", binary.display());
-    let valid = sign::resign(&args.app)?;
-    println!("signature {}", if valid { "valid" } else { "INVALID" });
+    sign::resign(&args.app)?;
+    println!("signature valid");
     Ok(())
 }
 

@@ -19,13 +19,46 @@ fn run(cmd: &str, args: &[&str]) -> Result<Vec<u8>, String> {
     Ok(out.stdout)
 }
 
-/// Reads an application's entitlements to a temporary file.
+/// A directory this process is known to have created.
+///
+/// `create_dir` fails when the name already exists, so a symlink planted in a
+/// shared temporary directory cannot be followed, and two concurrent patches
+/// cannot write over each other's entitlements. Removed on drop, which covers
+/// success, failure, early return and unwind alike.
+struct Scratch(PathBuf);
+
+impl Scratch {
+    fn new() -> Result<Self, String> {
+        let base = std::env::temp_dir();
+        for attempt in 0..64u32 {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.subsec_nanos())
+                .unwrap_or(0);
+            let path = base.join(format!("hats-{}-{nanos}-{attempt}", std::process::id()));
+            match std::fs::create_dir(&path) {
+                Ok(()) => return Ok(Self(path)),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(format!("{}: {e}", path.display())),
+            }
+        }
+        Err("could not create a private temporary directory".into())
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Reads an application's entitlements to a file inside `scratch`.
 ///
 /// These must survive re-signing: without `allow-jit` the WebView cannot run and
 /// the app dies on launch, and `conductor-runtime` is a Bun executable that
 /// JIT-compiles JavaScript, so signing it bare produces "Sidecar terminated
 /// unexpectedly" the moment it needs to compile.
-fn entitlements(app: &Path, suffix: &str) -> Option<PathBuf> {
+fn entitlements(app: &Path, name: &str, scratch: &Scratch) -> Option<PathBuf> {
     let out = Command::new("codesign")
         .args(["-d", "--entitlements", "-", "--xml"])
         .arg(app)
@@ -34,7 +67,7 @@ fn entitlements(app: &Path, suffix: &str) -> Option<PathBuf> {
     if !out.status.success() || out.stdout.is_empty() {
         return None;
     }
-    let path = std::env::temp_dir().join(format!("conductor-hats-{suffix}.plist"));
+    let path = scratch.0.join(format!("{name}.plist"));
     std::fs::write(&path, &out.stdout).ok()?;
     Some(path)
 }
@@ -51,42 +84,69 @@ fn codesign(target: &Path, ents: Option<&Path>) -> Result<(), String> {
 }
 
 /// Signs the outer bundle only, for a copy whose contents are already signed.
-pub fn resign(app: &Path) -> Result<bool, String> {
-    let ents = entitlements(app, "outer");
+pub fn resign(app: &Path) -> Result<(), String> {
+    let scratch = Scratch::new()?;
+    let ents = entitlements(app, "outer", &scratch);
     codesign(app, ents.as_deref())?;
     let _ = run("xattr", &["-cr", &app.to_string_lossy()]);
     drop_stale_keychain_items(app);
-    Ok(verify(app))
+    verify(app)
 }
 
 /// Signs every inner Mach-O with its own original entitlements, then the bundle,
 /// so the outer seal covers the final bytes of everything it contains.
 pub fn resign_bundle(dst: &Path, pristine: &Path) -> Result<(), String> {
+    let scratch = Scratch::new()?;
     let bin = dst.join("Contents/Resources/bin");
     if bin.is_dir() {
         for inner in mach_o_files(&bin) {
             let rel = inner.strip_prefix(dst).unwrap_or(&inner);
             let original = pristine.join(rel);
-            let ents = entitlements(&original, "inner");
-            if codesign(&inner, ents.as_deref()).is_err() {
-                let _ = codesign(&inner, None);
-            }
+            let ents = entitlements(&original, "inner", &scratch);
+            let source = match &ents {
+                Some(_) => "its original entitlements",
+                None => "no entitlements, because none could be read from the original",
+            };
+            codesign(&inner, ents.as_deref()).map_err(|e| {
+                format!(
+                    "signing {} with {source} failed: {e}\n\
+                     Retrying without them would produce an application that is signed \
+                     but dies the moment the WebView needs to compile, so nothing was \
+                     replaced.",
+                    rel.display()
+                )
+            })?;
         }
     }
-    let ents = entitlements(pristine, "outer");
-    codesign(dst, ents.as_deref())?;
+    let ents = entitlements(pristine, "outer", &scratch);
+    codesign(dst, ents.as_deref())
+        .map_err(|e| format!("signing the bundle {} failed: {e}", dst.display()))?;
     let _ = run("xattr", &["-cr", &dst.to_string_lossy()]);
     drop_stale_keychain_items(dst);
-    Ok(())
+    verify(dst)
 }
 
-fn verify(app: &Path) -> bool {
-    Command::new("codesign")
-        .args(["--verify", "--strict"])
+/// Verification is the contract, not a remark: a command that signs and then
+/// reports a bad signature must not exit 0, or a broken application reads as
+/// installed.
+pub fn verify(app: &Path) -> Result<(), String> {
+    let out = Command::new("codesign")
+        .args(["--verify", "--strict", "--verbose=2"])
         .arg(app)
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+        .output()
+        .map_err(|e| format!("codesign: {e}"))?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let detail: String = String::from_utf8_lossy(&out.stderr)
+        .trim()
+        .chars()
+        .take(400)
+        .collect();
+    Err(format!(
+        "signature verification failed for {}:\n{detail}",
+        app.display()
+    ))
 }
 
 fn mach_o_files(root: &Path) -> Vec<PathBuf> {

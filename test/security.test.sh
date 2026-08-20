@@ -102,3 +102,30 @@ test_conductor_account_override_still_works() {
     contains "a valid override is honoured" "$got" "/claude/work"
     teardown
 }
+
+# A command that signs must never report a bad signature and still exit 0: a
+# broken application would read as installed.
+test_patching_a_bogus_app_fails_loudly() {
+    sandbox
+    local app="$SANDBOX/Fake.app"
+    mkdir -p "$app/Contents/MacOS"
+    printf 'not a mach-o binary at all' > "$app/Contents/MacOS/conductor"
+
+    local out status=0
+    out=$("$ACCT" patch --app "$app" --i-know 2>&1) || status=$?
+    not_zero "patch refuses and exits non-zero" "$status"
+    is "no success line was printed" "$(printf '%s' "$out" | grep -c 'signature valid')" "0"
+    teardown
+}
+
+test_reverting_without_a_backup_fails_loudly() {
+    sandbox
+    local app="$SANDBOX/Fake.app"
+    mkdir -p "$app/Contents/MacOS"
+    printf 'nothing' > "$app/Contents/MacOS/conductor"
+
+    local status=0
+    "$ACCT" revert --app "$app" >/dev/null 2>&1 || status=$?
+    not_zero "revert refuses and exits non-zero" "$status"
+    teardown
+}
