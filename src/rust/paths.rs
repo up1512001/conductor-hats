@@ -3,6 +3,8 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::id;
+
 pub fn accounts_root() -> PathBuf {
     std::env::var_os("CONDUCTOR_ACCOUNTS_ROOT")
         .map(PathBuf::from)
@@ -47,8 +49,8 @@ pub fn workspace_dir() -> PathBuf {
 pub fn session_id(args: &[String]) -> Option<String> {
     for flag in ["--session-id=", "--resume="] {
         if let Some(v) = args.iter().find_map(|a| a.strip_prefix(flag)) {
-            if !v.is_empty() {
-                return Some(v.to_string());
+            if let Some(valid) = id::session(v) {
+                return Some(valid.to_string());
             }
         }
     }

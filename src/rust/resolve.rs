@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::{paths, routes};
+use crate::{id, paths, routes};
 
 /// Highest precedence first:
 ///
@@ -20,13 +20,15 @@ pub fn decide(agent: &str, dir: &Path, session: Option<&str>, env_bound: bool) -
     if let Some(forced) = std::env::var_os("CONDUCTOR_ACCOUNT") {
         let forced = forced.to_string_lossy().to_string();
         if !forced.is_empty() {
-            return Some(forced);
+            return id::profile_or_none(&forced).map(str::to_string);
         }
     }
 
-    if let Some(id) = session {
-        if let Some(pinned) = paths::first_line(&pin_path(agent, id)) {
-            return Some(pinned);
+    if let Some(session) = session.and_then(id::session) {
+        if let Some(pinned) = paths::first_line(&pin_path(agent, session)) {
+            if let Some(valid) = id::profile_or_none(&pinned) {
+                return Some(valid.to_string());
+            }
         }
     }
 
@@ -50,12 +52,14 @@ fn pin_path(agent: &str, session: &str) -> PathBuf {
 }
 
 fn remember(agent: &str, session: Option<&str>, profile: &str) {
-    let Some(id) = session else { return };
+    let Some(session) = session.and_then(id::session) else {
+        return;
+    };
     let dir = paths::session_dir().join(agent);
     if std::fs::create_dir_all(&dir).is_err() {
         return;
     }
-    let _ = std::fs::write(dir.join(id), format!("{profile}\n"));
+    let _ = std::fs::write(dir.join(session), format!("{profile}\n"));
 }
 
 /// The real agent, never this binary. An override for the tests, then a pinned

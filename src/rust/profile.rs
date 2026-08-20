@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::paths;
+use crate::{id, paths};
 
 /// The cached address, written after a sign-in and removed on sign-out.
 pub fn label(agent: &str, profile: &str) -> Option<String> {
@@ -115,23 +115,16 @@ pub fn with_email(agent: &str, email: &str, skip: &str) -> Option<String> {
 }
 
 pub fn require(agent: &str, profile: &str) -> Result<(), String> {
+    id::profile(profile)?;
     if paths::profile_dir(agent, profile).is_dir() {
         Ok(())
     } else {
         Err(format!(
-            "no such {agent} profile '{profile}' (run: conductor-acct add {profile} {agent})"
+            "no such {agent} profile '{profile}' (run: hats add {profile} {agent})"
         ))
     }
 }
 
 pub fn valid_name(name: &str) -> Result<(), String> {
-    if !name.is_empty()
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
-        Ok(())
-    } else {
-        Err("profile names may only contain letters, digits, - and _".into())
-    }
+    id::profile(name).map(|_| ())
 }

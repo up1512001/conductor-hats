@@ -119,7 +119,7 @@ test_profile_names_are_validated() {
     local out status=0
     out=$("$ACCT" add "../escape" 2>&1) || status=$?
     is "rejected" "$status" "1"
-    contains "with a reason" "$out" "may only contain letters"
+    contains "with a reason" "$out" "invalid profile name"
 }
 
 # install.sh puts a symlink on $PATH, and the CLI is dispatch that finds lib/

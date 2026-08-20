@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::{paths, profile, resolve, settings, store};
+use crate::{id, paths, profile, resolve, settings, store};
 
 pub fn install_bin() -> PathBuf {
     paths::accounts_root().join("bin")
@@ -69,7 +69,7 @@ pub fn logout(name: &str, agent: &str) -> Result<(), String> {
     let _ = std::fs::remove_file(dir.join(".label"));
     println!(
         "Signed out of '{name}'. The profile directory is still there; \
-         conductor-acct remove {name} deletes it."
+         hats remove {name} deletes it."
     );
     Ok(())
 }
@@ -79,6 +79,7 @@ pub fn remove(name: &str, agent: &str) -> Result<(), String> {
     store::ensure_root()?;
     let _ = logout(name, agent);
     let dir = paths::profile_dir(agent, name);
+    id::contained(&paths::accounts_root().join(agent), &dir)?;
     std::fs::remove_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     store::drop_routes_to(name)?;
     println!("Removed the {agent} profile '{name}' and any routes pointing at it.");
@@ -164,7 +165,7 @@ fn warn_duplicate(agent: &str, name: &str, clash: &str, email: &str) {
     eprintln!("other is now signed out. They will keep logging each other out.");
     eprintln!();
     eprintln!("Keep one and drop the other:");
-    eprintln!("  conductor-acct remove {clash} {agent}");
+    eprintln!("  hats remove {clash} {agent}");
 }
 
 pub fn sessions(clear: bool) -> Result<(), String> {

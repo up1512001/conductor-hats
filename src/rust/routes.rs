@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use crate::paths;
+use crate::{id, paths};
 
 pub struct Match {
     pub profile: String,
@@ -34,6 +34,9 @@ pub fn resolve(dir: &Path) -> Option<Match> {
             continue;
         }
         let Some((path, profile)) = split(line) else {
+            continue;
+        };
+        let Some(profile) = id::profile_or_none(profile) else {
             continue;
         };
         if path == "default" {

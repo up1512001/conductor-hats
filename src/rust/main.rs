@@ -4,6 +4,7 @@
 //! command installed.
 
 mod cli;
+mod id;
 mod devapp;
 mod macho;
 mod manage;
