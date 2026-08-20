@@ -55,7 +55,7 @@ the account it started on.
 
 Profile names are lower case on disk, because they are typed at a CLI and used
 as directory names. They are capitalised for display through one `cap()` helper
-and never fed back to `conductor-acct` in that form.
+and never fed back to `hats` in that form.
 
 ### Provider icons
 
@@ -94,9 +94,9 @@ The full address is not in a `title` attribute either: a tooltip is as visible o
 video as the text is. To read one, use a terminal:
 
 ```sh
-conductor-acct list          # real addresses
-conductor-acct list --mask   # the masked form, as the UI shows it
-conductor-acct mask <email>  # one address
+hats list          # real addresses
+hats list --mask   # the masked form, as the UI shows it
+hats mask <email>  # one address
 ```
 
 The rule exists twice, because the panel cannot shell out once per row: in
@@ -125,7 +125,7 @@ there are three states, not two:
 | profile name, "Signed in" | signed in, address not cached yet |
 | profile name, "Not signed in" | no credentials |
 
-`conductor-acct json` reports `signedIn` alongside `email` for exactly this
+`hats json` reports `signedIn` alongside `email` for exactly this
 reason. A route can point at a signed-out profile, which is legitimate: routes and
 credentials are separate, and the tick shows the route.
 
@@ -140,15 +140,15 @@ in minutes ago asks again.
 Three places say so:
 
 - the panel, during a sign-in that lands on an address another profile already has
-- `conductor-acct login`, which warns on stderr after the fact
-- `conductor-acct doctor`, which reports any pair sharing an address
+- `hats login`, which warns on stderr after the fact
+- `hats doctor`, which reports any pair sharing an address
 
 It is a warning rather than a refusal because the address is only knowable *after*
 the OAuth round trip; refusing then would leave the profile in a state the message
 denies. Resolve it by dropping one:
 
 ```sh
-conductor-acct remove <profile>
+hats remove <profile>
 ```
 
 ### Signing out, and what the panel will not do
@@ -158,7 +158,7 @@ credentials and nothing else: the profile stays, so do its routes, its session
 pins and its transcripts. The account reappears in the list as "Not signed in",
 ready to sign back in from the same place.
 
-Deleting a profile outright is `conductor-acct remove` in a terminal, on purpose.
+Deleting a profile outright is `hats remove` in a terminal, on purpose.
 It is the one irreversible operation here, and a popover you can open by accident
 is the wrong place for it.
 

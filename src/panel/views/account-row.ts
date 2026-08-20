@@ -80,7 +80,7 @@ export function accountSlot(
 
 /**
  * Signs out and nothing else: the profile, its routes, its session pins and its
- * transcripts all stay. Deleting a profile is `conductor-acct remove` in a
+ * transcripts all stay. Deleting a profile is `hats remove` in a
  * terminal, deliberately, since it is the one irreversible operation here.
  */
 export function confirmSignOut(provider: Provider, account: Account): void {

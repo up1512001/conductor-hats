@@ -81,7 +81,7 @@ export function loadingView(host: HTMLElement): void {
   }
   host.appendChild(el("div", "cma-sep"));
   host.appendChild(
-    el("div", "cma-note", "conductor-acct is answering. This is quick once warmed up.")
+    el("div", "cma-note", "hats is answering. This is quick once warmed up.")
   );
 }
 

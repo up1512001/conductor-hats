@@ -13,7 +13,7 @@ set -uo pipefail
 SUITE_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJECT_DIR=$(dirname "$SUITE_DIR")
 # Overridable so the same suite can judge the Rust binary and the shell it replaces.
-ACCT="${CONDUCTOR_ACCT_UNDER_TEST:-$PROJECT_DIR/target/release/conductor-acct}"
+ACCT="${CONDUCTOR_ACCT_UNDER_TEST:-$PROJECT_DIR/target/release/hats}"
 FILTER="${1:-}"
 
 PASS=0

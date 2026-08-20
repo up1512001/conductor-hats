@@ -41,7 +41,7 @@ test_install_replaces_a_stale_deployment() {
     is "the deployment is a real directory" \
         "$([ -d "$CONDUCTOR_ACCOUNTS_ROOT/bin" ] && [ ! -L "$CONDUCTOR_ACCOUNTS_ROOT/bin" ] && echo yes)" "yes"
     is "and the deployed CLI answers" \
-        "$("$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct" version | awk '{print $1}')" "conductor-acct"
+        "$("$CONDUCTOR_ACCOUNTS_ROOT/bin/hats" version | awk '{print $1}')" "hats"
 }
 
 # What matters is that a deployment which drifted is replaced by a working one,
@@ -49,7 +49,7 @@ test_install_replaces_a_stale_deployment() {
 test_install_redeploys_after_the_checkout_changes() {
     fake_profile claude work
     "$ACCT" install >/dev/null
-    local deployed="$CONDUCTOR_ACCOUNTS_ROOT/bin/conductor-acct"
+    local deployed="$CONDUCTOR_ACCOUNTS_ROOT/bin/hats"
     local before
     before=$("$deployed" version)
 
@@ -129,14 +129,14 @@ test_profile_names_are_validated() {
 test_the_cli_works_through_a_symlink() {
     fake_profile claude work
     mkdir -p "$SANDBOX/onpath"
-    ln -sf "$PROJECT_DIR/target/release/conductor-acct" "$SANDBOX/onpath/conductor-acct"
+    ln -sf "$PROJECT_DIR/target/release/hats" "$SANDBOX/onpath/hats"
 
     local out status=0
-    out=$("$SANDBOX/onpath/conductor-acct" version 2>&1) || status=$?
+    out=$("$SANDBOX/onpath/hats" version 2>&1) || status=$?
     is "a symlinked CLI runs" "$status" "0"
-    contains "and reports its version" "$out" "conductor-acct"
+    contains "and reports its version" "$out" "hats"
 
-    out=$("$SANDBOX/onpath/conductor-acct" list 2>&1) || status=$?
+    out=$("$SANDBOX/onpath/hats" list 2>&1) || status=$?
     contains "and reaches its libraries" "$out" "work"
 }
 

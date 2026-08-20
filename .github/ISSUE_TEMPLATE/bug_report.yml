@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filing: `conductor-acct doctor` checks the whole setup end to end
+        Before filing: `hats doctor` checks the whole setup end to end
         and names most problems itself. Paste its output below either way.
 
   - type: textarea
@@ -14,7 +14,7 @@ body:
       label: What happened
       description: What you did, what you expected, what you got instead.
       placeholder: |
-        Ran `conductor-acct use work`, opened a new chat, and the agent still
+        Ran `hats use work`, opened a new chat, and the agent still
         answered on the personal account.
     validations:
       required: true
@@ -22,7 +22,7 @@ body:
   - type: textarea
     id: doctor
     attributes:
-      label: conductor-acct doctor
+      label: hats doctor
       description: Run it in the workspace where this happens. Addresses are yours to redact.
       render: text
     validations:
@@ -33,7 +33,7 @@ body:
     attributes:
       label: Where
       options:
-        - The conductor-acct CLI
+        - The hats CLI
         - The /account command in a chat
         - The injected panel in a patched copy
         - Routing, when an agent starts

@@ -22,7 +22,7 @@ pub fn install() -> Result<(), String> {
     if me != deployed {
         std::fs::copy(&me, &deployed).map_err(|e| format!("{}: {e}", deployed.display()))?;
     }
-    for name in ["claude-router", "codex-router", "conductor-acct"] {
+    for name in ["claude-router", "codex-router"] {
         let link = bin.join(name);
         let _ = std::fs::remove_file(&link);
         std::os::unix::fs::symlink(&deployed, &link)
@@ -71,7 +71,7 @@ pub fn uninstall() -> Result<(), String> {
     settings::unset_key(&settings_file, CODEX_KEY)?;
     let _ = std::fs::remove_file(settings::commands_dir().join("account.md"));
     println!("Router off. Restart Conductor for it to take effect.");
-    println!("Your profiles and routes are untouched; conductor-acct install turns it back on.");
+    println!("Your profiles and routes are untouched; hats install turns it back on.");
     Ok(())
 }
 
@@ -96,11 +96,11 @@ pub fn doctor(dir: &Path) -> Result<(), String> {
         let bin = manage::install_bin();
         if !wired.starts_with(&bin.to_string_lossy().to_string()) {
             println!("warn:     Conductor points at {wired}, outside {}", paths::accounts_root().display());
-            println!("          re-run 'conductor-acct install' so it cannot be deleted");
+            println!("          re-run 'hats install' so it cannot be deleted");
             ok = false;
         }
     } else {
-        println!("router:   off (repository bindings still work; conductor-acct install turns it on)");
+        println!("router:   off (repository bindings still work; hats install turns it on)");
     }
 
     for name in paths::profiles("claude") {

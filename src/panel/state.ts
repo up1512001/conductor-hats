@@ -1,4 +1,4 @@
-/** Everything the panel knows, read from conductor-acct and cached briefly. */
+/** Everything the panel knows, read from hats and cached briefly. */
 
 import { acct, q } from "./cli.js";
 

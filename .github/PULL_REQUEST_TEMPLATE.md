@@ -13,9 +13,9 @@ Say what you ran, not that you were careful. Delete rows that do not apply.
 -->
 
 - [ ] `test/run.sh`
-- [ ] `shellcheck -x --source-path=SCRIPTDIR bin/conductor-acct bin/_resolve.sh bin/*-router lib/*.sh test/*.sh install.sh`
+- [ ] `shellcheck -x --source-path=SCRIPTDIR test/*.sh install.sh tools/set-version.sh`
 - [ ] `pnpm typecheck && pnpm build`
-- [ ] `cargo build --release && cargo clippy`
+- [ ] `cargo build --release` with no warnings, and `test/run.sh` against it
 - [ ] Patched a Conductor copy and used the panel: `hats repatch`
 
 Anything exercised by hand rather than by a test, and anything left unexercised:
@@ -27,3 +27,4 @@ Anything exercised by hand rather than by a test, and anything left unexercised:
 - [ ] No personal information: example addresses on reserved domains, paths as `~`
 - [ ] `CHANGELOG.md` updated under `## Unreleased`
 - [ ] Version left alone, or changed with `tools/set-version.sh`
+- [ ] Docblocks only: no `//` comments, no comments inside shell bodies

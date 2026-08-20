@@ -23,9 +23,9 @@ Conductor you have not patched.
 **From a terminal**, in any workspace directory:
 
 ```sh
-conductor-acct use work           # this workspace runs on the work account
-conductor-acct status             # claude  work  you@example.com
-conductor-acct which              # the same, with every layer that fed into it
+hats use work           # this workspace runs on the work account
+hats status             # claude  work  you@example.com
+hats which              # the same, with every layer that fed into it
 ```
 
 Open a **new** chat for a switch to take effect. A chat that is already running
@@ -35,8 +35,8 @@ when that process spawns.
 ### Several accounts at once
 
 ```sh
-cd ~/conductor/workspaces/company-app/one  && conductor-acct use work
-cd ~/conductor/workspaces/side-project/two && conductor-acct use personal
+cd ~/conductor/workspaces/company-app/one  && hats use work
+cd ~/conductor/workspaces/side-project/two && hats use personal
 ```
 
 Open a chat in each. Conductor keeps a separate agent host per workspace, so
@@ -49,7 +49,7 @@ repository instead of each workspace:
 
 ```sh
 cd ~/conductor/repos/company-app
-conductor-acct bind work
+hats bind work
 ```
 
 That writes `.conductor/settings.local.toml`, which Conductor reads per

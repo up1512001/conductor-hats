@@ -1,9 +1,9 @@
 /**
- * Talking to conductor-acct through Conductor's own `execute_shell_command`,
+ * Talking to hats through Conductor's own `execute_shell_command`,
  * which the webview can invoke without the invoke key.
  */
 
-const CLI = "$HOME/.conductor-accounts/bin/conductor-acct";
+const CLI = "$HOME/.conductor-accounts/bin/hats";
 
 interface TauriInternals {
   invoke?: (

@@ -14,7 +14,7 @@ above). The short version, and none of it is optional:
   `hats patch`. `dist/` is generated, never committed.
 - **No personal information.** This is published. Example addresses use
   RFC 2606 reserved domains; paths use `~` or `/Users/you`. A test enforces it.
-- **`conductor-acct` owns all state.** The panel and the chat command read and
+- **`hats` owns all state.** The panel and the chat command read and
   write through it, never around it.
 - **The router runs on every agent spawn**: fails open through `catch_unwind`, and
   `panic = "abort"` must stay out of the release profile.

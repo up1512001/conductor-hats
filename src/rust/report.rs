@@ -44,7 +44,7 @@ pub fn list(masked: bool) -> Result<(), String> {
     if store::router_installed() {
         println!("router: on");
     } else {
-        println!("router: off   (repository bindings still work; conductor-acct install turns it on)");
+        println!("router: off   (repository bindings still work; hats install turns it on)");
     }
     Ok(())
 }

@@ -24,7 +24,7 @@ sidecar socket are all out of scope. See
 
 **POSIX shell, no dependencies.** `bin/_resolve.sh` and both routers are `/bin/sh`
 and run on every spawn, so no bashisms and no forks on the fast path.
-`bin/conductor-acct` may use bash 3.2, which is what macOS ships.
+Shell that remains is the installer, the tests and the version script.
 
 ## Running the tests
 
@@ -59,8 +59,7 @@ Commits carry the detail; `CHANGELOG.md` carries the version-level view. Add an
 entry under the current heading when a change is worth knowing about at release
 level, which is most of them.
 
-`CONDUCTOR_ACCT_VERSION` in `bin/conductor-acct` and the version in
-`tools/ui-patch/account-ui.js` must match: the CLI and the injected panel ship
+The version in `Cargo.toml` and the one in `src/panel/index.ts` must match: the CLI and the injected panel ship
 together, so a skew between them is a bug rather than a variation. A test asserts
 both, and that the changelog has a heading for that version.
 
@@ -68,7 +67,7 @@ both, and that the changelog has a heading for that version.
 
 ```sh
 shellcheck -x --source-path=SCRIPTDIR \
-  bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
+  bin/hats bin/_resolve.sh bin/claude-router bin/codex-router \
   lib/*.sh test/run.sh test/harness.sh test/*.test.sh \
   install.sh
 pnpm typecheck
@@ -119,12 +118,12 @@ setup.
 Routing is exercised by the tests, but sign in and concurrency need a real
 machine and two real accounts:
 
-1. `conductor-acct add personal` and `conductor-acct add work` produce two
-   different emails in `conductor-acct list`. Same email twice means the config
+1. `hats add personal` and `hats add work` produce two
+   different emails in `hats list`. Same email twice means the config
    directory isolation broke.
-2. `conductor-acct use` in two workspaces, then a chat open in each at once,
+2. `hats use` in two workspaces, then a chat open in each at once,
    both answering, each reporting its own `CLAUDE_CONFIG_DIR`.
-3. `conductor-acct uninstall` leaves `~/.conductor/settings.toml` valid TOML
+3. `hats uninstall` leaves `~/.conductor/settings.toml` valid TOML
    with your other settings intact.
 
 ## Commit messages

@@ -86,7 +86,7 @@ for approval, and you paste the code back into the panel. No terminal.
 Each account gets its own config directory and therefore its own keychain item.
 Your skills, plugins, commands and transcripts stay shared.
 
-If you would rather not patch anything, `conductor-acct add work` does the same
+If you would rather not patch anything, `hats add work` does the same
 from a terminal, and `/account` in any chat covers the rest.
 
 **5. Pick an account per workspace.** Open a workspace, click the account button,
@@ -99,11 +99,11 @@ does the same for a whole repository.
 hats repatch
 ```
 
-Check any of it with `conductor-acct doctor`, which reports what every layer
+Check any of it with `hats doctor`, which reports what every layer
 resolves to.
 
 Prefer to skip the patching entirely? `/account` in any Conductor chat works on an
-unpatched install, and `conductor-acct use work` works from a terminal. You lose
+unpatched install, and `hats use work` works from a terminal. You lose
 the toolbar button, not the feature.
 
 ## What the panel does
@@ -142,7 +142,7 @@ attaches.
 | Page | What it covers |
 |---|---|
 | [docs/usage.md](docs/usage.md) | picking an account, several at once, binding a repository |
-| [docs/cli.md](docs/cli.md) | every `conductor-acct` command, the layout on disk, turning it off |
+| [docs/cli.md](docs/cli.md) | every `hats` command, the layout on disk, turning it off |
 | [docs/how-it-works.md](docs/how-it-works.md) | how credentials are namespaced, the router, precedence |
 | [docs/account-panel.md](docs/account-panel.md) | the panel: layout, masking, signing in and out |
 | [docs/panel-internals.md](docs/panel-internals.md) | how the panel attaches, and the update path |
@@ -156,9 +156,9 @@ attaches.
 
 The panel never deletes anything: signing out drops credentials and leaves the
 profile, its routes, its session pins and its transcripts alone.
-`conductor-acct remove` in a terminal is the only way to delete a profile,
+`hats remove` in a terminal is the only way to delete a profile,
 deliberately. Addresses are masked wherever they render, as `fir**ast@ex**e.com`;
-`conductor-acct list` in a terminal is where you read the real thing. See
+`hats list` in a terminal is where you read the real thing. See
 [docs/account-panel.md](docs/account-panel.md).
 
 It is not free. **Nothing outside the app can add UI to it.** Conductor's UI is

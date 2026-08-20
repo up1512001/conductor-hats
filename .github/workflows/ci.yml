@@ -57,7 +57,6 @@ jobs:
       - name: Build the binary
         run: |
           cargo build --release
-          ln -sf hats target/release/conductor-acct
           ln -sf hats target/release/claude-router
           ln -sf hats target/release/codex-router
 
