@@ -15,6 +15,8 @@ path = "src/rust/main.rs"
 [dependencies]
 # Pure Rust, so the binary needs no C toolchain and cross-compiles cleanly.
 brotli = "8.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
 
 [profile.release]
 strip = true

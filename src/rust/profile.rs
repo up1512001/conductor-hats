@@ -23,22 +23,29 @@ pub fn refresh_label(agent: &str, profile: &str) -> Option<String> {
     Some(found)
 }
 
-/// The first `"key": "value"` in a blob, without depending on a JSON parser for
-/// one field.
+/// The first string value stored under `key`, searched depth first.
+///
+/// Parsed rather than scanned: looking for the literal `"emailAddress"` found it
+/// inside unrelated values as readily as in the field, and picked up whatever
+/// happened to follow. The providers do not promise where the field sits, so the
+/// search is recursive rather than a fixed path.
 fn extract(text: &str, key: &str) -> Option<String> {
-    let needle = format!("\"{key}\"");
-    let at = text.find(&needle)?;
-    let rest = &text[at + needle.len()..];
-    let colon = rest.find(':')?;
-    let after = &rest[colon + 1..];
-    let open = after.find('"')?;
-    let tail = &after[open + 1..];
-    let close = tail.find('"')?;
-    let value = &tail[..close];
-    if value.is_empty() {
-        None
-    } else {
-        Some(value.to_string())
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    find_string(&value, key)
+}
+
+fn find_string(value: &serde_json::Value, key: &str) -> Option<String> {
+    match value {
+        serde_json::Value::Object(map) => {
+            if let Some(serde_json::Value::String(found)) = map.get(key) {
+                if !found.is_empty() {
+                    return Some(found.clone());
+                }
+            }
+            map.values().find_map(|v| find_string(v, key))
+        }
+        serde_json::Value::Array(items) => items.iter().find_map(|v| find_string(v, key)),
+        _ => None,
     }
 }
 

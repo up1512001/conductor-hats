@@ -152,43 +152,65 @@ pub fn check(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
+/// The panel reads this, so the field names are a contract. Serialised rather
+/// than formatted: a profile name or an address containing a quote or a
+/// backslash used to produce JSON the panel could not parse.
+#[derive(serde::Serialize)]
+struct Account {
+    name: String,
+    email: String,
+    active: bool,
+    #[serde(rename = "signedIn")]
+    signed_in: bool,
+}
+
+#[derive(serde::Serialize)]
+struct Provider {
+    agent: String,
+    current: String,
+    accounts: Vec<Account>,
+}
+
+#[derive(serde::Serialize)]
+struct State {
+    workspace: String,
+    repo: String,
+    enabled: bool,
+    providers: Vec<Provider>,
 }
 
 pub fn json(dir: &Path) -> Result<(), String> {
     store::ensure_root()?;
-    let repo = store::repo_root(dir);
-    print!(
-        "{{\"workspace\":\"{}\",\"repo\":\"{}\",\"enabled\":{},\"providers\":[",
-        escape(&dir.to_string_lossy()),
-        escape(&repo.to_string_lossy()),
-        store::router_installed()
-    );
-    for (i, agent) in ["claude", "codex"].iter().enumerate() {
-        if i > 0 {
-            print!(",");
-        }
+    let mut providers = Vec::new();
+    for agent in ["claude", "codex"] {
         let current = store::effective_dir(agent, dir)
             .as_deref()
             .and_then(store::profile_from_dir)
             .unwrap_or_default();
-        print!("{{\"agent\":\"{agent}\",\"current\":\"{}\",\"accounts\":[", escape(&current));
-        for (j, name) in paths::profiles(agent).iter().enumerate() {
-            if j > 0 {
-                print!(",");
-            }
-            print!(
-                "{{\"name\":\"{}\",\"email\":\"{}\",\"active\":{},\"signedIn\":{}}}",
-                escape(name),
-                escape(&profile::label(agent, name).unwrap_or_default()),
-                *name == current,
-                profile::signed_in(agent, name)
-            );
-        }
-        print!("]}}");
+        let accounts = paths::profiles(agent)
+            .into_iter()
+            .map(|name| Account {
+                email: profile::label(agent, &name).unwrap_or_default(),
+                active: name == current,
+                signed_in: profile::signed_in(agent, &name),
+                name,
+            })
+            .collect();
+        providers.push(Provider {
+            agent: agent.to_string(),
+            current,
+            accounts,
+        });
     }
-    println!("]}}");
+
+    let state = State {
+        workspace: dir.to_string_lossy().to_string(),
+        repo: store::repo_root(dir).to_string_lossy().to_string(),
+        enabled: store::router_installed(),
+        providers,
+    };
+    let body = serde_json::to_string(&state).map_err(|e| format!("serialising state: {e}"))?;
+    println!("{body}");
     Ok(())
 }
 
