@@ -84,6 +84,11 @@ fn stale(path: &Path) -> bool {
 /// target. Rename is atomic within a filesystem, so a reader sees either the old
 /// file or the new one, and a crash between the two leaves the old one intact.
 pub fn write_atomic(target: &Path, body: &str) -> Result<(), String> {
+    write_atomic_bytes(target, body.as_bytes())
+}
+
+/// The same, for a file that is not text.
+pub fn write_atomic_bytes(target: &Path, body: &[u8]) -> Result<(), String> {
     let dir = target.parent().unwrap_or(Path::new("."));
     std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let name = target
@@ -94,7 +99,7 @@ pub fn write_atomic(target: &Path, body: &str) -> Result<(), String> {
 
     let result = (|| -> std::io::Result<()> {
         let mut file = std::fs::File::create(&tmp)?;
-        file.write_all(body.as_bytes())?;
+        file.write_all(body)?;
         file.sync_all()
     })();
     if let Err(e) = result {

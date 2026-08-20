@@ -52,12 +52,18 @@ impl MachO {
         }
         let ncmds = u32_at(&data, 16).ok_or("truncated header")? as usize;
         let mut segments = Vec::new();
-        let mut at = 32;
+        let mut at = 32usize;
         for _ in 0..ncmds {
             let cmd = u32_at(&data, at).ok_or("truncated load command")?;
             let size = u32_at(&data, at + 4).ok_or("truncated load command")? as usize;
-            if size == 0 {
-                return Err("load command of zero length".into());
+            if size < 8 {
+                return Err(format!("load command of impossible length {size}"));
+            }
+            let end = at
+                .checked_add(size)
+                .ok_or("load command length overflows")?;
+            if end > data.len() {
+                return Err("a load command runs past the end of the file".into());
             }
             if cmd == LC_SEGMENT_64 {
                 let raw = data.get(at + 8..at + 24).ok_or("truncated segment name")?;
@@ -71,7 +77,7 @@ impl MachO {
                     fileoff: u64_at(&data, at + 40).ok_or("truncated fileoff")?,
                 });
             }
-            at += size;
+            at = end;
         }
         Ok(Self { data, segments })
     }
@@ -83,8 +89,15 @@ impl MachO {
     /// Virtual address to file offset.
     pub fn file_offset(&self, vmaddr: u64) -> Option<usize> {
         for s in &self.segments {
-            if vmaddr >= s.vmaddr && vmaddr < s.vmaddr + s.vmsize {
-                return usize::try_from(s.fileoff + (vmaddr - s.vmaddr)).ok();
+            let end = s.vmaddr.checked_add(s.vmsize)?;
+            if vmaddr < s.vmaddr || vmaddr >= end {
+                continue;
+            }
+            let within = vmaddr.checked_sub(s.vmaddr)?;
+            let offset = s.fileoff.checked_add(within)?;
+            let offset = usize::try_from(offset).ok()?;
+            if offset < self.data.len() {
+                return Some(offset);
             }
         }
         None
@@ -98,8 +111,16 @@ impl MachO {
         let Some(seg) = self.segment("__DATA_CONST") else {
             return Vec::new();
         };
-        let start = seg.fileoff as usize;
-        let end = (start + seg.vmsize as usize).min(self.data.len());
+        let Ok(start) = usize::try_from(seg.fileoff) else {
+            return Vec::new();
+        };
+        let Ok(span) = usize::try_from(seg.vmsize) else {
+            return Vec::new();
+        };
+        let end = start.saturating_add(span).min(self.data.len());
+        if start >= end {
+            return Vec::new();
+        }
         let mut out = Vec::new();
 
         let mut at = start;
@@ -123,12 +144,14 @@ impl MachO {
         }
         let key_at = self.file_offset(key_ptr)?;
         let val_at = self.file_offset(val_ptr)?;
-        let raw = self.data.get(key_at..key_at + key_len)?;
+        let key_end = key_at.checked_add(key_len)?;
+        let val_end = val_at.checked_add(val_len)?;
+        let raw = self.data.get(key_at..key_end)?;
         let key = std::str::from_utf8(raw).ok()?;
         if !key.starts_with('/') || !key.is_ascii() {
             return None;
         }
-        self.data.get(val_at..val_at + val_len)?;
+        self.data.get(val_at..val_end)?;
         Some(Asset {
             key: key.to_string(),
             offset: val_at,
