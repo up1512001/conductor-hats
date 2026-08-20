@@ -78,6 +78,10 @@ not_ok() {
     printf '        actual:   %s\n' "$3"
 }
 
+ok_if() {
+    if eval "$2"; then ok "$1"; else not_ok "$1" "$2" "false"; fi
+}
+
 not_zero() {
     if [ "$2" != "0" ]; then ok "$1"; else not_ok "$1" "a non-zero exit status" "0"; fi
 }
