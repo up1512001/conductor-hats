@@ -32,6 +32,23 @@ if [ -f "$0" ]; then
     SELF_DIR=$(cd "$(dirname "$0")" && pwd)
 fi
 
+# Private repositories serve nothing to an anonymous curl, so fall back to the
+# GitHub CLI when it is present and signed in. Both assets are fetched at once,
+# because gh matches by pattern and the checksum shares the tarball's name.
+gh_download() {
+    dir="$1"
+    want="$2"
+    command -v gh >/dev/null || return 1
+    if [ "$VERSION" = latest ]; then
+        tag=$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null) || return 1
+    else
+        tag="$VERSION"
+    fi
+    gh release download "$tag" --repo "$REPO" --pattern "hats-$TARGET.tar.gz*" \
+        --dir "$dir" --clobber >/dev/null 2>&1 || return 1
+    [ -f "$dir/$want" ]
+}
+
 fetch_release() {
     command -v curl >/dev/null || die "curl not found"
     mkdir -p "$SRC"
@@ -46,12 +63,21 @@ fetch_release() {
     TARBALL="hats-$TARGET.tar.gz"
 
     say "Downloading $TARBALL"
-    curl -fsSL "$BASE/$TARBALL" -o "$TMP/$TARBALL" ||
-        die "could not download $BASE/$TARBALL
-A private repository needs an authenticated download. Fetch the tarball
-yourself, extract it and run ./install.sh from inside it."
-    curl -fsSL "$BASE/$TARBALL.sha256" -o "$TMP/$TARBALL.sha256" ||
-        die "could not download the checksum for $TARBALL"
+    if ! curl -fsSL "$BASE/$TARBALL" -o "$TMP/$TARBALL" 2>/dev/null; then
+        gh_download "$TMP" "$TARBALL" ||
+            die "could not download $TARBALL
+Public releases download with curl. A private one needs the GitHub CLI, signed
+in as someone who can read $REPO:
+
+  gh auth login
+
+Or fetch the tarball yourself, extract it, and run ./install.sh from inside."
+    fi
+    if [ ! -f "$TMP/$TARBALL.sha256" ]; then
+        curl -fsSL "$BASE/$TARBALL.sha256" -o "$TMP/$TARBALL.sha256" 2>/dev/null ||
+            gh_download "$TMP" "$TARBALL.sha256" ||
+            die "could not download the checksum for $TARBALL"
+    fi
 
     say "Verifying"
     ( cd "$TMP" && shasum -a 256 -c "$TARBALL.sha256" >/dev/null ) ||

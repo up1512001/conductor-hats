@@ -1,6 +1,6 @@
 [package]
 name = "hats"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 rust-version = "1.85"
 description = "Run any number of Claude Code or Codex accounts in Conductor, one per workspace"

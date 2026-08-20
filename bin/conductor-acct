@@ -3,9 +3,23 @@
 set -euo pipefail
 
 # Must match VERSION in src/panel/index.ts; a test asserts it.
-CONDUCTOR_ACCT_VERSION=0.3.3
+CONDUCTOR_ACCT_VERSION=0.3.4
 
-SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+# Resolves through symlinks, because install.sh puts one on $PATH and the
+# libraries are found relative to the real file, not the link.
+SELF=$0
+case "$SELF" in
+    */*) ;;
+    *) SELF=$(command -v -- "$SELF" 2>/dev/null || printf '%s' "$SELF") ;;
+esac
+while [ -L "$SELF" ]; do
+    _link=$(readlink "$SELF")
+    case "$_link" in
+        /*) SELF=$_link ;;
+        *) SELF=$(dirname "$SELF")/$_link ;;
+    esac
+done
+SELF=$(cd "$(dirname "$SELF")" && pwd)/$(basename "$SELF")
 BIN_DIR=$(dirname "$SELF")
 REPO_DIR=$(dirname "$BIN_DIR")
 

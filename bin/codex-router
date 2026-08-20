@@ -9,6 +9,13 @@ case "$SELF" in
     /*) ;;
     *) SELF=$(cd "$(dirname "$0")" 2>/dev/null && pwd)/${0##*/} ;;
 esac
+while [ -L "$SELF" ]; do
+    _link=$(readlink "$SELF")
+    case "$_link" in
+        /*) SELF=$_link ;;
+        *) SELF=$(dirname "$SELF")/$_link ;;
+    esac
+done
 LIB="${SELF%/*}/_resolve.sh"
 
 # Recursion guard. It counts depth rather than testing a flag, because the

@@ -6,6 +6,22 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.4
+
+### Fixed
+
+- **A symlinked `conductor-acct` could not find its libraries.** `install.sh` puts
+  one on `$PATH`, and the CLI resolved `$0` without following it, so it looked for
+  `lib/` beside the symlink and every command died on a missing `_resolve.sh`. The
+  CLI and both routers follow symlinks now. Found by installing the release for
+  real: the sandbox checks called the target directly and never saw it.
+
+### Added
+
+- `install.sh` falls back to the GitHub CLI when an anonymous download fails, so
+  it works against a private repository for anyone signed in with `gh`. The
+  public `curl` path is unchanged and still tried first.
+
 ## 0.3.3
 
 ### Changed

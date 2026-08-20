@@ -110,3 +110,33 @@ test_profile_names_are_validated() {
     is "rejected" "$status" "1"
     contains "with a reason" "$out" "may only contain letters"
 }
+
+# install.sh puts a symlink on $PATH, and the CLI is dispatch that finds lib/
+# relative to itself. Resolving $0 without following the link pointed it at the
+# symlink's directory, where there is no lib/, so every command died on a missing
+# _resolve.sh. Sandbox tests missed it because they call the real path.
+test_the_cli_works_through_a_symlink() {
+    fake_profile claude work
+    mkdir -p "$SANDBOX/onpath"
+    ln -sf "$PROJECT_DIR/bin/conductor-acct" "$SANDBOX/onpath/conductor-acct"
+
+    local out status=0
+    out=$("$SANDBOX/onpath/conductor-acct" version 2>&1) || status=$?
+    is "a symlinked CLI runs" "$status" "0"
+    contains "and reports its version" "$out" "conductor-acct"
+
+    out=$("$SANDBOX/onpath/conductor-acct" list 2>&1) || status=$?
+    contains "and reaches its libraries" "$out" "work"
+}
+
+test_the_router_works_through_a_symlink() {
+    fake_profile claude work
+    "$ACCT" use work claude "$SANDBOX/ws-a" >/dev/null
+    mkdir -p "$SANDBOX/onpath"
+    ln -sf "$PROJECT_DIR/bin/claude-router" "$SANDBOX/onpath/claude-router"
+
+    local got
+    got=$(cd "$SANDBOX/ws-a" && CONDUCTOR_WORKSPACE_PATH="$SANDBOX/ws-a" \
+        "$SANDBOX/onpath/claude-router" 2>/dev/null | sed -n 's/^CLAUDE_CONFIG_DIR=//p')
+    is "a symlinked router still routes" "$got" "$CONDUCTOR_ACCOUNTS_ROOT/claude/work"
+}
