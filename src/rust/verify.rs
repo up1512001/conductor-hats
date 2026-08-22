@@ -129,6 +129,26 @@ pub fn run(app: &Path) -> Result<(), String> {
         Err(e) => r.fail("bundle found", e.lines().next().unwrap_or("no match")),
     }
 
+    match patch::asset_text(&macho, "/index.html").and_then(|html| {
+        let entry = patch::pick_entry(&html)?;
+        let text = patch::asset_text(&macho, &entry)?;
+        Ok((entry, text))
+    }) {
+        Ok((entry, text)) => {
+            if pristine {
+                r.note("boot guard", "not expected, this copy is unpatched");
+            } else if text.contains(patch::GUARD_MARKER) {
+                r.pass("boot guard", &format!("present in {entry}"));
+            } else {
+                r.fail(
+                    "boot guard",
+                    &format!("missing from {entry}, so 0.82 paints nothing"),
+                );
+            }
+        }
+        Err(e) => r.fail("boot guard", e.lines().next().unwrap_or("entry not found")),
+    }
+
     match sign::verify(app) {
         Ok(()) => r.pass("signature", "valid"),
         Err(e) => r.fail("signature", e.lines().next().unwrap_or("invalid")),
