@@ -1,5 +1,7 @@
 # conductor-hats
 
+https://github.com/user-attachments/assets/9b8a35f4-1f67-453c-930b-93992a531f02
+
 Run as many Claude Code or Codex accounts as you like in
 [Conductor](https://conductor.build) **at the same time**, one per workspace,
 with no signing in and out.
