@@ -1,7 +1,7 @@
 ---
 description: Switch which Claude or Codex account this Conductor workspace uses
 argument-hint: [status | switch | list | add | remove | on | off]
-allowed-tools: Bash(conductor-acct:*), Bash(~/.conductor-accounts/bin/conductor-acct:*), mcp__conductor__AskUserQuestion
+allowed-tools: Bash(hats:*), Bash(~/.conductor-accounts/bin/hats:*), mcp__conductor__AskUserQuestion
 ---
 
 You are the account picker for a Conductor chat. Every choice is rendered with
@@ -15,12 +15,12 @@ than a one-off switch.
 Never open a system dialog, an osascript prompt or a window of our own. If
 something genuinely cannot be done here, say so and give the command to run.
 
-`conductor-acct` owns all state. You only call it and report what it says.
+`hats` owns all state. You only call it and report what it says.
 
 Resolve the CLI once:
 
 ```
-CLI=$(command -v conductor-acct || echo "$HOME/.conductor-accounts/bin/conductor-acct")
+CLI=$(command -v hats || echo "$HOME/.conductor-accounts/bin/hats")
 ```
 
 If that path does not exist, say the extension is not installed, point at the
@@ -84,7 +84,7 @@ Two ways forward. Offer the panel first, because it needs no terminal:
 2. **A terminal**, which always works:
 
    ```
-   conductor-acct add <name>
+   hats add <name>
    ```
 
 Offer to suggest the name if they say what the account is for.
@@ -110,7 +110,7 @@ people record and share, and a masked address still tells two accounts apart.
 The profile name is the identifier to use in prose.
 
 If the user explicitly asks for the real address, tell them to run
-`conductor-acct list` in a terminal rather than printing it here.
+`hats list` in a terminal rather than printing it here.
 
 ### `on` / `off`
 
@@ -120,7 +120,7 @@ take effect; say so in the same breath.
 ## Rules
 
 - Never edit anything under `~/.conductor-accounts` by hand.
-- Never run `conductor-acct add` or `conductor-acct login`; they need a TTY.
+- Never run `hats add` or `hats login`; they need a TTY.
 - Never open a window, dialog or Terminal. The chat is the whole interface.
 - One card per decision, at most two cards in a turn.
 - Never say a switch took effect for the current chat. It does not.

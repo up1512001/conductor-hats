@@ -1,4 +1,4 @@
-/** Everything the panel knows, read from conductor-acct and cached briefly. */
+/** Everything the panel knows, read from hats and cached briefly. */
 
 import { acct, q } from "./cli.js";
 
@@ -11,7 +11,13 @@ export interface Account {
 
 export interface Provider {
   agent: string;
+  /** The workspace's account, which is what the toolbar control sets. */
   current: string;
+  /** The chat being typed in, empty when none is live or two are equally fresh. */
+  session: string;
+  /** What that chat actually resolves to, which differs when it carries a pin. */
+  chat: string;
+  pinned: boolean;
   accounts: Account[];
 }
 
@@ -133,13 +139,29 @@ export function loadState(fresh?: boolean): Promise<PanelState> {
   return statePending;
 }
 
-/** Routes a workspace, or binds the repository when there is no workspace yet. */
+export type Scope = "workspace" | "chat";
+
+/**
+ * Routes a workspace, binds the repository when there is no workspace yet, or
+ * pins one chat.
+ *
+ * A pin cannot move the conversation on screen: its agent process took a config
+ * directory when it spawned and never reads one again. It decides the next
+ * process Conductor starts for that chat.
+ */
 export function applyAccount(
   state: PanelState,
   agent: string,
-  profile: string
+  profile: string,
+  scope: Scope = "workspace"
 ): Promise<string> {
   const t = state.target;
+  if (scope === "chat") {
+    const provider = state.providers.filter((p) => p.agent === agent)[0];
+    const session = provider ? provider.session : "";
+    if (!session) return Promise.reject(new Error("no chat is active here"));
+    return acct(`pin ${profile} ${agent} ${session}`);
+  }
   if (t.kind === "workspace") return acct(`use ${profile} ${agent} ${q(t.path)}`);
   if (t.kind === "repository") return acct(`bind ${profile} ${agent} ${q(t.path)}`);
   return Promise.reject(new Error("no workspace or repository in view"));

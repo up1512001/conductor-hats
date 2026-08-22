@@ -22,15 +22,17 @@ Reading Conductor's SQLite database, patching its bundle or talking to its
 sidecar socket are all out of scope. See
 [docs/patching-conductor.md](docs/patching-conductor.md).
 
-**POSIX shell, no dependencies.** `bin/_resolve.sh` and both routers are `/bin/sh`
-and run on every spawn, so no bashisms and no forks on the fast path.
-`bin/conductor-acct` may use bash 3.2, which is what macOS ships.
+**Rust, one binary.** The CLI, both routers and the patcher are the same
+executable under different names, and the tests run against the artifact cargo
+just built. The only shell left in the repository is `install.sh`, which is the
+`curl | sh` bootstrap and therefore runs before there is a binary to run.
 
 ## Running the tests
 
 ```sh
-test/run.sh              # everything
-test/run.sh route        # only tests whose name contains "route"
+cargo test --all         # everything
+cargo test --test routing # one area
+cargo test route         # only tests whose name contains "route"
 ```
 
 Each test gets a fresh sandbox under `$TMPDIR`, with `CONDUCTOR_ACCOUNTS_ROOT`,
@@ -59,35 +61,29 @@ Commits carry the detail; `CHANGELOG.md` carries the version-level view. Add an
 entry under the current heading when a change is worth knowing about at release
 level, which is most of them.
 
-`CONDUCTOR_ACCT_VERSION` in `bin/conductor-acct` and the version in
-`tools/ui-patch/account-ui.js` must match: the CLI and the injected panel ship
+The version in `Cargo.toml` and the one in `src/panel/index.ts` must match: the CLI and the injected panel ship
 together, so a skew between them is a bug rather than a variation. A test asserts
 both, and that the changelog has a heading for that version.
 
 ## Linting
 
 ```sh
-shellcheck -x --source-path=SCRIPTDIR \
-  bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
-  lib/*.sh test/run.sh test/harness.sh test/*.test.sh \
-  install.sh
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+shellcheck -x --source-path=SCRIPTDIR install.sh
 pnpm typecheck
 ```
 
-`-x` follows the sourced libraries rather than guessing at them, and
-`--source-path=SCRIPTDIR` resolves each `# shellcheck source=` directive relative
-to the script carrying it, so the command passes from any working directory.
-Zero findings is the bar: shellcheck exits non-zero on info-level notes too.
+Zero findings is the bar in each: clippy runs with `-D warnings`, and shellcheck
+exits non-zero on info-level notes too.
 
-CI runs these and the test suite on macOS and Linux. Its workflow lives at
-`.github/workflows/conductor-hats.yml`, at the **repository root**,
-because GitHub only runs workflows from there; a copy inside this directory
-would be ignored silently.
+Conductor is macOS only, so CI runs on macOS alone. Its workflow lives at
+`.github/workflows/ci.yml`.
 
 ## Cutting a release
 
 ```sh
-tools/set-version.sh 0.3.2      # five files, plus the changelog heading
+cargo run --example set-version -- 0.3.2   # four files, plus the changelog heading
 git commit -am "chore: 0.3.2"
 git tag -a v0.3.2 -m "hats 0.3.2"
 git push && git push origin v0.3.2
@@ -119,12 +115,12 @@ setup.
 Routing is exercised by the tests, but sign in and concurrency need a real
 machine and two real accounts:
 
-1. `conductor-acct add personal` and `conductor-acct add work` produce two
-   different emails in `conductor-acct list`. Same email twice means the config
+1. `hats add personal` and `hats add work` produce two
+   different emails in `hats list`. Same email twice means the config
    directory isolation broke.
-2. `conductor-acct use` in two workspaces, then a chat open in each at once,
+2. `hats use` in two workspaces, then a chat open in each at once,
    both answering, each reporting its own `CLAUDE_CONFIG_DIR`.
-3. `conductor-acct uninstall` leaves `~/.conductor/settings.toml` valid TOML
+3. `hats uninstall` leaves `~/.conductor/settings.toml` valid TOML
    with your other settings intact.
 
 ## Commit messages

@@ -90,7 +90,7 @@ Or fetch the tarball yourself, extract it, and run ./install.sh from inside."
     PROJECT="$SRC"
 }
 
-if [ -n "$SELF_DIR" ] && [ -x "$SELF_DIR/bin/conductor-acct" ]; then
+if [ -n "$SELF_DIR" ] && [ -x "$SELF_DIR/hats" ]; then
     PROJECT="$SELF_DIR"
     say "Installing from $PROJECT"
 else
@@ -104,7 +104,6 @@ fi
 mkdir -p "$BINDIR"
 cp "$PROJECT/hats" "$BINDIR/hats"
 chmod +x "$BINDIR/hats"
-ln -sf "$BINDIR/hats" "$BINDIR/conductor-acct"
 say ""
 say "hats -> $BINDIR/hats"
 case ":$PATH:" in
@@ -121,13 +120,13 @@ say "  hats patch       # inject the account panel into it"
 say ""
 say "Then open it and use Add new account. From a terminal instead:"
 say ""
-say "  conductor-acct add personal"
-say "  conductor-acct add work"
+say "  hats add personal"
+say "  hats add work"
 say ""
 say "Then pick an account per workspace, from Conductor's toolbar once patched,"
 say "with /account in any chat, or from here:"
 say ""
-say "  conductor-acct use work"
-say "  conductor-acct status"
+say "  hats use work"
+say "  hats status"
 say ""
-say "Undo everything:  conductor-acct uninstall"
+say "Undo everything:  hats uninstall"

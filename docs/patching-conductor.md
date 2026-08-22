@@ -186,11 +186,11 @@ Two further pieces made a panel rather than a demo:
 
 - `execute_shell_command` is one of 48 Tauri commands the webview can invoke, and
   it is reachable through `window.__TAURI_INTERNALS__.invoke` without the key. So
-  injected UI can call `conductor-acct` directly, and the panel needs no state of
+  injected UI can call `hats` directly, and the panel needs no state of
   its own.
 - Conductor flushes `localStorage` to `local-storage.subsystem.*.json` under
   Application Support, so injected code has a persistence path if it ever needs
-  one. This project does not: `conductor-acct` owns all state.
+  one. This project does not: `hats` owns all state.
 
 ## What is open, and to what
 

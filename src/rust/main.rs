@@ -5,6 +5,8 @@
 
 mod cli;
 mod devapp;
+mod id;
+mod lock;
 mod macho;
 mod manage;
 mod mask;
@@ -16,6 +18,7 @@ mod report;
 mod resolve;
 mod router;
 mod routes;
+mod session;
 mod settings;
 mod sign;
 mod store;
@@ -29,15 +32,47 @@ const DEV_ID: &str = "com.conductor.dev";
 
 fn usage() {
     println!(
-        "hats {}
+        "hats {}   one Claude or Codex account per Conductor workspace
 
-  hats dev-app [--force]               build an isolated Conductor copy
-  hats patch [--app PATH] [--i-know]   inject the account panel into a copy
-  hats revert [--app PATH]             restore the copy's original frontend
-  hats repatch [--keep-app|--no-launch] rebuild and re-inject after an update
-  hats assets [--app PATH] [PATTERN]   list the frontend assets in a binary
-  hats panel                           print the panel this binary carries
-  hats version
+Accounts
+  add <profile> [agent]              create a profile and sign in to it
+  login <profile> [agent]            sign in again
+  logout <profile> [agent]           sign out, keep the profile
+  remove <profile> [agent] [--force] sign out, delete the profile and its routes
+  list [--mask]                      profiles, accounts and routes
+
+Choosing one
+  use <profile> [agent] [path]       point this workspace at a profile
+  pin <profile> [agent] [session]    point one chat at a profile
+  unpin [agent] [session]            let that chat follow the workspace
+  bind <profile> [agent] [repo]      point a whole repository at one
+  unbind [agent] [repo]              drop a repository binding
+  assign <profile> [path]            the same as use, by path
+  assign default <profile>           account for workspaces with no route
+  unassign [path|default]            drop a route
+
+Reporting
+  status [path] [--mask]             what this workspace resolves to
+  which [path] [agent]               the same, with every layer that fed in
+  json [path]                        machine-readable, for the panel
+  check [path]                       one line, for an agent prompt
+  mask <email>                       the masked form shown on screen
+  doctor [path]                      check the setup end to end
+
+The panel inside Conductor
+  dev-app [--force]                  build an isolated Conductor copy
+  patch [--app PATH] [--i-know]      inject the account panel into it
+  revert [--app PATH]                restore the copy's original frontend
+  repatch [--keep-app|--no-launch]   rebuild and re-inject after an update
+  assets [--app PATH] [PATTERN]      list the frontend assets in a binary
+  panel                              print the panel this binary carries
+
+Routing
+  install                            turn routing on, add /account
+  uninstall                          turn it off again
+  session [path] [agent]             the chat currently live in a workspace
+  sessions [clear]                   show or reset per-chat pins
+  version
 
 Patching rewrites a signed application, so it works on a copy by default:
   {DEV_APP}
@@ -93,7 +128,9 @@ fn parse(rest: &[String]) -> Args {
 }
 
 fn env_path(key: &str, fallback: &str) -> PathBuf {
-    std::env::var_os(key).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(fallback))
+    std::env::var_os(key)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(fallback))
 }
 
 fn binary_in(app: &Path) -> PathBuf {
@@ -110,13 +147,11 @@ fn guard(app: &Path, i_know: bool) -> Result<(), String> {
         .map(|(a, b)| a == b)
         .unwrap_or(false);
     if same && !i_know {
-        return Err(
-            "refusing to patch your real Conductor.\n\
+        return Err("refusing to patch your real Conductor.\n\
              Build a copy first:  hats dev-app\n\
              Then:                hats patch\n\
              Override with --i-know if you really mean it."
-                .into(),
-        );
+            .into());
     }
     Ok(())
 }
@@ -140,11 +175,15 @@ pub(crate) fn cmd_patch_app(app: &Path, i_know: bool) -> Result<(), String> {
     let report = patch::inject(&binary, &backup, patch::PANEL)?;
     println!("    target   {}", report.key);
     println!("    {} compressed -> {} bytes", report.was, report.plain);
-    println!("    + {} bytes of panel -> {} compressed", patch::PANEL.len(), report.now);
+    println!(
+        "    + {} bytes of panel -> {} compressed",
+        patch::PANEL.len(),
+        report.now
+    );
     println!("    {} bytes of headroom left over", report.headroom);
 
-    let valid = sign::resign(app)?;
-    println!("    signature {}", if valid { "valid" } else { "INVALID" });
+    sign::resign(app)?;
+    println!("    signature valid");
     Ok(())
 }
 
@@ -156,8 +195,8 @@ fn cmd_revert(args: &Args) -> Result<(), String> {
     }
     std::fs::copy(&backup, &binary).map_err(|e| format!("restoring: {e}"))?;
     println!("restored {}", binary.display());
-    let valid = sign::resign(&args.app)?;
-    println!("signature {}", if valid { "valid" } else { "INVALID" });
+    sign::resign(&args.app)?;
+    println!("signature valid");
     Ok(())
 }
 

@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use crate::paths;
+use crate::{id, paths};
 
 pub struct Match {
     pub profile: String,
@@ -36,6 +36,9 @@ pub fn resolve(dir: &Path) -> Option<Match> {
         let Some((path, profile)) = split(line) else {
             continue;
         };
+        let Some(profile) = id::profile_or_none(profile) else {
+            continue;
+        };
         if path == "default" {
             fallback = Some(profile.to_string());
             continue;
@@ -44,16 +47,26 @@ pub fn resolve(dir: &Path) -> Option<Match> {
         let Some(exact) = compare(&forms, &candidates) else {
             continue;
         };
-        if best.as_ref().map(|(len, _)| path.len() > *len).unwrap_or(true) {
+        if best
+            .as_ref()
+            .map(|(len, _)| path.len() > *len)
+            .unwrap_or(true)
+        {
             best = Some((
                 path.len(),
-                Match { profile: profile.to_string(), exact },
+                Match {
+                    profile: profile.to_string(),
+                    exact,
+                },
             ));
         }
     }
 
     best.map(|(_, m)| m).or_else(|| {
-        fallback.map(|profile| Match { profile, exact: false })
+        fallback.map(|profile| Match {
+            profile,
+            exact: false,
+        })
     })
 }
 

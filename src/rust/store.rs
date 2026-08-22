@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::{paths, profile, settings};
+use crate::{lock, paths, profile, settings};
 
 pub fn ensure_root() -> Result<(), String> {
     let root = paths::accounts_root();
@@ -29,72 +29,58 @@ pub fn ensure_root() -> Result<(), String> {
     Ok(())
 }
 
-/// One route per path, last write wins.
-pub fn write_route(key: &str, profile_name: &str) -> Result<(), String> {
+/// Read, change and write the routes file under a lock, so a change made by one
+/// workspace cannot lose a change made by another between its read and its write.
+fn mutate(keep: impl Fn(&str) -> bool, add: Option<String>) -> Result<(), String> {
     ensure_root()?;
     let file = paths::routes_file();
+    let _guard = lock::Lock::acquire(&file)?;
+
     let existing = std::fs::read_to_string(&file).unwrap_or_default();
     let mut out: Vec<String> = existing
         .lines()
         .filter(|line| {
             let t = line.trim_end();
-            if t.is_empty() || t.starts_with('#') {
-                return true;
-            }
-            t.split(['\t', ' ']).next().unwrap_or("") != key
+            t.is_empty() || t.starts_with('#') || keep(t)
         })
         .map(|l| l.to_string())
         .collect();
-    out.push(format!("{key}\t{profile_name}"));
+    if let Some(line) = add {
+        out.push(line);
+    }
     let mut body = out.join("\n");
     body.push('\n');
-    std::fs::write(&file, body).map_err(|e| format!("{}: {e}", file.display()))
+    lock::write_atomic(&file, &body)
+}
+
+fn key_of(line: &str) -> &str {
+    line.split(['\t', ' ']).next().unwrap_or("")
+}
+
+/// One route per path, last write wins.
+pub fn write_route(key: &str, profile_name: &str) -> Result<(), String> {
+    let owned = key.to_string();
+    mutate(
+        move |line| key_of(line) != owned,
+        Some(format!("{key}\t{profile_name}")),
+    )
 }
 
 pub fn drop_route(key: &str) -> Result<(), String> {
-    let file = paths::routes_file();
-    if !file.is_file() {
-        return Ok(());
-    }
-    let existing = std::fs::read_to_string(&file).unwrap_or_default();
-    let kept: Vec<&str> = existing
-        .lines()
-        .filter(|line| {
-            let t = line.trim_end();
-            if t.is_empty() || t.starts_with('#') {
-                return true;
-            }
-            t.split(['\t', ' ']).next().unwrap_or("") != key
-        })
-        .collect();
-    let mut body = kept.join("\n");
-    body.push('\n');
-    std::fs::write(&file, body).map_err(|e| format!("{}: {e}", file.display()))
+    let owned = key.to_string();
+    mutate(move |line| key_of(line) != owned, None)
 }
 
 /// Every route pointing at a profile, so removing one leaves nothing dangling.
 pub fn drop_routes_to(profile_name: &str) -> Result<(), String> {
-    let file = paths::routes_file();
-    if !file.is_file() {
-        return Ok(());
-    }
-    let existing = std::fs::read_to_string(&file).unwrap_or_default();
-    let kept: Vec<&str> = existing
-        .lines()
-        .filter(|line| {
-            let t = line.trim_end();
-            if t.is_empty() || t.starts_with('#') {
-                return true;
-            }
-            match t.split_once(['\t', ' ']) {
-                Some((_, rest)) => rest.trim() != profile_name,
-                None => true,
-            }
-        })
-        .collect();
-    let mut body = kept.join("\n");
-    body.push('\n');
-    std::fs::write(&file, body).map_err(|e| format!("{}: {e}", file.display()))
+    let owned = profile_name.to_string();
+    mutate(
+        move |line| match line.split_once(['\t', ' ']) {
+            Some((_, rest)) => rest.trim() != owned,
+            None => true,
+        },
+        None,
+    )
 }
 
 /// The directory a command applies to: the argument if given, otherwise where
@@ -117,12 +103,19 @@ pub fn target_dir(arg: Option<&String>) -> Result<PathBuf, String> {
 fn logical(path: &Path) -> PathBuf {
     Command::new("sh")
         .arg("-c")
-        .arg(format!("cd {} && pwd", shell_quote(&path.to_string_lossy())))
+        .arg(format!(
+            "cd {} && pwd",
+            shell_quote(&path.to_string_lossy())
+        ))
         .output()
         .ok()
         .and_then(|o| {
             let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if s.is_empty() { None } else { Some(PathBuf::from(s)) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(PathBuf::from(s))
+            }
         })
         .unwrap_or_else(|| path.to_path_buf())
 }

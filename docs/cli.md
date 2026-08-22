@@ -1,4 +1,4 @@
-# conductor-acct
+# hats
 
 The command reference. [usage.md](usage.md) is the day to day guide.
 
@@ -50,8 +50,8 @@ are per account. `doctor` warns if a symlink is replaced by a real file.
 ## Turning it off
 
 ```sh
-conductor-acct uninstall     # router off, /account removed
-conductor-acct unbind        # per repository
+hats uninstall     # router off, /account removed
+hats unbind        # per repository
 rm -rf ~/.conductor-accounts # removes both logins
 ```
 

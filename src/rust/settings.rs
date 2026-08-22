@@ -32,21 +32,49 @@ fn write(path: &Path, body: &str) -> Result<(), String> {
     std::fs::write(path, body).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Whether a line opens a table, so a key can be matched in the table it
+/// actually belongs to. Conductor's own keys are top level, and a key of the
+/// same name inside somebody else's table is somebody else's key.
+fn table_header(line: &str) -> bool {
+    let t = line.trim_start();
+    t.starts_with('[')
+}
+
+/// A `key = value` line at the position given, ignoring comments.
+fn is_key(line: &str, key: &str) -> bool {
+    let t = line.trim_start();
+    if t.starts_with('#') {
+        return false;
+    }
+    match t.split_once('=') {
+        Some((name, _)) => name.trim() == key,
+        None => false,
+    }
+}
+
+/// Writes a top-level key above the first table, and above the blank line that
+/// separates them rather than below it, so that removing the key again leaves
+/// the file exactly as it was found.
 pub fn set_key(path: &Path, key: &str, value: &str) -> Result<(), String> {
     let existing = read(path);
     let line = format!("{key} = \"{value}\"");
     let mut out: Vec<String> = Vec::new();
     let mut placed = false;
+    let mut top_level = true;
 
     for raw in existing.lines() {
-        let trimmed = raw.trim_start();
-        if trimmed.starts_with(&format!("{key} ")) || trimmed.starts_with(&format!("{key}=")) {
+        if table_header(raw) {
+            if !placed {
+                while out.last().map(|l| l.trim().is_empty()).unwrap_or(false) {
+                    out.pop();
+                }
+                out.push(line.clone());
+                out.push(String::new());
+                placed = true;
+            }
+            top_level = false;
+        } else if top_level && is_key(raw, key) {
             continue;
-        }
-        if !placed && trimmed.starts_with('[') {
-            out.push(line.clone());
-            out.push(String::new());
-            placed = true;
         }
         out.push(raw.to_string());
     }
@@ -64,15 +92,20 @@ pub fn unset_key(path: &Path, key: &str) -> Result<(), String> {
     if !path.is_file() {
         return Ok(());
     }
-    let existing = read(path);
-    let kept: Vec<&str> = existing
-        .lines()
-        .filter(|raw| {
-            let t = raw.trim_start();
-            !(t.starts_with(&format!("{key} ")) || t.starts_with(&format!("{key}=")))
-        })
-        .collect();
-    let mut body = kept.join("\n");
+    let mut out: Vec<String> = Vec::new();
+    let mut top_level = true;
+    for raw in read(path).lines() {
+        if table_header(raw) {
+            top_level = false;
+        } else if top_level && is_key(raw, key) {
+            continue;
+        }
+        out.push(raw.to_string());
+    }
+    while out.first().map(|l| l.trim().is_empty()).unwrap_or(false) {
+        out.remove(0);
+    }
+    let mut body = out.join("\n");
     if !body.ends_with('\n') {
         body.push('\n');
     }
@@ -81,13 +114,41 @@ pub fn unset_key(path: &Path, key: &str) -> Result<(), String> {
 
 pub fn get_key(path: &Path, key: &str) -> Option<String> {
     for raw in read(path).lines() {
-        let t = raw.trim_start();
-        if t.starts_with(&format!("{key} ")) || t.starts_with(&format!("{key}=")) {
-            let value = t.split_once('=')?.1.trim();
-            return Some(value.trim_matches('"').to_string());
+        if table_header(raw) {
+            return None;
+        }
+        if is_key(raw, key) {
+            let value = raw.trim().split_once('=')?.1.trim();
+            return Some(unquote(value));
         }
     }
     None
+}
+
+/// TOML basic strings, far enough for a path: the escapes Conductor could
+/// plausibly emit, and nothing more.
+fn unquote(value: &str) -> String {
+    let trimmed = value.trim();
+    if !(trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2) {
+        return trimmed.to_string();
+    }
+    let inner = &trimmed[1..trimmed.len() - 1];
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('n') => out.push('\n'),
+            Some('t') => out.push('\t'),
+            Some('r') => out.push('\r'),
+            Some(other) => out.push(other),
+            None => break,
+        }
+    }
+    out
 }
 
 /// A repository binding, which Conductor applies itself when it spawns the agent,

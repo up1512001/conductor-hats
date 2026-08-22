@@ -48,9 +48,12 @@ export function scopeText(state: PanelState): string {
   return "No workspace in view";
 }
 
-export function footText(state: PanelState): string {
+export function footText(state: PanelState, scope?: string): string {
+  if (scope === "chat") {
+    return "Applies to this chat when it next starts. The conversation on screen keeps the account it opened with.";
+  }
   if (state.target.kind === "workspace") {
-    return "Applies to the next chat here. A chat already running keeps the account it started on.";
+    return "Applies to new chats in this workspace. Chats already running keep the account they started on.";
   }
   if (state.target.kind === "repository") {
     return "Applies to workspaces created from now on.";

@@ -22,7 +22,7 @@ pub fn install() -> Result<(), String> {
     if me != deployed {
         std::fs::copy(&me, &deployed).map_err(|e| format!("{}: {e}", deployed.display()))?;
     }
-    for name in ["claude-router", "codex-router", "conductor-acct"] {
+    for name in ["claude-router", "codex-router"] {
         let link = bin.join(name);
         let _ = std::fs::remove_file(&link);
         std::os::unix::fs::symlink(&deployed, &link)
@@ -30,13 +30,27 @@ pub fn install() -> Result<(), String> {
     }
 
     let settings_file = settings::conductor_settings();
-    settings::set_key(&settings_file, CLAUDE_KEY, &bin.join("claude-router").to_string_lossy())?;
-    settings::set_key(&settings_file, CODEX_KEY, &bin.join("codex-router").to_string_lossy())?;
+    settings::set_key(
+        &settings_file,
+        CLAUDE_KEY,
+        &bin.join("claude-router").to_string_lossy(),
+    )?;
+    settings::set_key(
+        &settings_file,
+        CODEX_KEY,
+        &bin.join("codex-router").to_string_lossy(),
+    )?;
 
     println!("Installed to {}", bin.display());
     println!("Wrote to {}:", settings_file.display());
-    println!("  {CLAUDE_KEY} = \"{}\"", bin.join("claude-router").display());
-    println!("  {CODEX_KEY}       = \"{}\"", bin.join("codex-router").display());
+    println!(
+        "  {CLAUDE_KEY} = \"{}\"",
+        bin.join("claude-router").display()
+    );
+    println!(
+        "  {CODEX_KEY}       = \"{}\"",
+        bin.join("codex-router").display()
+    );
 
     let command = settings::commands_dir().join("account.md");
     if let Some(dir) = command.parent() {
@@ -57,12 +71,12 @@ pub fn install() -> Result<(), String> {
 fn command_source() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let base = exe.parent()?;
-    for candidate in [base.join("commands/account.md"), base.join("../commands/account.md")] {
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-    }
-    None
+    [
+        base.join("commands/account.md"),
+        base.join("../commands/account.md"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
 }
 
 pub fn uninstall() -> Result<(), String> {
@@ -71,7 +85,7 @@ pub fn uninstall() -> Result<(), String> {
     settings::unset_key(&settings_file, CODEX_KEY)?;
     let _ = std::fs::remove_file(settings::commands_dir().join("account.md"));
     println!("Router off. Restart Conductor for it to take effect.");
-    println!("Your profiles and routes are untouched; conductor-acct install turns it back on.");
+    println!("Your profiles and routes are untouched; hats install turns it back on.");
     Ok(())
 }
 
@@ -92,15 +106,19 @@ pub fn doctor(dir: &Path) -> Result<(), String> {
 
     if store::router_installed() {
         println!("router:   on, via {CLAUDE_KEY}");
-        let wired = settings::get_key(&settings::conductor_settings(), CLAUDE_KEY).unwrap_or_default();
+        let wired =
+            settings::get_key(&settings::conductor_settings(), CLAUDE_KEY).unwrap_or_default();
         let bin = manage::install_bin();
         if !wired.starts_with(&bin.to_string_lossy().to_string()) {
-            println!("warn:     Conductor points at {wired}, outside {}", paths::accounts_root().display());
-            println!("          re-run 'conductor-acct install' so it cannot be deleted");
+            println!(
+                "warn:     Conductor points at {wired}, outside {}",
+                paths::accounts_root().display()
+            );
+            println!("          re-run 'hats install' so it cannot be deleted");
             ok = false;
         }
     } else {
-        println!("router:   off (repository bindings still work; conductor-acct install turns it on)");
+        println!("router:   off (repository bindings still work; hats install turns it on)");
     }
 
     for name in paths::profiles("claude") {
@@ -139,7 +157,9 @@ pub fn doctor(dir: &Path) -> Result<(), String> {
         if routed.is_empty() {
             continue;
         }
-        if !paths::profile_dir("claude", routed).is_dir() && !paths::profile_dir("codex", routed).is_dir() {
+        if !paths::profile_dir("claude", routed).is_dir()
+            && !paths::profile_dir("codex", routed).is_dir()
+        {
             println!("warn:     route {key} points at missing profile '{routed}'");
             ok = false;
         }
@@ -148,7 +168,10 @@ pub fn doctor(dir: &Path) -> Result<(), String> {
     if store::router_installed() {
         match resolve::decide("claude", dir, None, false) {
             Some(name) => println!("dry run:  {} -> {name}", dir.display()),
-            None => println!("dry run:  {} -> default account (no route, no binding)", dir.display()),
+            None => println!(
+                "dry run:  {} -> default account (no route, no binding)",
+                dir.display()
+            ),
         }
     }
 

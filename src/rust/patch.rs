@@ -24,9 +24,11 @@ pub fn decompress(blob: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 pub fn compress(data: &[u8]) -> Result<Vec<u8>, String> {
-    let mut params = brotli::enc::BrotliEncoderParams::default();
-    params.quality = 11;
-    params.size_hint = data.len();
+    let params = brotli::enc::BrotliEncoderParams {
+        quality: 11,
+        size_hint: data.len(),
+        ..Default::default()
+    };
     let mut out = Vec::new();
     {
         let mut writer = brotli::CompressorWriter::with_params(&mut out, 4096, &params);
@@ -37,20 +39,51 @@ pub fn compress(data: &[u8]) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-/// The chunk holding the toolbar and the composer.
+/// The chunk holding the toolbar and the composer, identified by name.
+///
+/// It used to fall back to the largest JavaScript asset, which is a guess: the
+/// largest chunk in some future build is whichever one happens to be largest,
+/// and injecting the panel into it produces an application that launches with
+/// no panel and a rewritten bundle. Refusing is the better failure, because it
+/// says what changed.
 pub fn pick_bundle(assets: Vec<Asset>) -> Result<Asset, String> {
-    let mut js: Vec<Asset> = assets
+    let js: Vec<Asset> = assets
         .into_iter()
         .filter(|a| a.key.ends_with(".js"))
         .collect();
     if js.is_empty() {
         return Err("no JavaScript assets found: is this a Conductor binary?".into());
     }
-    if let Some(i) = js.iter().position(|a| a.key.contains("renderApp")) {
-        return Ok(js.swap_remove(i));
+    let mut named: Vec<Asset> = js
+        .into_iter()
+        .filter(|a| a.key.contains("renderApp"))
+        .collect();
+    match named.len() {
+        1 => Ok(named.pop().expect("checked length")),
+        0 => Err(
+            "no renderApp asset in this build, so the panel has nowhere to go.\n\
+                  Conductor's bundle layout has changed; hats needs updating rather \
+                  than guessing at another chunk."
+                .into(),
+        ),
+        n => Err(format!(
+            "{n} assets look like renderApp, so which one holds the toolbar is a guess.\n\
+             Conductor's bundle layout has changed; hats needs updating."
+        )),
     }
-    js.sort_by_key(|a| a.length);
-    Ok(js.pop().expect("checked non-empty"))
+}
+
+/// Enough of the frontend to be sure the chunk is the one the panel expects,
+/// checked after decompressing rather than on the compressed bytes.
+const ANCHORS: [&str; 2] = ["createElement", "useState"];
+
+/// A rename does not carry the executable bit from the file it replaced.
+fn copy_mode(from: &Path, to: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(meta) = std::fs::metadata(from) {
+        let mode = meta.permissions().mode();
+        let _ = std::fs::set_permissions(to, std::fs::Permissions::from_mode(mode));
+    }
 }
 
 pub fn backup_path(app: &Path) -> PathBuf {
@@ -80,20 +113,29 @@ pub struct Report {
     pub headroom: usize,
 }
 
-/// Patch `binary` in place, starting from `pristine` so patching twice is not a
-/// stack.
+/// Build the patched binary from `pristine`, then put it in place in one step.
+///
+/// The live binary is not touched until the complete patched image exists, so a
+/// failure anywhere above leaves the previous installation exactly as it was.
+/// Starting from `pristine` is also what keeps patching twice from stacking.
 pub fn inject(binary: &Path, pristine: &Path, script: &str) -> Result<Report, String> {
-    std::fs::copy(pristine, binary).map_err(|e| format!("restoring the pristine copy: {e}"))?;
-
-    let macho = MachO::open(binary)?;
+    let macho = MachO::open(pristine)?;
     let asset = pick_bundle(macho.assets())?;
     let original = macho
         .data
         .get(asset.offset..asset.offset + asset.length)
         .ok_or("the asset map points outside the file")?;
     let plain = decompress(original)?;
-    if String::from_utf8_lossy(&plain).contains(MARKER) {
+    let text = String::from_utf8_lossy(&plain);
+    if text.contains(MARKER) {
         return Err("this binary already contains the account panel".into());
+    }
+    if let Some(missing) = ANCHORS.iter().find(|a| !text.contains(*a)) {
+        return Err(format!(
+            "{} does not look like Conductor's frontend: no {missing}.\n\
+             Refusing to patch rather than rewrite a chunk this does not understand.",
+            asset.key
+        ));
     }
 
     let mut merged = plain.clone();
@@ -115,7 +157,8 @@ pub fn inject(binary: &Path, pristine: &Path, script: &str) -> Result<Report, St
         *byte = 0;
     }
     data[asset.entry + 24..asset.entry + 32].copy_from_slice(&(packed.len() as u64).to_le_bytes());
-    std::fs::write(binary, &data).map_err(|e| format!("writing {}: {e}", binary.display()))?;
+    crate::lock::write_atomic_bytes(binary, &data)?;
+    copy_mode(pristine, binary);
 
     Ok(Report {
         key: asset.key,

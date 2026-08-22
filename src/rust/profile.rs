@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::paths;
+use crate::{id, paths};
 
 /// The cached address, written after a sign-in and removed on sign-out.
 pub fn label(agent: &str, profile: &str) -> Option<String> {
@@ -23,22 +23,29 @@ pub fn refresh_label(agent: &str, profile: &str) -> Option<String> {
     Some(found)
 }
 
-/// The first `"key": "value"` in a blob, without depending on a JSON parser for
-/// one field.
+/// The first string value stored under `key`, searched depth first.
+///
+/// Parsed rather than scanned: looking for the literal `"emailAddress"` found it
+/// inside unrelated values as readily as in the field, and picked up whatever
+/// happened to follow. The providers do not promise where the field sits, so the
+/// search is recursive rather than a fixed path.
 fn extract(text: &str, key: &str) -> Option<String> {
-    let needle = format!("\"{key}\"");
-    let at = text.find(&needle)?;
-    let rest = &text[at + needle.len()..];
-    let colon = rest.find(':')?;
-    let after = &rest[colon + 1..];
-    let open = after.find('"')?;
-    let tail = &after[open + 1..];
-    let close = tail.find('"')?;
-    let value = &tail[..close];
-    if value.is_empty() {
-        None
-    } else {
-        Some(value.to_string())
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    find_string(&value, key)
+}
+
+fn find_string(value: &serde_json::Value, key: &str) -> Option<String> {
+    match value {
+        serde_json::Value::Object(map) => {
+            if let Some(serde_json::Value::String(found)) = map.get(key) {
+                if !found.is_empty() {
+                    return Some(found.clone());
+                }
+            }
+            map.values().find_map(|v| find_string(v, key))
+        }
+        serde_json::Value::Array(items) => items.iter().find_map(|v| find_string(v, key)),
+        _ => None,
     }
 }
 
@@ -68,11 +75,16 @@ pub fn signed_in(agent: &str, profile: &str) -> bool {
 }
 
 fn non_empty(path: &Path) -> bool {
-    std::fs::metadata(path).map(|m| m.len() > 0).unwrap_or(false)
+    std::fs::metadata(path)
+        .map(|m| m.len() > 0)
+        .unwrap_or(false)
 }
 
 fn keychain_service(dir: &Path) -> String {
-    format!("Claude Code-credentials-{}", sha256_prefix(&dir.to_string_lossy()))
+    format!(
+        "Claude Code-credentials-{}",
+        sha256_prefix(&dir.to_string_lossy())
+    )
 }
 
 fn keychain_has(service: &str) -> bool {
@@ -100,7 +112,10 @@ fn sha256_prefix(input: &str) -> String {
     let Ok(out) = child.wait_with_output() else {
         return String::new();
     };
-    String::from_utf8_lossy(&out.stdout).chars().take(8).collect()
+    String::from_utf8_lossy(&out.stdout)
+        .chars()
+        .take(8)
+        .collect()
 }
 
 /// Which other profile already holds this address. One live token per account, so
@@ -115,23 +130,16 @@ pub fn with_email(agent: &str, email: &str, skip: &str) -> Option<String> {
 }
 
 pub fn require(agent: &str, profile: &str) -> Result<(), String> {
+    id::profile(profile)?;
     if paths::profile_dir(agent, profile).is_dir() {
         Ok(())
     } else {
         Err(format!(
-            "no such {agent} profile '{profile}' (run: conductor-acct add {profile} {agent})"
+            "no such {agent} profile '{profile}' (run: hats add {profile} {agent})"
         ))
     }
 }
 
 pub fn valid_name(name: &str) -> Result<(), String> {
-    if !name.is_empty()
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
-        Ok(())
-    } else {
-        Err("profile names may only contain letters, digits, - and _".into())
-    }
+    id::profile(name).map(|_| ())
 }

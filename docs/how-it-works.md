@@ -151,7 +151,7 @@ projects  skills  plugins  commands  agents  settings.json  CLAUDE.md
 
 Transcripts live in `projects`, so `--resume` keeps working when a workspace
 changes account, and your skills and hooks are the same on every account. Only
-credentials and `.claude.json` are per account. `conductor-acct doctor` warns
+credentials and `.claude.json` are per account. `hats doctor` warns
 when one of those symlinks has been replaced by a real file, which is what
 happens if a tool writes through it.
 

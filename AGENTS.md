@@ -16,7 +16,7 @@ for an unpatched install rather than the feature. Three ways to drive it:
 
 | Where you drive it | Survives a Conductor update | Code |
 |---|---|---|
-| `conductor-acct` CLI | yes | `bin/`, `lib/` |
+| `hats` CLI | yes | `bin/`, `lib/` |
 | `/account` in the chat | yes | `commands/account.md` |
 | Injected in-app panel | **no**, re-apply after each release | `src/panel/`, `tools/` |
 
@@ -59,8 +59,8 @@ Exempt, because they are not written by hand or are prose:
 - Markdown under `docs/`, and the Markdown at the root
 
 A file approaching the limit is a file doing more than one job. Split by
-responsibility, not by line count: `lib/routes.sh` and `lib/keychain.sh`, never
-`lib/conductor-acct-part-2.sh`.
+responsibility, not by line count: `routes.rs` and `profile.rs`, never
+`cli-part-2.rs`.
 
 ### Everything in the folder that owns it
 
@@ -76,7 +76,7 @@ docs/           prose
 commands/       the /account slash command
 ```
 
-One binary answers to four names. `install.sh` symlinks `conductor-acct`,
+One binary answers to four names. `install.sh` symlinks `hats`,
 `claude-router` and `codex-router` at `hats`, and it reports itself as whichever
 name invoked it.
 
@@ -112,7 +112,7 @@ one, mask it there too, and add it to the test.
 
 ### One source of truth for state
 
-`conductor-acct` owns all state. The panel and the chat command read it and write
+`hats` owns all state. The panel and the chat command read it and write
 through it; neither keeps its own copy. If the panel and the CLI can disagree
 about anything, that is the bug.
 
@@ -175,15 +175,16 @@ cargo build --release   # embeds dist/account-ui.js into the binary
 ```sh
 pnpm install
 pnpm typecheck
-pnpm build            # tests that read the artifact need it built
-test/run.sh
-shellcheck -x --source-path=SCRIPTDIR \
-  bin/conductor-acct bin/_resolve.sh bin/claude-router bin/codex-router \
-  lib/*.sh test/run.sh test/harness.sh test/*.test.sh \
-  install.sh
+pnpm build            # the binary embeds dist/account-ui.js
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all
+shellcheck -x --source-path=SCRIPTDIR install.sh
 ```
 
-Zero shellcheck findings is the bar; it exits non-zero on info notes too.
+Zero findings is the bar in each. install.sh is the only shell in the
+repository: it is the `curl | sh` bootstrap, so it runs before there is a binary
+to run anything else with.
 
 Then: add a `CHANGELOG.md` entry, and keep `CONDUCTOR_ACCT_VERSION` in step with
 the version in the panel source. They ship together, so a skew is a bug. A test
@@ -195,10 +196,10 @@ Every source file is under 300 lines and in the folder that owns it, and a test
 enforces both. There is no allowlist to add to: the next file over the limit fails
 the suite.
 
-The three files that used to break the rule were split rather than exempted:
-`bin/conductor-acct` into `lib/*.sh` with dispatch left behind, the single
-injected script into `src/panel/*.ts` plus SCSS partials, and `test/run.sh` into
-`test/harness.sh` and one file per area.
+Files that outgrew the limit were split rather than exempted: the injected script
+into `src/panel/*.ts` plus SCSS partials, the test suite into `test/harness.sh`
+and one file per area, and the Rust dispatch into `cli.rs` when `main.rs` reached
+349 lines.
 
 ## Escalate, don't improvise
 

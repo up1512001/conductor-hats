@@ -31,3 +31,46 @@
   font-size: 12px;
   font-weight: 600;
 }
+
+/**
+ * The scope switch: which layer a selection writes to.
+ *
+ * Two layers can hold an account, the workspace and one chat, and a click had to
+ * pick one silently. Segments rather than a dropdown because both options are
+ * always relevant and a closed menu would hide which one is armed. Fixed height
+ * and equal flex so switching segment cannot reflow the rows beneath it.
+ */
+.cma-scope {
+  display: flex;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 26px;
+  padding: 2px;
+  margin: 0 0 8px;
+  background: var(--elev, rgba(255, 255, 255, 0.04));
+  border-radius: $radius-inner;
+}
+
+.cma-seg {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: calc(#{$radius-inner} - 2px);
+  transition: background 0.12s, color 0.12s;
+
+  &:hover {
+    color: var(--fg);
+  }
+}
+
+.cma-seg-on {
+  color: var(--fg);
+  background: var(--sel, rgba(255, 255, 255, 0.09));
+}

@@ -104,7 +104,10 @@ fn quit(app: &Path) {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
     println!("    still running, asking harder");
-    let _ = Command::new("pkill").arg("-f").arg(inner.to_string_lossy().to_string()).status();
+    let _ = Command::new("pkill")
+        .arg("-f")
+        .arg(inner.to_string_lossy().to_string())
+        .status();
     std::thread::sleep(std::time::Duration::from_secs(2));
 }
 

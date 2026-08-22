@@ -5,7 +5,7 @@
  * providers, then that provider's accounts.
  *
  * Works against the DOM, not Conductor's React code, and finds anchors by product
- * copy because minified names change every release. conductor-acct holds all
+ * copy because minified names change every release. hats holds all
  * state; this only reads and writes through it.
  */
 

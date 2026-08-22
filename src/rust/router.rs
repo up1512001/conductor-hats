@@ -23,7 +23,10 @@ const ROUTING: &str = "CONDUCTOR_ACCOUNTS_ROUTING";
 /// session made a flag-based guard refuse every agent. One stale generation is
 /// tolerated; a real loop trips on the second.
 fn guard(agent: &str) -> Result<u32, i32> {
-    let depth: u32 = std::env::var(DEPTH).ok().and_then(|d| d.parse().ok()).unwrap_or(0);
+    let depth: u32 = std::env::var(DEPTH)
+        .ok()
+        .and_then(|d| d.parse().ok())
+        .unwrap_or(0);
     if depth >= 2 {
         eprintln!("{agent}-router: refusing to route into itself (depth {depth})");
         return Err(70);
@@ -38,7 +41,9 @@ pub fn run(agent: &str, args: Vec<String>) -> ! {
     };
 
     let var = paths::env_var_for(agent);
-    let env_bound = std::env::var_os(var).map(|v| !v.is_empty()).unwrap_or(false);
+    let env_bound = std::env::var_os(var)
+        .map(|v| !v.is_empty())
+        .unwrap_or(false);
 
     let decision = catch_unwind(AssertUnwindSafe(|| {
         let dir = paths::workspace_dir();

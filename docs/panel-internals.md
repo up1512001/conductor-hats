@@ -44,7 +44,7 @@ anyone should be able to rebuild exactly what was published.
 
 ## Why it is built the way it is
 
-**No state of its own.** Every read is `conductor-acct json`, every write is
+**No state of its own.** Every read is `hats json`, every write is
 `use`, `bind`, `logout` or `login-*`, run through Conductor's own
 `execute_shell_command` Tauri command. The panel, the CLI and `/account` cannot
 disagree, because only one of them owns anything.
@@ -62,7 +62,7 @@ behave. `click` is still handled for keyboard activation, guarded against
 double-toggling.
 
 *Every render pass cost a process spawn.* The label refresh ran from the mutation
-observer, and each refresh shells out to `conductor-acct json`, which runs the
+observer, and each refresh shells out to `hats json`, which runs the
 router twice internally to answer. During a streaming chat that was several spawns
 a second, and a press's own read then queued behind the backlog. Now: one
 in-flight read shared by all callers, a four-second cache after it, invalidated by
@@ -83,7 +83,7 @@ top right so a missing anchor is visible rather than silent.
 
 **It knows where it is by matching the chrome against Conductor's database.**
 The webview runs an in-memory router, so `location` never carries a workspace
-id. `conductor-acct workspaces` and `repos` list every name and path from every
+id. `hats workspaces` and `repos` list every name and path from every
 `com.conductor*` database on the machine, and the panel matches the app chrome
 against them, longest name first so `rio-branch` cannot be beaten by a repo
 called `rio`. Globbing the databases matters: a patched copy keeps its own, and

@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::{mask, paths, profile, resolve, routes, settings, store};
+use crate::{mask, paths, profile, resolve, routes, session, settings, store};
 
 pub fn list(masked: bool) -> Result<(), String> {
     store::ensure_root()?;
@@ -44,7 +44,7 @@ pub fn list(masked: bool) -> Result<(), String> {
     if store::router_installed() {
         println!("router: on");
     } else {
-        println!("router: off   (repository bindings still work; conductor-acct install turns it on)");
+        println!("router: off   (repository bindings still work; hats install turns it on)");
     }
     Ok(())
 }
@@ -59,7 +59,11 @@ pub fn status(dir: &Path, masked: bool) -> Result<(), String> {
             Some(resolved) => {
                 let name = store::profile_from_dir(&resolved).unwrap_or(resolved.clone());
                 let label = store::label_for_display(agent, &name, masked);
-                let suffix = if label.is_empty() { String::new() } else { format!("  {label}") };
+                let suffix = if label.is_empty() {
+                    String::new()
+                } else {
+                    format!("  {label}")
+                };
                 println!("{agent:<7} {name}{suffix}");
             }
             None => println!("{agent:<7} (default account)"),
@@ -85,6 +89,17 @@ pub fn which(dir: &Path, agent: &str) -> Result<(), String> {
             p.clone().unwrap_or_else(|| b.clone())
         ),
         (None, _) => println!("binding:    (none)"),
+    }
+
+    match session::current(agent, dir) {
+        session::Current::Chat(live) => match session::pinned(agent, &live) {
+            Some(name) => println!("chat:       {name}   (pinned, {live})"),
+            None => println!("chat:       (follows the workspace, {live})"),
+        },
+        session::Current::Idle => println!("chat:       (none active here recently)"),
+        session::Current::Ambiguous(n) => {
+            println!("chat:       (ambiguous, {n} written at once)")
+        }
     }
 
     match routes::resolve(dir) {
@@ -152,43 +167,86 @@ pub fn check(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
+/// The panel reads this, so the field names are a contract. Serialised rather
+/// than formatted: a profile name or an address containing a quote or a
+/// backslash used to produce JSON the panel could not parse.
+#[derive(serde::Serialize)]
+struct Account {
+    name: String,
+    email: String,
+    active: bool,
+    #[serde(rename = "signedIn")]
+    signed_in: bool,
+}
+
+/// `current` is the workspace, which is what the toolbar control sets. `chat` is
+/// what the conversation on screen actually resolves to, which differs whenever
+/// that chat carries a pin. Reporting only the first made every chat in a
+/// workspace claim the same account.
+#[derive(serde::Serialize)]
+struct Provider {
+    agent: String,
+    current: String,
+    session: String,
+    chat: String,
+    pinned: bool,
+    accounts: Vec<Account>,
+}
+
+#[derive(serde::Serialize)]
+struct State {
+    workspace: String,
+    repo: String,
+    enabled: bool,
+    providers: Vec<Provider>,
 }
 
 pub fn json(dir: &Path) -> Result<(), String> {
     store::ensure_root()?;
-    let repo = store::repo_root(dir);
-    print!(
-        "{{\"workspace\":\"{}\",\"repo\":\"{}\",\"enabled\":{},\"providers\":[",
-        escape(&dir.to_string_lossy()),
-        escape(&repo.to_string_lossy()),
-        store::router_installed()
-    );
-    for (i, agent) in ["claude", "codex"].iter().enumerate() {
-        if i > 0 {
-            print!(",");
-        }
+    let mut providers = Vec::new();
+    for agent in ["claude", "codex"] {
         let current = store::effective_dir(agent, dir)
             .as_deref()
             .and_then(store::profile_from_dir)
             .unwrap_or_default();
-        print!("{{\"agent\":\"{agent}\",\"current\":\"{}\",\"accounts\":[", escape(&current));
-        for (j, name) in paths::profiles(agent).iter().enumerate() {
-            if j > 0 {
-                print!(",");
-            }
-            print!(
-                "{{\"name\":\"{}\",\"email\":\"{}\",\"active\":{},\"signedIn\":{}}}",
-                escape(name),
-                escape(&profile::label(agent, name).unwrap_or_default()),
-                *name == current,
-                profile::signed_in(agent, name)
-            );
-        }
-        print!("]}}");
+        let live = match session::current(agent, dir) {
+            session::Current::Chat(id) => id,
+            _ => String::new(),
+        };
+        let pin = if live.is_empty() {
+            None
+        } else {
+            session::pinned(agent, &live)
+        };
+        let chat = pin.clone().unwrap_or_else(|| current.clone());
+
+        let accounts = paths::profiles(agent)
+            .into_iter()
+            .map(|name| Account {
+                email: profile::label(agent, &name).unwrap_or_default(),
+                active: name == current,
+                signed_in: profile::signed_in(agent, &name),
+                name,
+            })
+            .collect();
+        providers.push(Provider {
+            agent: agent.to_string(),
+            current,
+            session: live,
+            pinned: pin.is_some(),
+            chat,
+            accounts,
+        });
     }
-    println!("]}}");
+
+    let state = State {
+        workspace: dir.to_string_lossy().to_string(),
+        repo: store::repo_root(dir).to_string_lossy().to_string(),
+        enabled: store::router_installed(),
+        providers,
+    };
+    let body = serde_json::to_string(&state).map_err(|e| format!("serialising state: {e}"))?;
+    println!("{body}");
     Ok(())
 }
 

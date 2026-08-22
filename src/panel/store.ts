@@ -9,6 +9,9 @@ import type { PanelState } from "./state.js";
 export interface View {
   level: "root" | "provider";
   agent?: string;
+  /** Which layer a selection writes to. Defaults to the workspace, which is what
+   * the control in the toolbar names. */
+  scope?: "workspace" | "chat";
 }
 
 export interface OpenPanel {

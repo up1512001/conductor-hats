@@ -76,7 +76,7 @@ export function signInForm(agent: string, opts: SignInOptions): void {
             status.textContent =
               `${cap(clash)} is already signed in as ${maskEmail(email)}. ` +
               "One account cannot be two profiles, so they will sign each other " +
-              `out. Remove one with conductor-acct remove ${clash}.`;
+              `out. Remove one with hats remove ${clash}.`;
             go.remove();
             if (codeField) codeField.remove();
             setTimeout(() => void reload(), 4000);

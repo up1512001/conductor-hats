@@ -109,7 +109,7 @@ export function refreshToolbarLabel(btn: HTMLElement, state?: PanelState): void 
     .catch((e) => {
       const lbl = btn.querySelector(".cma-label");
       if (lbl) lbl.textContent = "Account?";
-      btn.title = "conductor-acct did not answer: " + message(e);
+      btn.title = "hats did not answer: " + message(e);
       (btn as HTMLButtonElement).hidden = false;
     });
 }
