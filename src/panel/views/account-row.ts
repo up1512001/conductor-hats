@@ -6,22 +6,28 @@ import { dialog } from "../dialog.js";
 import { icon } from "../icons.js";
 import { maskEmail } from "../mask.js";
 import { applyAccount } from "../state.js";
-import type { Account, PanelState, Provider } from "../state.js";
+import type { Account, PanelState, Provider, Scope } from "../state.js";
 import { panel, reload } from "../store.js";
 import { signInForm } from "./sign-in.js";
 
 export function accountSlot(
   state: PanelState,
   provider: Provider,
-  account: Account
+  account: Account,
+  scope: Scope = "workspace"
 ): HTMLElement {
+  /* The tick follows the layer being edited. Reading `active` in both would tick
+   * the workspace's account while the chat sits on another one, which is the
+   * misreporting this scope switch exists to end. */
+  const chosen = scope === "chat" ? provider.chat : provider.current;
+  const active = account.name === chosen;
   const slot = el("div", "cma-slot");
   const row = el("div", "cma-row2");
 
   const card = el("button", "cma-card");
   card.type = "button";
   card.setAttribute("role", "menuitemradio");
-  card.setAttribute("aria-checked", account.active ? "true" : "false");
+  card.setAttribute("aria-checked", active ? "true" : "false");
 
   const main = el("div", "cma-grow");
   const shown = account.email ? maskEmail(account.email) : cap(account.name);
@@ -38,7 +44,7 @@ export function accountSlot(
   card.appendChild(main);
 
   const tickslot = el("div", "cma-tickslot");
-  if (account.active) tickslot.appendChild(icon("tick", 13));
+  if (active) tickslot.appendChild(icon("tick", 13));
   card.appendChild(tickslot);
 
   if (state.target.kind === "none") {
@@ -47,7 +53,7 @@ export function accountSlot(
     card.title = "Open a workspace, or the New Workspace dialog, to pick an account";
   } else {
     card.addEventListener("click", () => {
-      applyAccount(state, provider.agent, account.name)
+      applyAccount(state, provider.agent, account.name, scope)
         .then(() => reload())
         .catch((e) => note(panel ? panel.el : row, message(e)));
     });

@@ -75,7 +75,10 @@ fn json_keeps_the_field_names_the_panel_expects() {
     };
     assert_eq!(keys(&state), ["enabled", "providers", "repo", "workspace"]);
     let provider = &state["providers"][0];
-    assert_eq!(keys(provider), ["accounts", "agent", "current"]);
+    assert_eq!(
+        keys(provider),
+        ["accounts", "agent", "chat", "current", "pinned", "session"]
+    );
     assert_eq!(
         keys(&provider["accounts"][0]),
         ["active", "email", "name", "signedIn"]

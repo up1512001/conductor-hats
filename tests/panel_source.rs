@@ -140,7 +140,7 @@ fn display_names_are_capitalised_without_touching_the_cli() {
         "display casing",
     );
     assert_eq!(
-        src.matches("applyAccount(state, provider.agent, account.name)")
+        src.matches("applyAccount(state, provider.agent, account.name, scope)")
             .count(),
         1,
         "writes must send the raw name"

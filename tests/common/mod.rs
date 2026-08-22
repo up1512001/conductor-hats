@@ -90,7 +90,8 @@ impl Sandbox {
 
     fn base(&self, program: &str) -> Command {
         let mut cmd = Command::new(program);
-        cmd.env("CONDUCTOR_ACCOUNTS_ROOT", self.accounts())
+        cmd.env("HOME", &self.root)
+            .env("CONDUCTOR_ACCOUNTS_ROOT", self.accounts())
             .env("CONDUCTOR_ACCT_SETTINGS_FILE", self.settings())
             .env("CONDUCTOR_ACCT_COMMANDS_DIR", self.root.join("commands"))
             .env(
@@ -178,6 +179,20 @@ impl Sandbox {
             .find_map(|l| l.strip_prefix(var))
             .unwrap_or_default()
             .to_string()
+    }
+
+    /// A chat transcript, which is how the CLI works out which chat is live.
+    /// Written under the shared projects directory, keyed by the workspace path
+    /// with every separator replaced by a dash, exactly as the agent writes it.
+    pub fn transcript(&self, workspace: &str, session: &str) {
+        let encoded = self
+            .root
+            .join(workspace)
+            .to_string_lossy()
+            .replace('/', "-");
+        let dir = self.root.join(".claude/projects").join(encoded);
+        std::fs::create_dir_all(&dir).expect("a transcript directory");
+        std::fs::write(dir.join(format!("{session}.jsonl")), "{}\n").expect("a transcript");
     }
 
     /// A profile that exists and has an address cached, without signing in.

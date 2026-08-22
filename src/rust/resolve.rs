@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::{id, paths, routes};
+use crate::{id, paths, routes, session};
 
 /// Highest precedence first:
 ///
@@ -25,7 +25,7 @@ pub fn decide(agent: &str, dir: &Path, session: Option<&str>, env_bound: bool) -
     }
 
     if let Some(session) = session.and_then(id::session) {
-        if let Some(pinned) = paths::first_line(&pin_path(agent, session)) {
+        if let Some(pinned) = paths::first_line(&session::pin_path(agent, session)) {
             if let Some(valid) = id::profile_or_none(&pinned) {
                 return Some(valid.to_string());
             }
@@ -45,10 +45,6 @@ pub fn decide(agent: &str, dir: &Path, session: Option<&str>, env_bound: bool) -
     let profile = found.map(|m| m.profile)?;
     remember(agent, session, &profile);
     Some(profile)
-}
-
-fn pin_path(agent: &str, session: &str) -> PathBuf {
-    paths::session_dir().join(agent).join(session)
 }
 
 fn remember(agent: &str, session: Option<&str>, profile: &str) {

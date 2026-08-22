@@ -29,6 +29,26 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Every offset read out of a Mach-O is bounds-checked. A malformed binary
   produces an error rather than a panic or a read past the buffer.
 
+### Added
+
+- **An account per chat, not just per workspace.** A workspace holds many chats
+  and each runs its own agent process, but the panel only ever read the
+  workspace route, so every chat in a workspace claimed the same account and
+  switching from the toolbar appeared to move all of them while the running ones
+  stayed exactly where they were. The panel now reports what the chat on screen
+  actually resolves to, and a scope switch says which layer a selection writes
+  to. `hats pin`, `hats unpin` and `hats session` expose the same thing in the
+  terminal, and `hats json` carries `session`, `chat` and `pinned`.
+
+  A pin cannot move a conversation that is already running: its agent took a
+  config directory when it spawned and never reads one again. It decides the
+  next process Conductor starts for that chat, and every message that mentions
+  it says so.
+
+  Which chat is live is read from the newest transcript in the workspace's
+  project directory. Two written within two seconds of each other are both
+  plausibly on screen, so that case is refused rather than guessed at.
+
 ### Fixed
 
 - **Concurrent account changes lost each other.** Every workspace shares one

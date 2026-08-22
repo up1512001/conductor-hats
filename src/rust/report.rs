@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::{mask, paths, profile, resolve, routes, settings, store};
+use crate::{mask, paths, profile, resolve, routes, session, settings, store};
 
 pub fn list(masked: bool) -> Result<(), String> {
     store::ensure_root()?;
@@ -91,6 +91,17 @@ pub fn which(dir: &Path, agent: &str) -> Result<(), String> {
         (None, _) => println!("binding:    (none)"),
     }
 
+    match session::current(agent, dir) {
+        session::Current::Chat(live) => match session::pinned(agent, &live) {
+            Some(name) => println!("chat:       {name}   (pinned, {live})"),
+            None => println!("chat:       (follows the workspace, {live})"),
+        },
+        session::Current::Idle => println!("chat:       (none active here recently)"),
+        session::Current::Ambiguous(n) => {
+            println!("chat:       (ambiguous, {n} written at once)")
+        }
+    }
+
     match routes::resolve(dir) {
         Some(m) if m.exact => println!("route:      {}   (this workspace)", m.profile),
         Some(m) => println!(
@@ -168,10 +179,17 @@ struct Account {
     signed_in: bool,
 }
 
+/// `current` is the workspace, which is what the toolbar control sets. `chat` is
+/// what the conversation on screen actually resolves to, which differs whenever
+/// that chat carries a pin. Reporting only the first made every chat in a
+/// workspace claim the same account.
 #[derive(serde::Serialize)]
 struct Provider {
     agent: String,
     current: String,
+    session: String,
+    chat: String,
+    pinned: bool,
     accounts: Vec<Account>,
 }
 
@@ -191,6 +209,17 @@ pub fn json(dir: &Path) -> Result<(), String> {
             .as_deref()
             .and_then(store::profile_from_dir)
             .unwrap_or_default();
+        let live = match session::current(agent, dir) {
+            session::Current::Chat(id) => id,
+            _ => String::new(),
+        };
+        let pin = if live.is_empty() {
+            None
+        } else {
+            session::pinned(agent, &live)
+        };
+        let chat = pin.clone().unwrap_or_else(|| current.clone());
+
         let accounts = paths::profiles(agent)
             .into_iter()
             .map(|name| Account {
@@ -203,6 +232,9 @@ pub fn json(dir: &Path) -> Result<(), String> {
         providers.push(Provider {
             agent: agent.to_string(),
             current,
+            session: live,
+            pinned: pin.is_some(),
+            chat,
             accounts,
         });
     }

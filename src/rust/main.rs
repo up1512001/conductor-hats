@@ -18,6 +18,7 @@ mod report;
 mod resolve;
 mod router;
 mod routes;
+mod session;
 mod settings;
 mod sign;
 mod store;
@@ -42,6 +43,8 @@ Accounts
 
 Choosing one
   use <profile> [agent] [path]       point this workspace at a profile
+  pin <profile> [agent] [session]    point one chat at a profile
+  unpin [agent] [session]            let that chat follow the workspace
   bind <profile> [agent] [repo]      point a whole repository at one
   unbind [agent] [repo]              drop a repository binding
   assign <profile> [path]            the same as use, by path
@@ -67,7 +70,8 @@ The panel inside Conductor
 Routing
   install                            turn routing on, add /account
   uninstall                          turn it off again
-  sessions [clear]                   show or reset per-session pins
+  session [path] [agent]             the chat currently live in a workspace
+  sessions [clear]                   show or reset per-chat pins
   version
 
 Patching rewrites a signed application, so it works on a copy by default:

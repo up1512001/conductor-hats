@@ -3,7 +3,7 @@
 //! The surface matches the shell CLI it replaces, because the test suite is the
 //! contract and runs against either implementation.
 
-use crate::{id, manage, paths, report, store, wiring};
+use crate::{id, manage, paths, report, session, store, wiring};
 
 pub fn agent_of(arg: Option<&String>) -> Result<String, String> {
     id::agent(arg.map(String::as_str).unwrap_or("claude")).map(str::to_string)
@@ -48,6 +48,9 @@ pub fn is_account_command(cmd: &str) -> bool {
             | "logout"
             | "remove"
             | "sessions"
+            | "session"
+            | "pin"
+            | "unpin"
             | "install"
             | "uninstall"
             | "doctor"
@@ -155,6 +158,52 @@ pub fn run(cmd: &str, rest: &[String]) -> Result<(), String> {
             rest.iter().any(|a| a == "--force"),
         ),
         "sessions" => manage::sessions(positional.first().map(String::as_str) == Some("clear")),
+        "session" => {
+            let dir = store::target_dir(positional.first())?;
+            let agent = agent_of(positional.get(1)).unwrap_or_else(|_| "claude".into());
+            match session::current(&agent, &dir) {
+                session::Current::Chat(s) => println!("{s}"),
+                session::Current::Idle => println!("(no chat active here recently)"),
+                session::Current::Ambiguous(n) => {
+                    println!("(ambiguous: {n} chats written at once)")
+                }
+            }
+            Ok(())
+        }
+        "pin" => {
+            let name = positional
+                .first()
+                .cloned()
+                .ok_or("usage: hats pin <profile> [agent] [session]")?;
+            let agent = agent_of(positional.get(1)).unwrap_or_else(|_| "claude".into());
+            let skip = if positional
+                .get(1)
+                .map(|a| a == "claude" || a == "codex")
+                .unwrap_or(false)
+            {
+                2
+            } else {
+                1
+            };
+            let dir = paths::workspace_dir();
+            let target = session::target(&agent, &dir, positional.get(skip))?;
+            session::pin(&name, &agent, &target)
+        }
+        "unpin" => {
+            let agent = agent_of(positional.first()).unwrap_or_else(|_| "claude".into());
+            let skip = if positional
+                .first()
+                .map(|a| a == "claude" || a == "codex")
+                .unwrap_or(false)
+            {
+                1
+            } else {
+                0
+            };
+            let dir = paths::workspace_dir();
+            let target = session::target(&agent, &dir, positional.get(skip))?;
+            session::unpin(&agent, &target)
+        }
         "install" => wiring::install(),
         "uninstall" => wiring::uninstall(),
         "doctor" => store::target_dir(positional.first()).and_then(|d| wiring::doctor(&d)),
