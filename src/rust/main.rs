@@ -63,6 +63,8 @@ Reporting
   json [path]                        machine-readable, for the panel
   workspaces                         every workspace Conductor knows, name and path
   repos                              every repository, the same
+  resolve <workspace-id>             its path, for the panel
+  resolve-repo <repository-id>       the same for a repository
   check [path]                       one line, for an agent prompt
   mask <email>                       the masked form shown on screen
   doctor [path]                      check the setup end to end
@@ -261,6 +263,9 @@ fn main() {
             launch: args.launch,
         }),
         "workspaces" | "repos" => places::run(cmd),
+        "resolve" | "resolve-repo" => {
+            places::resolve(cmd, rest.first().map(String::as_str).unwrap_or(""))
+        }
         "assets" => patch::list(&args.app, args.pattern.as_deref(), args.dump),
         "verify" => verify::run(&args.app),
         "reset-keychain" => {

@@ -18,6 +18,12 @@ const WORKSPACES: &str = "select workspace_path from workspaces \
 
 const REPOS: &str = "select root_path from repos where root_path is not null";
 
+/// Ids come from the frontend, so they are checked before being put in a query
+/// rather than trusted. Conductor's are UUIDs.
+fn is_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 36 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+}
+
 fn databases() -> Vec<PathBuf> {
     if let Some(one) = std::env::var_os("CONDUCTOR_DB") {
         let path = PathBuf::from(one);
@@ -59,6 +65,28 @@ fn query(db: &Path, sql: &str) -> Vec<String> {
 
 fn basename(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
+}
+
+/// The path of one workspace or repository, by id.
+///
+/// The panel reads the id out of the frontend, which is exact, where matching a
+/// name against what is on screen is a guess that a repository can win.
+pub fn resolve(kind: &str, id: &str) -> Result<(), String> {
+    if !is_id(id) {
+        return Err(format!("not an id: {id}"));
+    }
+    let sql = match kind {
+        "resolve" => format!("select workspace_path from workspaces where id = '{id}'"),
+        "resolve-repo" => format!("select root_path from repos where id = '{id}'"),
+        other => return Err(format!("unknown lookup '{other}'")),
+    };
+    for db in databases() {
+        if let Some(path) = query(&db, &sql).into_iter().find(|p| !p.is_empty()) {
+            println!("{path}");
+            return Ok(());
+        }
+    }
+    Ok(())
 }
 
 /// One `name<TAB>path` per line, which is what the panel parses.
