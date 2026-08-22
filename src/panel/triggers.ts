@@ -57,9 +57,33 @@ function floatingHost(): HTMLElement {
 
 let missedToolbar = 0;
 
+/**
+ * The New Workspace dialog has its own control, next to the model picker, and it
+ * means something different: the repository these workspaces will come from. The
+ * toolbar anchor is found by product copy and by the app icon beside it, and the
+ * dialog carries app icons too, so without this the same panel is offered twice
+ * on one screen with two different scopes.
+ */
+function insideDialog(node: HTMLElement): boolean {
+  if (node.closest("[role=dialog],[role=alertdialog],[data-slot=dialog]")) return true;
+  const composer = findComposer();
+  if (!composer) return false;
+  let card: HTMLElement | null = composer;
+  for (let i = 0; i < 8 && card; i++, card = card.parentElement) {
+    if (card.contains(node)) return true;
+  }
+  return false;
+}
+
 export function toolbarButton(): void {
   const existing = document.getElementById("cma-toolbar-btn");
-  const anchor = findOpenIn();
+  const found = findOpenIn();
+  const anchor = found && insideDialog(found) ? null : found;
+  if (!anchor && findComposer()) {
+    /* Nothing floated over the dialog either: its own chip is the control. */
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    return;
+  }
   let host: HTMLElement;
   let before: HTMLElement | null = null;
 
