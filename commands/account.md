@@ -1,6 +1,6 @@
 ---
 description: Switch which Claude or Codex account this Conductor workspace uses
-argument-hint: [status | switch | list | add | remove | on | off]
+argument-hint: [status | switch | pin | unpin | list | add | remove | on | off]
 allowed-tools: Bash(hats:*), Bash(~/.conductor-accounts/bin/hats:*), mcp__conductor__AskUserQuestion
 ---
 
@@ -50,12 +50,27 @@ If no profile was given, ask with `mcp__conductor__AskUserQuestion`: header
 `Account`, one option per signed-in profile, labelled with the profile name and
 described with its email.
 
-Run `$CLI use <profile>`. That routes this workspace, and this workspace only,
-to that account. Other workspaces keep theirs and keep running.
+Then ask which scope, unless the request already said: `This workspace`, or
+`This chat only`. Same two the panel offers, so both surfaces write the same
+thing and neither surprises the other.
 
-Then say plainly: this chat keeps the account it started on, because its agent
-process is already running under that account. Open a new chat in this
-workspace to use the new one. Do not claim the switch is live.
+- **This workspace**: `$CLI use <profile>`. Routes this workspace and no other.
+  Other workspaces keep theirs and keep running.
+- **This chat only**: `$CLI pin <profile>`. Pins the chat that is live here,
+  which it works out itself. The workspace route is left alone, and the pin wins
+  over it for that one chat. If it answers that no chat has been active, or that
+  two were written to at once, report that instead of guessing at a session id.
+
+Either way say plainly: this chat keeps the account it started on, because its
+agent process is already running under that account and takes its account once,
+when it spawns. The change lands the next time Conductor starts an agent for
+it, which for a pin means reopening or resuming this chat. Do not claim the
+switch is live.
+
+### `unpin`
+
+Run `$CLI unpin`. That chat goes back to following the workspace route. Same
+caveat: it takes effect the next time an agent starts for it.
 
 ### `status`
 
