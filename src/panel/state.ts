@@ -1,6 +1,7 @@
 /** Everything the panel knows, read from hats and cached briefly. */
 
 import { acct, q } from "./cli.js";
+import { workspaceId } from "./route.js";
 
 export interface Account {
   name: string;
@@ -94,6 +95,25 @@ function chromeText(): string {
  * ties within a kind, so `rio-branch` still beats a repo called `rio`.
  */
 function currentTarget(prefer: Prefer): Promise<Target> {
+  const id = prefer === "workspace" ? workspaceId() : null;
+  const exact: Promise<Target | null> = id
+    ? acct("resolve " + q(id))
+        .then((path) =>
+          path ? ({ kind: "workspace", name: base(path), path } as Target) : null
+        )
+        .catch(() => null)
+    : Promise.resolve(null);
+
+  return exact.then((found) => (found ? found : byName(prefer)));
+}
+
+function base(path: string): string {
+  const parts = path.split("/");
+  return parts[parts.length - 1] || path;
+}
+
+/** The fallback: match what Conductor knows against what is on screen. */
+function byName(prefer: Prefer): Promise<Target> {
   return places().then((list) => {
     const hay = chromeText();
     const ordered = list.slice().sort((a, b) => {

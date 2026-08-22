@@ -17,13 +17,13 @@ fn sqlite() -> bool {
 
 fn database(s: &Sandbox) -> String {
     let db = s.path("conductor.db");
-    let sql = "create table workspaces (workspace_path text, state text);\n\
-               insert into workspaces values ('/tmp/ws/alpha', 'ready');\n\
-               insert into workspaces values ('/tmp/ws/beta', 'ready');\n\
-               insert into workspaces values ('/tmp/ws/gone', 'archived');\n\
-               insert into workspaces values (null, 'ready');\n\
-               create table repos (root_path text);\n\
-               insert into repos values ('/tmp/code/my repo');\n";
+    let sql = "create table workspaces (id text, workspace_path text, state text);\n\
+               insert into workspaces values ('aaa-1', '/tmp/ws/alpha', 'ready');\n\
+               insert into workspaces values ('bbb-2', '/tmp/ws/beta', 'ready');\n\
+               insert into workspaces values ('ccc-3', '/tmp/ws/gone', 'archived');\n\
+               insert into workspaces values ('ddd-4', null, 'ready');\n\
+               create table repos (id text, root_path text);\n\
+               insert into repos values ('rrr-1', '/tmp/code/my repo');\n";
     let out = std::process::Command::new("sqlite3")
         .arg(&db)
         .arg(sql)
@@ -80,6 +80,27 @@ fn a_repository_path_with_a_space_survives_whole() {
     let run = s.hats_env(&["repos"], &[("CONDUCTOR_DB", &db)]);
     let out = run.ok();
     assert_eq!(out.stdout.trim(), "my repo\t/tmp/code/my repo");
+}
+
+#[test]
+fn a_workspace_resolves_by_id() {
+    if !sqlite() {
+        eprintln!("skipped: sqlite3 is not installed");
+        return;
+    }
+    let s = Sandbox::new();
+    let db = database(&s);
+    let run = s.hats_env(&["resolve", "bbb-2"], &[("CONDUCTOR_DB", &db)]);
+    assert_eq!(run.ok().stdout.trim(), "/tmp/ws/beta");
+}
+
+/// The id reaches this from the frontend, so it is checked rather than trusted.
+#[test]
+fn a_crafted_id_is_refused_rather_than_pasted_into_a_query() {
+    let s = Sandbox::new();
+    let db = s.path("conductor.db").to_string_lossy().to_string();
+    let run = s.hats_env(&["resolve", "x' or '1'='1"], &[("CONDUCTOR_DB", &db)]);
+    run.failed().says("not an id");
 }
 
 #[test]
