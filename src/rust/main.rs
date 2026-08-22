@@ -14,6 +14,7 @@ mod manage;
 mod mask;
 mod patch;
 mod paths;
+mod places;
 mod profile;
 mod repatch;
 mod report;
@@ -60,6 +61,8 @@ Reporting
   status [path] [--mask]             what this workspace resolves to
   which [path] [agent]               the same, with every layer that fed in
   json [path]                        machine-readable, for the panel
+  workspaces                         every workspace Conductor knows, name and path
+  repos                              every repository, the same
   check [path]                       one line, for an agent prompt
   mask <email>                       the masked form shown on screen
   doctor [path]                      check the setup end to end
@@ -256,6 +259,7 @@ fn main() {
             rebuild: args.rebuild,
             launch: args.launch,
         }),
+        "workspaces" | "repos" => places::run(cmd),
         "assets" => patch::list(&args.app, args.pattern.as_deref(), args.dump),
         "verify" => verify::run(&args.app),
         "claude-router" => router::run("claude", rest),
