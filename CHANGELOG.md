@@ -61,6 +61,20 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The copy was signed out every time it was patched.** Signing deleted
+  everything the copy had stored under its own keychain service, which is where
+  Conductor keeps its session, so each `hats patch` logged it out with nothing
+  saying why. It was there to skip the password prompt an ad-hoc signature
+  causes; a prompt you can answer beats a logout you cannot see. Now only on
+  request, as `hats reset-keychain`.
+- **The panel could not see which workspace was on screen.** The port to Rust
+  dropped `workspaces` and `repos`, which the panel matches the visible chrome
+  against, so every account row disabled itself under "Open a workspace to
+  choose its account". Restored, reading Conductor's database read-only.
+- **The toolbar button bound the whole repository rather than the workspace.**
+  Both names are on screen and the longer one won, which was the repository. The
+  target now follows the control pressed: the toolbar button means this
+  workspace, the composer chip means workspaces created from here.
 - **A patched copy came up blank on Conductor 0.82.** 0.82 renders the whole UI
   only once `GET /minimum-client-version` has settled, and in a re-signed copy
   that query never settles: the window stays empty with nothing logged. `patch`
@@ -69,9 +83,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   carrying on. The copy therefore does not enforce the minimum client version,
   which is stated in the docs rather than hidden, and should be removed when a
   release settles the query. `verify` reports whether the guard is present.
-  Measured before it was written: the panel, the identifier rewrite, the profile
-  and the network were each ruled out with evidence, in
-  [docs/blank-window.md](docs/blank-window.md).
+  The panel, the identifier rewrite, the profile and the network were each ruled
+  out against a control first. See [docs/blank-window.md](docs/blank-window.md).
 
 - **Concurrent account changes lost each other.** Every workspace shares one
   routes file and each write read it, edited a copy and wrote it back. With the
