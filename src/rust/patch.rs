@@ -8,6 +8,7 @@
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+use crate::binary_in;
 use crate::macho::{Asset, MachO};
 
 pub const MARKER: &str = "__conductorHats";
@@ -35,8 +36,36 @@ pub fn compress(data: &[u8]) -> Result<Vec<u8>, String> {
         writer
             .write_all(data)
             .map_err(|e| format!("brotli compress failed: {e}"))?;
+        /* Dropping the writer flushes, and discards any error while doing it, so
+         * a stream that failed to finish would look exactly like one that did.
+         * Flushing here is the only way to see that failure. */
+        writer
+            .flush()
+            .map_err(|e| format!("brotli compress failed to finish: {e}"))?;
     }
     Ok(out)
+}
+
+/// Compresses, then decompresses the result and insists it matches.
+///
+/// The frontend has one chance to parse this: a stream that decodes to something
+/// truncated produces an application that launches, signs clean, and paints
+/// nothing. Cheap to check, and the alternative is finding out by opening it.
+fn compress_verified(data: &[u8]) -> Result<Vec<u8>, String> {
+    let packed = compress(data)?;
+    let back = decompress(&packed)?;
+    if back.len() != data.len() {
+        return Err(format!(
+            "brotli round trip lost data: {} bytes in, {} back out.\n\
+             Refusing to write a bundle the frontend cannot parse.",
+            data.len(),
+            back.len()
+        ));
+    }
+    if back != data {
+        return Err("brotli round trip changed the bundle's contents".into());
+    }
+    Ok(packed)
 }
 
 /// The chunk holding the toolbar and the composer, identified by name.
@@ -141,7 +170,7 @@ pub fn inject(binary: &Path, pristine: &Path, script: &str) -> Result<Report, St
     let mut merged = plain.clone();
     merged.extend_from_slice(b"\n;");
     merged.extend_from_slice(script.as_bytes());
-    let packed = compress(&merged)?;
+    let packed = compress_verified(&merged)?;
     if packed.len() > asset.length {
         return Err(format!(
             "the patched bundle does not fit: {} > {} available.\n\
@@ -167,4 +196,33 @@ pub fn inject(binary: &Path, pristine: &Path, script: &str) -> Result<Report, St
         now: packed.len(),
         headroom: asset.length - packed.len(),
     })
+}
+
+/// Lists the frontend assets, or prints one decompressed for diagnosis.
+pub fn list(app: &Path, pattern: Option<&str>, dump: bool) -> Result<(), String> {
+    let macho = MachO::open(&binary_in(app))?;
+    let mut shown = 0;
+    for asset in macho.assets() {
+        if let Some(p) = pattern {
+            if !asset.key.contains(p) {
+                continue;
+            }
+        }
+        if dump {
+            let blob = macho
+                .data
+                .get(asset.offset..asset.offset + asset.length)
+                .ok_or("the asset map points outside the file")?;
+            let plain = decompress(blob)?;
+            use std::io::Write;
+            std::io::stdout()
+                .write_all(&plain)
+                .map_err(|e| format!("writing the asset: {e}"))?;
+            return Ok(());
+        }
+        println!("{:>10}  {}", asset.length, asset.key);
+        shown += 1;
+    }
+    println!("{shown} assets");
+    Ok(())
 }

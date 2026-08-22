@@ -65,6 +65,7 @@ The panel inside Conductor
   revert [--app PATH]                restore the copy's original frontend
   repatch [--keep-app|--no-launch]   rebuild and re-inject after an update
   assets [--app PATH] [PATTERN]      list the frontend assets in a binary
+  assets --dump PATTERN              print one asset decompressed, for diagnosis
   panel                              print the panel this binary carries
 
 Routing
@@ -83,6 +84,7 @@ its keychain access.",
 }
 
 struct Args {
+    dump: bool,
     app: PathBuf,
     src: PathBuf,
     id: String,
@@ -98,6 +100,7 @@ fn parse(rest: &[String]) -> Args {
         app: env_path("CONDUCTOR_DEV_APP", DEV_APP),
         src: env_path("CONDUCTOR_APP", REAL_APP),
         id: std::env::var("CONDUCTOR_DEV_ID").unwrap_or_else(|_| DEV_ID.into()),
+        dump: false,
         i_know: false,
         force: false,
         rebuild: true,
@@ -107,6 +110,7 @@ fn parse(rest: &[String]) -> Args {
     let mut it = rest.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
+            "--dump" => args.dump = true,
             "--app" => {
                 if let Some(v) = it.next() {
                     args.app = PathBuf::from(v);
@@ -200,22 +204,6 @@ fn cmd_revert(args: &Args) -> Result<(), String> {
     Ok(())
 }
 
-fn cmd_assets(args: &Args) -> Result<(), String> {
-    let macho = macho::MachO::open(&binary_in(&args.app))?;
-    let mut shown = 0;
-    for asset in macho.assets() {
-        if let Some(p) = &args.pattern {
-            if !asset.key.contains(p.as_str()) {
-                continue;
-            }
-        }
-        println!("{:>10}  {}", asset.length, asset.key);
-        shown += 1;
-    }
-    println!("{shown} assets");
-    Ok(())
-}
-
 /// The name this binary was invoked by. It answers to several through symlinks,
 /// and reports itself as whichever was used.
 fn invoked_as() -> String {
@@ -265,7 +253,7 @@ fn main() {
             rebuild: args.rebuild,
             launch: args.launch,
         }),
-        "assets" => cmd_assets(&args),
+        "assets" => patch::list(&args.app, args.pattern.as_deref(), args.dump),
         "claude-router" => router::run("claude", rest),
         "codex-router" => router::run("codex", rest),
         other if cli::is_account_command(other) => cli::run(other, &rest),
