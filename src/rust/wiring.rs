@@ -68,12 +68,19 @@ pub fn install() -> Result<(), String> {
 }
 
 /// Shipped beside the binary in a release, or in the checkout during development.
+/// Where `commands/account.md` sits relative to the binary.
+///
+/// Beside it in a release tarball, one level up in an install. From a cargo
+/// build it is two levels up, past target/release, and missing that case meant
+/// `install` from a checkout quietly deployed no slash command at all: the panel
+/// worked and `/account` was simply absent, with nothing said.
 fn command_source() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let base = exe.parent()?;
     [
         base.join("commands/account.md"),
         base.join("../commands/account.md"),
+        base.join("../../commands/account.md"),
     ]
     .into_iter()
     .find(|candidate| candidate.is_file())
