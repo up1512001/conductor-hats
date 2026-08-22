@@ -22,6 +22,7 @@ mod session;
 mod settings;
 mod sign;
 mod store;
+mod verify;
 mod wiring;
 
 use std::path::{Path, PathBuf};
@@ -66,6 +67,7 @@ The panel inside Conductor
   repatch [--keep-app|--no-launch]   rebuild and re-inject after an update
   assets [--app PATH] [PATTERN]      list the frontend assets in a binary
   assets --dump PATTERN              print one asset decompressed, for diagnosis
+  verify [--app PATH]                check a patched copy end to end
   panel                              print the panel this binary carries
 
 Routing
@@ -137,7 +139,7 @@ fn env_path(key: &str, fallback: &str) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(fallback))
 }
 
-fn binary_in(app: &Path) -> PathBuf {
+pub fn binary_in(app: &Path) -> PathBuf {
     app.join("Contents/MacOS/conductor")
 }
 
@@ -254,6 +256,7 @@ fn main() {
             launch: args.launch,
         }),
         "assets" => patch::list(&args.app, args.pattern.as_deref(), args.dump),
+        "verify" => verify::run(&args.app),
         "claude-router" => router::run("claude", rest),
         "codex-router" => router::run("codex", rest),
         other if cli::is_account_command(other) => cli::run(other, &rest),

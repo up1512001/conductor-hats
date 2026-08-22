@@ -107,3 +107,37 @@ fn revert_without_a_backup_leaves_the_binary_alone() {
     s.hats(&["revert", "--app", &app]).failed();
     assert_eq!(std::fs::read(&binary).unwrap(), bytes);
 }
+
+/// A Conductor update can move anything the injection depends on, so the checks
+/// that were done by hand when 0.82 came up blank are a command now.
+#[test]
+fn verify_refuses_an_app_that_is_not_there() {
+    let s = Sandbox::new();
+    s.hats(&["verify", "--app", &s.path("Nothing.app").to_string_lossy()])
+        .failed()
+        .says("is not there");
+}
+
+#[test]
+fn verify_reports_a_binary_it_cannot_read_rather_than_panicking() {
+    let s = Sandbox::new();
+    let app = app_with(&s, "Bogus", b"not a mach-o at all");
+
+    let run = s.hats(&["verify", "--app", &app]);
+    assert_ne!(run.status, 0, "a bogus app cannot verify:\n{}", run.out());
+    assert!(
+        !run.out().contains("panicked"),
+        "must not panic:\n{}",
+        run.out()
+    );
+}
+
+#[test]
+fn dumping_an_asset_from_a_bogus_binary_fails_cleanly() {
+    let s = Sandbox::new();
+    let app = app_with(&s, "Bogus2", b"still not a mach-o");
+
+    let run = s.hats(&["assets", "--dump", "renderApp", "--app", &app]);
+    assert_ne!(run.status, 0);
+    assert!(!run.out().contains("panicked"), "{}", run.out());
+}
