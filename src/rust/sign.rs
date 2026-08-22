@@ -95,6 +95,7 @@ pub fn resign(app: &Path) -> Result<(), String> {
     let ents = entitlements(app, "outer", &scratch);
     codesign(app, ents.as_deref())?;
     let _ = run("xattr", &["-cr", &app.to_string_lossy()]);
+    drop_keychain_items(app);
     verify(app)
 }
 
@@ -127,6 +128,7 @@ pub fn resign_bundle(dst: &Path, pristine: &Path) -> Result<(), String> {
     codesign(dst, ents.as_deref())
         .map_err(|e| format!("signing the bundle {} failed: {e}", dst.display()))?;
     let _ = run("xattr", &["-cr", &dst.to_string_lossy()]);
+    drop_keychain_items(dst);
     verify(dst)
 }
 
@@ -184,15 +186,22 @@ fn is_mach_o(path: &Path) -> bool {
     )
 }
 
-/// Deletes what the copy keeps in the keychain. Only on request.
+/// Deletes what the copy keeps in the keychain, on every signature.
 ///
-/// An ad-hoc signature carries no stable identity, so every re-sign looks like a
-/// different application and macOS asks for the login password before handing the
-/// previous build's items over. This used to run on every sign to avoid that
-/// prompt, which quietly threw away the copy's Conductor session each time it was
-/// patched: signed out, over and over, with nothing saying why. A prompt you can
-/// answer beats a logout you cannot see. Scoped to the copy's own service name,
-/// so the real Conductor's credentials are never in range.
+/// An ad-hoc signature carries no stable identity, so a re-signed copy looks like
+/// a different application: macOS then blocks the copy from reading what the
+/// previous build stored and puts up "Conductor Dev wants to use your confidential
+/// information", asking for the login password. There is no third option while the
+/// signature is ad-hoc. Either the items go, and the copy starts signed out, or
+/// they stay and that dialog appears on launch.
+///
+/// Removing them is the choice here, because the dialog cannot be answered
+/// safely by habit and a copy that asks for a keychain password is a copy that
+/// teaches a bad reflex. A signing identity that stays the same between patches
+/// removes both; see docs/dev-conductor.md.
+///
+/// Scoped to the copy's own service name, so the real Conductor's credentials are
+/// never in range.
 pub fn drop_keychain_items(app: &Path) {
     let plist = app.join("Contents/Info.plist");
     let ident = Command::new("/usr/libexec/PlistBuddy")
@@ -218,5 +227,9 @@ pub fn drop_keychain_items(app: &Path) {
         }
         removed += 1;
     }
-    println!("    keychain: cleared {removed} item(s) for {service}");
+    if removed > 0 {
+        println!(
+            "    keychain: cleared {removed} item(s) for {service}, so the copy starts signed out"
+        );
+    }
 }
