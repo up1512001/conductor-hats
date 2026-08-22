@@ -86,10 +86,21 @@ function chromeText(): string {
   return bits.join(" \n ");
 }
 
-function currentTarget(): Promise<Target> {
+/**
+ * A workspace and the repository holding it are both named on screen, so which
+ * one wins is a choice, not a lookup. It follows the control that was pressed:
+ * the toolbar button belongs to the workspace you are looking at, the composer
+ * chip to the repository the next workspace will come from. Length only breaks
+ * ties within a kind, so `rio-branch` still beats a repo called `rio`.
+ */
+function currentTarget(prefer: Prefer): Promise<Target> {
   return places().then((list) => {
     const hay = chromeText();
-    for (const place of list) {
+    const ordered = list.slice().sort((a, b) => {
+      const rank = (t: Target) => (t.kind === prefer ? 0 : 1);
+      return rank(a) - rank(b) || b.name.length - a.name.length;
+    });
+    for (const place of ordered) {
       if (hay.indexOf(place.name) >= 0) return place;
     }
     return { kind: "none", name: "", path: "" } as Target;
@@ -105,18 +116,25 @@ const STATE_TTL = 4000;
 let stateCache: PanelState | null = null;
 let stateAt = 0;
 let statePending: Promise<PanelState> | null = null;
+let statePrefer: Prefer | null = null;
+
+/** Which kind of place a read should resolve to when both are on screen. */
+export type Prefer = "workspace" | "repository";
 
 export function invalidate(): void {
   stateCache = null;
   stateAt = 0;
+  statePrefer = null;
 }
 
-export function loadState(fresh?: boolean): Promise<PanelState> {
-  if (!fresh && stateCache && Date.now() - stateAt < STATE_TTL) {
+export function loadState(fresh?: boolean, prefer: Prefer = "workspace"): Promise<PanelState> {
+  const same = statePrefer === prefer;
+  if (!fresh && same && stateCache && Date.now() - stateAt < STATE_TTL) {
     return Promise.resolve(stateCache);
   }
-  if (statePending) return statePending;
-  statePending = currentTarget()
+  if (statePending && same) return statePending;
+  statePrefer = prefer;
+  statePending = currentTarget(prefer)
     .then((target) =>
       acct("json " + (target.path ? q(target.path) : "")).then((out) => {
         const st = JSON.parse(out) as PanelState;

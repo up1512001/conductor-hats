@@ -80,7 +80,7 @@ export function togglePanel(anchor: HTMLElement): void {
   render();
   listen();
 
-  loadState()
+  loadState(false, anchor.id === "cma-chip" ? "repository" : "workspace")
     .then((state) => {
       /* Closed, or reopened against another trigger, while this was in flight. */
       if (!panel || panel.el !== node) return;

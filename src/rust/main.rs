@@ -77,6 +77,7 @@ The panel inside Conductor
   assets [--app PATH] [PATTERN]      list the frontend assets in a binary
   assets --dump PATTERN              print one asset decompressed, for diagnosis
   verify [--app PATH]                check a patched copy end to end
+  reset-keychain [--app PATH]        forget what the copy stored, signing it out
   panel                              print the panel this binary carries
   guard                              print the boot guard this binary carries
 
@@ -262,6 +263,10 @@ fn main() {
         "workspaces" | "repos" => places::run(cmd),
         "assets" => patch::list(&args.app, args.pattern.as_deref(), args.dump),
         "verify" => verify::run(&args.app),
+        "reset-keychain" => {
+            sign::drop_keychain_items(&args.app);
+            Ok(())
+        }
         "claude-router" => router::run("claude", rest),
         "codex-router" => router::run("codex", rest),
         other if cli::is_account_command(other) => cli::run(other, &rest),
