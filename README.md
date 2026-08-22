@@ -148,6 +148,7 @@ attaches.
 | [docs/panel-internals.md](docs/panel-internals.md) | how the panel attaches, and the update path |
 | [docs/patching-conductor.md](docs/patching-conductor.md) | what the app bundle allows, with the evidence |
 | [docs/dev-conductor.md](docs/dev-conductor.md) | building a Conductor copy that is safe to modify |
+| [docs/blank-window.md](docs/blank-window.md) | the copy launches and paints nothing: cause, guard, how to diagnose the next one |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | tests, linting, releases |
 | [AGENTS.md](AGENTS.md) | rules for changing this code, human or agent |
 | [CHANGELOG.md](CHANGELOG.md) | what changed, by version |

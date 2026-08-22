@@ -68,10 +68,10 @@ responsibility, not by line count: `routes.rs` and `profile.rs`, never
 src/rust/       the hats binary: routing, the CLI, patching, the dev app
 src/panel/      TypeScript for the injected UI
 src/panel/styles/  SCSS partials, one per group of elements
-dist/           built panel, generated and gitignored
+dist/           built panel and boot guard, generated and gitignored
 target/         Rust build output, gitignored
 tools/          the panel build and the version script
-test/           harness.sh plus one *.test.sh per area
+tests/          cargo integration tests, one file per area
 docs/           prose
 commands/       the /account slash command
 ```
@@ -152,9 +152,10 @@ screen. Rules that follow from that:
   back a week, and `allowBuilds` answers which packages may run install scripts so
   an install never waits on a prompt.
 - **Rust** for everything the user runs: routing, the CLI, patching, the dev app.
-- **TypeScript + esbuild** for `src/panel/`, bundled to one self-contained IIFE.
-  The injected artifact has to be a single script with no module loader, so many
-  small sources plus a build step is the only way to keep the 300-line rule.
+- **TypeScript + esbuild** for `src/panel/`, bundled to self-contained IIFEs: the
+  panel and the boot guard. Each injected artifact has to be a single script with
+  no module loader, so many small sources plus a build step is the only way to
+  keep the 300-line rule.
 - **SCSS** for panel styles, compiled and inlined into the bundle at build time.
 - Stock macOS tools are shelled out to freely. codesign, security, PlistBuddy and
   xattr cost a user nothing to have; a runtime does. That is the line.
@@ -166,8 +167,8 @@ Build before patching:
 
 ```sh
 pnpm install
-pnpm build          # src/panel + styles.scss -> dist/account-ui.js
-cargo build --release   # embeds dist/account-ui.js into the binary
+pnpm build          # src/panel + styles.scss -> dist/*.js
+cargo build --release   # embeds both scripts into the binary
 ```
 
 ## Before opening a pull request
@@ -175,7 +176,7 @@ cargo build --release   # embeds dist/account-ui.js into the binary
 ```sh
 pnpm install
 pnpm typecheck
-pnpm build            # the binary embeds dist/account-ui.js
+pnpm build            # the binary embeds both scripts
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all

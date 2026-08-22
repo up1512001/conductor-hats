@@ -47,6 +47,22 @@ shares your skills, hooks and transcripts. Only credentials and `.claude.json`
 are per account. `doctor` warns if a symlink is replaced by a real file.
 
 
+## Diagnosing a copy
+
+```sh
+hats verify                                  # check a patched copy end to end
+hats assets                                  # list the frontend assets in a binary
+hats assets --dump '/index.html'             # print one decompressed
+hats panel                                   # print the panel this binary injects
+hats guard                                   # print the boot guard it injects
+hats patch --asset KEY --prepend --script F  # inject something else, for diagnosis
+```
+
+`--script` may be repeated, and `--asset`/`--prepend` apply to the next one, so a
+single patch can carry a probe alongside the real panel. See
+[blank-window.md](blank-window.md) for the method this exists for.
+
+
 ## Turning it off
 
 ```sh

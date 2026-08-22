@@ -31,6 +31,16 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`patch` can inject something other than the panel**, for working out what a
+  release broke: `--script FILE`, `--asset KEY`, `--prepend`, repeatable, so one
+  patch can carry a probe alongside the real panel. `hats guard` prints the boot
+  guard as `hats panel` prints the panel.
+- **`verify` checks the boot guard**, and finds Conductor's entry module by
+  reading index.html rather than guessing at a hash-versioned name.
+- **Both injected scripts are checked as ES modules** by the tests. They are
+  spliced into modules, where strict mode applies; `node --check` parses its
+  input as a script and allows what a module forbids.
+
 - **An account per chat, not just per workspace.** A workspace holds many chats
   and each runs its own agent process, but the panel only ever read the
   workspace route, so every chat in a workspace claimed the same account and
@@ -50,6 +60,18 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   plausibly on screen, so that case is refused rather than guessed at.
 
 ### Fixed
+
+- **A patched copy came up blank on Conductor 0.82.** 0.82 renders the whole UI
+  only once `GET /minimum-client-version` has settled, and in a re-signed copy
+  that query never settles: the window stays empty with nothing logged. `patch`
+  now also injects a boot guard, ahead of Conductor's entry module, which answers
+  that one request with an error. Conductor already handles a failed check by
+  carrying on. The copy therefore does not enforce the minimum client version,
+  which is stated in the docs rather than hidden, and should be removed when a
+  release settles the query. `verify` reports whether the guard is present.
+  Measured before it was written: the panel, the identifier rewrite, the profile
+  and the network were each ruled out with evidence, in
+  [docs/blank-window.md](docs/blank-window.md).
 
 - **Concurrent account changes lost each other.** Every workspace shares one
   routes file and each write read it, edited a copy and wrote it back. With the
