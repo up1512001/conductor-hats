@@ -61,12 +61,14 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **The copy was signed out every time it was patched.** Signing deleted
-  everything the copy had stored under its own keychain service, which is where
-  Conductor keeps its session, so each `hats patch` logged it out with nothing
-  saying why. It was there to skip the password prompt an ad-hoc signature
-  causes; a prompt you can answer beats a logout you cannot see. Now only on
-  request, as `hats reset-keychain`.
+- **The copy no longer asks for the login keychain password.** A re-signed copy
+  looks like a different application to the keychain, so macOS either blocks it
+  from reading what the previous build stored, with a password dialog on launch,
+  or the items are removed and the copy simply starts signed out. Removing them
+  is the choice: a dialog asking for the login password is not something to
+  answer by habit. `hats reset-keychain` does it on demand, and a signing
+  identity that stays the same between patches would remove both, which is
+  written up rather than built.
 - **The panel could not see which workspace was on screen.** The port to Rust
   dropped `workspaces` and `repos`, which the panel matches the visible chrome
   against, so every account row disabled itself under "Open a workspace to
