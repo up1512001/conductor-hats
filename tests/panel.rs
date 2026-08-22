@@ -101,6 +101,36 @@ fn the_guard_answers_only_the_version_check() {
     );
 }
 
+/// The panel offers one thing per level, as it did before a scope switch was
+/// added to it: providers, then that provider's accounts. A choice means the
+/// workspace on screen.
+#[test]
+fn the_panel_offers_no_scope_switch() {
+    let dist = bundle();
+    for gone in ["cma-scope", "cma-seg", "This chat"] {
+        assert!(
+            !dist.contains(gone),
+            "the panel still carries {gone:?}, which belongs to the removed scope switch"
+        );
+    }
+}
+
+/// A chat that started before the route changed carries a pin, and a pin beats
+/// the route. The label reads what the chat will actually run on, and choosing
+/// an account clears the pin, so the two can never disagree.
+#[test]
+fn choosing_an_account_leaves_nothing_pinned_against_it() {
+    let dist = bundle();
+    assert!(
+        dist.contains("unpin ${agent} ${session}"),
+        "choosing an account does not clear the chat's pin"
+    );
+    assert!(
+        dist.contains("function effective("),
+        "the label does not read the account the chat will use"
+    );
+}
+
 #[test]
 fn the_built_panel_is_one_self_contained_iife() {
     let dist = bundle();
