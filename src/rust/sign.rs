@@ -95,7 +95,6 @@ pub fn resign(app: &Path) -> Result<(), String> {
     let ents = entitlements(app, "outer", &scratch);
     codesign(app, ents.as_deref())?;
     let _ = run("xattr", &["-cr", &app.to_string_lossy()]);
-    drop_stale_keychain_items(app);
     verify(app)
 }
 
@@ -128,7 +127,6 @@ pub fn resign_bundle(dst: &Path, pristine: &Path) -> Result<(), String> {
     codesign(dst, ents.as_deref())
         .map_err(|e| format!("signing the bundle {} failed: {e}", dst.display()))?;
     let _ = run("xattr", &["-cr", &dst.to_string_lossy()]);
-    drop_stale_keychain_items(dst);
     verify(dst)
 }
 
@@ -186,11 +184,16 @@ fn is_mach_o(path: &Path) -> bool {
     )
 }
 
-/// An ad-hoc signature carries no stable identity, so every rebuild looks like a
-/// different application to the keychain and macOS asks for the login password to
-/// release the previous build's items. Scoped to the copy's own service name, so
-/// the real Conductor's credentials are never in range.
-fn drop_stale_keychain_items(app: &Path) {
+/// Deletes what the copy keeps in the keychain. Only on request.
+///
+/// An ad-hoc signature carries no stable identity, so every re-sign looks like a
+/// different application and macOS asks for the login password before handing the
+/// previous build's items over. This used to run on every sign to avoid that
+/// prompt, which quietly threw away the copy's Conductor session each time it was
+/// patched: signed out, over and over, with nothing saying why. A prompt you can
+/// answer beats a logout you cannot see. Scoped to the copy's own service name,
+/// so the real Conductor's credentials are never in range.
+pub fn drop_keychain_items(app: &Path) {
     let plist = app.join("Contents/Info.plist");
     let ident = Command::new("/usr/libexec/PlistBuddy")
         .args(["-c", "Print :CFBundleIdentifier"])
@@ -215,7 +218,5 @@ fn drop_stale_keychain_items(app: &Path) {
         }
         removed += 1;
     }
-    if removed > 0 {
-        println!("    keychain: cleared {removed} stale item(s) for {service}");
-    }
+    println!("    keychain: cleared {removed} item(s) for {service}");
 }

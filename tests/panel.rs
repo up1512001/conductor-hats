@@ -14,6 +14,12 @@ fn bundle() -> String {
     s.hats(&["panel"]).ok().stdout.clone()
 }
 
+/// The boot guard the binary carries, spliced ahead of Conductor's entry chunk.
+fn guard() -> String {
+    let s = Sandbox::new();
+    s.hats(&["guard"]).ok().stdout.clone()
+}
+
 fn node() -> Option<&'static str> {
     let found = std::process::Command::new("node")
         .arg("--version")
@@ -42,6 +48,56 @@ fn the_built_panel_parses() {
         out.status.success(),
         "node --check is unhappy:\n{}",
         String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// Both scripts are spliced into ES modules, where strict mode applies and
+/// `node --check` alone does not: it parses its input as a script, which allows
+/// what a module forbids.
+#[test]
+fn both_scripts_parse_as_modules() {
+    let Some(node) = node() else {
+        eprintln!("skipped: node is not installed");
+        return;
+    };
+    for (name, text) in [("account-ui.mjs", bundle()), ("boot-guard.mjs", guard())] {
+        let s = Sandbox::new();
+        let file = s.path(name);
+        std::fs::write(&file, text).unwrap();
+        let out = std::process::Command::new(node)
+            .arg("--check")
+            .arg(&file)
+            .output()
+            .expect("node --check");
+        assert!(
+            out.status.success(),
+            "{name} does not parse as a module:\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}
+
+/// Conductor 0.82 renders nothing while its minimum client version query is
+/// unsettled, and in a patched copy it never settles. The guard answers that one
+/// request so the check fails, which Conductor handles by carrying on.
+#[test]
+fn the_guard_answers_only_the_version_check() {
+    let dist = guard();
+    assert!(
+        dist.contains("/minimum-client-version"),
+        "the guard does not name the request it answers"
+    );
+    assert!(
+        dist.contains("plugin:http|fetch"),
+        "the guard does not watch the HTTP plugin"
+    );
+    assert!(
+        dist.contains("ipc://"),
+        "the guard would answer requests that are not Tauri commands"
+    );
+    assert!(
+        !dist.contains("__conductorHats"),
+        "the guard should carry none of the panel: it is injected separately"
     );
 }
 

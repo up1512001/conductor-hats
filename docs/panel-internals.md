@@ -10,22 +10,31 @@ two traps that cost the most time, and the update path.
 src/panel/*.ts          the panel, one file per concern
 src/panel/styles/*.scss partials, one per group of elements
 src/panel/styles.scss   pulls the partials together
-dist/account-ui.js      the built artifact, generated and gitignored
+src/panel/compat.ts     the boot guard, built separately
+dist/account-ui.js      the panel, generated and gitignored
+dist/boot-guard.js      the boot guard, same
 tools/build-panel.mjs   esbuild plus a sass plugin
 ```
 
 ```sh
 pnpm install
-pnpm build      # dist/account-ui.js
+pnpm build      # dist/account-ui.js and dist/boot-guard.js
 pnpm watch      # rebuild on change
 pnpm verify     # fail unless two builds produce identical bytes
 pnpm typecheck
 ```
 
-The artifact is appended to Conductor's compiled frontend, where there is no
-module loader and no second file to load, so it has to be one self-contained
+Each artifact is spliced into Conductor's compiled frontend, where there is no
+module loader and no second file to load, so each has to be one self-contained
 script. Bundling is what allows the source to be many small files instead of one
 unreadable one.
+
+There are two because they go to different places. The panel is appended to the
+chunk that draws the toolbar. The boot guard is prepended to the module
+index.html loads first, which is the only place early enough: injected into the
+panel's chunk it installs after Conductor has taken its own reference to `fetch`
+and never sees the request it exists to answer. See
+[blank-window.md](blank-window.md).
 
 It is **not** minified. There is roughly 199 KB of headroom in the asset slot, so
 minifying saves nothing that matters, and readable output can be inspected in the

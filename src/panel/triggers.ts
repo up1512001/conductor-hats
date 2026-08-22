@@ -104,7 +104,7 @@ export function refreshToolbarLabel(btn: HTMLElement, state?: PanelState): void 
     apply(state);
     return;
   }
-  loadState()
+  loadState(false, "workspace")
     .then(apply)
     .catch((e) => {
       const lbl = btn.querySelector(".cma-label");
@@ -171,7 +171,7 @@ export function refreshComposerChip(state?: PanelState): void {
     apply(state);
     return;
   }
-  loadState().then(apply).catch(() => {});
+  loadState(false, "repository").then(apply).catch(() => {});
 }
 
 /* Both refreshed from state already in hand. They can each fetch their own, and do
