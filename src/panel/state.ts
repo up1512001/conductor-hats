@@ -177,8 +177,6 @@ export function loadState(fresh?: boolean, prefer: Prefer = "workspace"): Promis
   return statePending;
 }
 
-export type Scope = "workspace" | "chat";
-
 /**
  * Routes a workspace, binds the repository when there is no workspace yet, or
  * pins one chat.
@@ -190,17 +188,23 @@ export type Scope = "workspace" | "chat";
 export function applyAccount(
   state: PanelState,
   agent: string,
-  profile: string,
-  scope: Scope = "workspace"
+  profile: string
 ): Promise<string> {
   const t = state.target;
-  if (scope === "chat") {
+  if (t.kind === "workspace") {
+    /* A chat that already started here carries a pin, and a pin beats the route.
+     * Leaving it would mean the panel says one account and the next message
+     * goes to another, so the choice clears it. */
     const provider = state.providers.filter((p) => p.agent === agent)[0];
     const session = provider ? provider.session : "";
-    if (!session) return Promise.reject(new Error("no chat is active here"));
-    return acct(`pin ${profile} ${agent} ${session}`);
+    return acct(`use ${profile} ${agent} ${q(t.path)}`).then((out) =>
+      session
+        ? acct(`unpin ${agent} ${session}`)
+            .then(() => out)
+            .catch(() => out)
+        : out
+    );
   }
-  if (t.kind === "workspace") return acct(`use ${profile} ${agent} ${q(t.path)}`);
   if (t.kind === "repository") return acct(`bind ${profile} ${agent} ${q(t.path)}`);
   return Promise.reject(new Error("no workspace or repository in view"));
 }

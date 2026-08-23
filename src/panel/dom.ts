@@ -34,12 +34,22 @@ export const AGENT_ICON: Record<string, string> = {
 };
 
 /** Claude's account, or whichever provider has one. */
+/**
+ * What the chat on screen will actually run on, not what the workspace route
+ * says. A chat that started before the route changed keeps the account it
+ * started with, so reading the route here made the label claim one account
+ * while messages went to another.
+ */
+export function effective(p: { current: string; chat?: string; session?: string }): string {
+  return p.session && p.chat ? p.chat : p.current;
+}
+
 export function primary(state: PanelState): string {
   const providers = state.providers || [];
   const claude = providers.filter((p) => p.agent === "claude")[0];
-  if (claude && claude.current) return claude.current;
-  const any = providers.filter((p) => p.current)[0];
-  return any ? any.current : "";
+  if (claude && effective(claude)) return effective(claude);
+  const any = providers.filter((p) => effective(p))[0];
+  return any ? effective(any) : "";
 }
 
 export function scopeText(state: PanelState): string {
@@ -48,10 +58,7 @@ export function scopeText(state: PanelState): string {
   return "No workspace in view";
 }
 
-export function footText(state: PanelState, scope?: string): string {
-  if (scope === "chat") {
-    return "Applies to this chat when it next starts. The conversation on screen keeps the account it opened with.";
-  }
+export function footText(state: PanelState): string {
   if (state.target.kind === "workspace") {
     return "Applies to new chats in this workspace. Chats already running keep the account they started on.";
   }

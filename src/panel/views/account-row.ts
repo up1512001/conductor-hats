@@ -1,26 +1,24 @@
 /* One account: pick it, or sign it out. */
 
 import { acct, message } from "../cli.js";
-import { AGENT_LABEL, cap, el, note } from "../dom.js";
+import { AGENT_LABEL, cap, el, note, effective } from "../dom.js";
 import { dialog } from "../dialog.js";
 import { icon } from "../icons.js";
 import { maskEmail } from "../mask.js";
 import { applyAccount } from "../state.js";
-import type { Account, PanelState, Provider, Scope } from "../state.js";
+import type { Account, PanelState, Provider } from "../state.js";
 import { panel, reload } from "../store.js";
 import { signInForm } from "./sign-in.js";
 
 export function accountSlot(
   state: PanelState,
   provider: Provider,
-  account: Account,
-  scope: Scope = "workspace"
+  account: Account
 ): HTMLElement {
-  /* The tick follows the layer being edited. Reading `active` in both would tick
-   * the workspace's account while the chat sits on another one, which is the
-   * misreporting this scope switch exists to end. */
-  const chosen = scope === "chat" ? provider.chat : provider.current;
-  const active = account.name === chosen;
+  /* The tick follows what the chat on screen will actually run on. Reading the
+   * workspace route instead would tick one account while messages went to
+   * another, which is the misreporting this exists to end. */
+  const active = account.name === effective(provider);
   const slot = el("div", "cma-slot");
   const row = el("div", "cma-row2");
 
@@ -53,7 +51,7 @@ export function accountSlot(
     card.title = "Open a workspace, or the New Workspace dialog, to pick an account";
   } else {
     card.addEventListener("click", () => {
-      applyAccount(state, provider.agent, account.name, scope)
+      applyAccount(state, provider.agent, account.name)
         .then(() => reload())
         .catch((e) => note(panel ? panel.el : row, message(e)));
     });
