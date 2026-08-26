@@ -15,7 +15,7 @@ import { onRefreshTriggers } from "./store.js";
 import { composerChip, refreshTriggers, toolbarButton } from "./triggers.js";
 import styles from "./styles.scss";
 
-const VERSION = "0.3.4";
+const VERSION = "0.4.0";
 
 function injectStyles(): void {
   if (document.getElementById("cma-style")) return;
