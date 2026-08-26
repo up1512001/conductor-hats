@@ -6,7 +6,7 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.4.0
 
 ### Security
 
@@ -116,7 +116,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   replaced by modules in `src/rust`. One binary answers to three names:
   `install.sh` symlinks `claude-router` and `codex-router` at `hats`, and it
   reports itself as whichever name invoked it.
-- **The test suite is `cargo test`.** 1550 lines of shell became 96 integration
+- **The test suite is `cargo test`.** 1550 lines of shell became 120 integration
   tests sharing one sandbox. `tools/set-version.sh` is now
   `examples/set-version.rs`. `install.sh` is the only shell left in the
   repository, because it runs before there is a binary to run.
