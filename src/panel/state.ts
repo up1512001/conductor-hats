@@ -177,13 +177,25 @@ export function loadState(fresh?: boolean, prefer: Prefer = "workspace"): Promis
   return statePending;
 }
 
+function sessionOf(state: PanelState, agent: string): string {
+  const provider = state.providers.filter((p) => p.agent === agent)[0];
+  return provider ? provider.session : "";
+}
+
 /**
- * Routes a workspace, binds the repository when there is no workspace yet, or
- * pins one chat.
+ * The toolbar sets the chat that is open, and nothing else.
  *
- * A pin cannot move the conversation on screen: its agent process took a config
- * directory when it spawned and never reads one again. It decides the next
- * process Conductor starts for that chat.
+ * A workspace holds several chats and each runs its own agent process, so one
+ * can be Personal while the next is Work. Writing the workspace route here
+ * instead would move every chat that is not pinned, which is the opposite of
+ * what pressing a control inside one chat means.
+ *
+ * With no chat open there is nothing to pin, so the choice falls back to the
+ * workspace and the wording says so.
+ *
+ * Neither can move the conversation already on screen: its agent process took a
+ * config directory when it spawned and never reads one again. It decides the
+ * next process Conductor starts for that chat.
  */
 export function applyAccount(
   state: PanelState,
@@ -192,19 +204,37 @@ export function applyAccount(
 ): Promise<string> {
   const t = state.target;
   if (t.kind === "workspace") {
-    /* A chat that already started here carries a pin, and a pin beats the route.
-     * Leaving it would mean the panel says one account and the next message
-     * goes to another, so the choice clears it. */
-    const provider = state.providers.filter((p) => p.agent === agent)[0];
-    const session = provider ? provider.session : "";
-    return acct(`use ${profile} ${agent} ${q(t.path)}`).then((out) =>
-      session
-        ? acct(`unpin ${agent} ${session}`)
-            .then(() => out)
-            .catch(() => out)
-        : out
-    );
+    const session = sessionOf(state, agent);
+    return session
+      ? acct(`pin ${profile} ${agent} ${session}`)
+      : acct(`use ${profile} ${agent} ${q(t.path)}`);
   }
   if (t.kind === "repository") return acct(`bind ${profile} ${agent} ${q(t.path)}`);
   return Promise.reject(new Error("no workspace or repository in view"));
+}
+
+/**
+ * Every chat in the workspace, which is the other thing someone might mean.
+ *
+ * The route alone would leave the open chat behind, because a pin beats a route
+ * and the open chat is pinned the moment its agent starts. So the pin goes too,
+ * and "every chat" means every chat.
+ */
+export function applyToWorkspace(
+  state: PanelState,
+  agent: string,
+  profile: string
+): Promise<string> {
+  const t = state.target;
+  if (t.kind !== "workspace") {
+    return Promise.reject(new Error("no workspace in view"));
+  }
+  const session = sessionOf(state, agent);
+  return acct(`use ${profile} ${agent} ${q(t.path)}`).then((out) =>
+    session
+      ? acct(`unpin ${agent} ${session}`)
+          .then(() => out)
+          .catch(() => out)
+      : out
+  );
 }

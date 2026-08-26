@@ -52,15 +52,28 @@ export function primary(state: PanelState): string {
   return any ? effective(any) : "";
 }
 
+/**
+ * Whether Conductor has a chat open here, which decides what a choice writes.
+ * With one open the toolbar sets that chat; without one there is nothing to pin
+ * and it sets the workspace instead.
+ */
+export function openChat(state: PanelState): boolean {
+  return (state.providers || []).filter((p) => !!p.session).length > 0;
+}
+
 export function scopeText(state: PanelState): string {
-  if (state.target.kind === "workspace") return "Workspace: " + state.target.name;
+  if (state.target.kind === "workspace") {
+    return (openChat(state) ? "This chat in " : "Workspace: ") + state.target.name;
+  }
   if (state.target.kind === "repository") return "New workspaces in " + state.target.name;
   return "No workspace in view";
 }
 
 export function footText(state: PanelState): string {
   if (state.target.kind === "workspace") {
-    return "Applies to new chats in this workspace. Chats already running keep the account they started on.";
+    return openChat(state)
+      ? "Applies to this chat alone. It comes up on the new account next time you open it; the conversation on screen keeps the one it started with."
+      : "No chat open, so this sets the workspace. Chats started here use it unless they are set on their own.";
   }
   if (state.target.kind === "repository") {
     return "Applies to workspaces created from now on.";

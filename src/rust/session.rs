@@ -94,12 +94,22 @@ pub enum Current {
     Ambiguous(usize),
 }
 
-/// The chat being written to in this workspace.
+/// The chat on screen in this workspace.
 ///
-/// Refuses to choose when two chats were written within a couple of seconds of
-/// each other: both are plausibly on screen, and picking one would silently pin
-/// the wrong conversation.
+/// Conductor's own record comes first: it stores the selected chat against the
+/// workspace, so there is nothing to infer. It is right while the workspace is
+/// idle, right when two chats answer at once, and right for a conversation whose
+/// transcript is named something else after a compaction.
+///
+/// The scan below stays as the fallback, for a Conductor with no database to
+/// read, no `sessions` table, or no `sqlite3` to read it with. It infers the chat
+/// from transcript timestamps, and refuses to choose when two were written within
+/// a couple of seconds of each other: both are plausibly on screen, and picking
+/// one would silently pin the wrong conversation.
 pub fn current(agent: &str, dir: &Path) -> Current {
+    if let Some(open) = crate::places::active_session(agent, dir) {
+        return Current::Chat(open);
+    }
     let found = transcripts(agent, dir);
     let Some(newest) = found.first() else {
         return Current::Idle;

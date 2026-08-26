@@ -101,13 +101,13 @@ fn the_guard_answers_only_the_version_check() {
     );
 }
 
-/// The panel offers one thing per level, as it did before a scope switch was
-/// added to it: providers, then that provider's accounts. A choice means the
-/// workspace on screen.
+/// The panel offers one thing per level: providers, then that provider's
+/// accounts. The segmented control that once sat between them is gone and stays
+/// gone; what a choice applies to is said in words instead.
 #[test]
 fn the_panel_offers_no_scope_switch() {
     let dist = bundle();
-    for gone in ["cma-scope", "cma-seg", "This chat"] {
+    for gone in ["cma-scope", "cma-seg"] {
         assert!(
             !dist.contains(gone),
             "the panel still carries {gone:?}, which belongs to the removed scope switch"
@@ -115,19 +115,35 @@ fn the_panel_offers_no_scope_switch() {
     }
 }
 
-/// A chat that started before the route changed carries a pin, and a pin beats
-/// the route. The label reads what the chat will actually run on, and choosing
-/// an account clears the pin, so the two can never disagree.
+/// The toolbar belongs to the chat it was pressed in. Choosing an account pins
+/// that chat and writes no route, so the other chats in the workspace are left
+/// where they are.
 #[test]
-fn choosing_an_account_leaves_nothing_pinned_against_it() {
+fn choosing_an_account_sets_the_open_chat_alone() {
     let dist = bundle();
     assert!(
-        dist.contains("unpin ${agent} ${session}"),
-        "choosing an account does not clear the chat's pin"
+        dist.contains("pin ${profile} ${agent} ${session}"),
+        "choosing an account does not pin the chat on screen"
     );
     assert!(
         dist.contains("function effective("),
         "the label does not read the account the chat will use"
+    );
+}
+
+/// Setting every chat at once is still reachable, and it has to clear the open
+/// chat's pin as well as write the route: a pin beats a route, so the route
+/// alone would leave that chat behind.
+#[test]
+fn the_whole_workspace_action_clears_the_pin_too() {
+    let dist = bundle();
+    assert!(
+        dist.contains("unpin ${agent} ${session}"),
+        "the workspace-wide choice leaves the open chat pinned against it"
+    );
+    assert!(
+        dist.contains("for every chat here"),
+        "there is no way to set every chat in the workspace"
     );
 }
 

@@ -1,9 +1,11 @@
 /* Level two: one provider's accounts, with a way in and a way out of each. */
 
-import { AGENT_ICON, AGENT_LABEL, el, footText } from "../dom.js";
+import { message } from "../cli.js";
+import { AGENT_ICON, AGENT_LABEL, cap, effective, el, footText, note } from "../dom.js";
 import { icon } from "../icons.js";
-import type { PanelState } from "../state.js";
-import { panel, redraw } from "../store.js";
+import { applyToWorkspace } from "../state.js";
+import type { PanelState, Provider } from "../state.js";
+import { panel, redraw, reload } from "../store.js";
 import { accountSlot } from "./account-row.js";
 import { rootView } from "./root.js";
 import { signInForm } from "./sign-in.js";
@@ -41,6 +43,9 @@ export function providerView(state: PanelState, host: HTMLElement, agent: string
     host.appendChild(accountSlot(state, provider, account));
   }
 
+  const whole = wholeWorkspace(state, provider);
+  if (whole) host.appendChild(whole);
+
   const add = el("button", "cma-add");
   add.type = "button";
   add.appendChild(icon("plus", 12));
@@ -51,4 +56,28 @@ export function providerView(state: PanelState, host: HTMLElement, agent: string
   host.appendChild(add);
 
   host.appendChild(el("div", "cma-note", footText(state)));
+}
+
+/**
+ * The other thing a person might mean, offered only when it would do something.
+ *
+ * Choosing an account sets the chat on screen. When that leaves the chat on one
+ * account and the workspace on another, this says so and offers to make the
+ * chat's account the workspace's too. When they already agree there is nothing
+ * to press, so nothing is drawn.
+ */
+function wholeWorkspace(state: PanelState, provider: Provider): HTMLElement | null {
+  if (state.target.kind !== "workspace") return null;
+  const chat = effective(provider);
+  if (!chat || !provider.session || chat === provider.current) return null;
+
+  const button = el("button", "cma-add cma-whole");
+  button.type = "button";
+  button.appendChild(el("span", null, "Use " + cap(chat) + " for every chat here"));
+  button.addEventListener("click", () => {
+    applyToWorkspace(state, provider.agent, chat)
+      .then(() => reload())
+      .catch((e) => note(panel ? panel.el : button, message(e)));
+  });
+  return button;
 }

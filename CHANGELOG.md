@@ -6,6 +6,52 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- **The toolbar moved every chat in the workspace, not the one it was pressed
+  in.** Choosing an account wrote the workspace route and then cleared the open
+  chat's pin, so two chats set to two accounts converged on one. A workspace
+  holds several chats and each runs its own agent process; pressing a control
+  inside one chat now means that chat, and writes a pin. The workspace route is
+  left alone, so the others stay where they are.
+
+  Setting every chat at once is still there, as one button under the accounts
+  reading `Use <account> for every chat here`. It appears only when the chat's
+  account and the workspace's disagree, which is the only time it would do
+  anything. It writes the route and clears the pin, because a pin beats a route
+  and the route alone would leave the open chat behind.
+
+  Neither moves the conversation already on screen. That has not changed and
+  cannot: the agent took its config directory when it spawned.
+
+- **The panel often could not tell which chat was open, and fell back to the
+  workspace.** Which chat is live was inferred from transcript timestamps, which
+  fails in three ordinary situations: a workspace nobody has typed in for five
+  minutes read as idle, two chats answering within two seconds of each other were
+  refused as ambiguous, and a conversation resumed after a compaction is filed
+  under a different id. Every one of those left the toolbar with no chat to act
+  on, which is what made a choice hit the whole workspace.
+
+  Conductor records the open chat itself, in `workspaces.active_session_id`.
+  That is read directly now, read-only, filtered to the agent whose accounts are
+  on screen so a Codex chat is never offered as the Claude one. Measured against
+  the running app, three workspaces that all had a chat open reported "no chat
+  active here recently" before this and resolve exactly now.
+
+  The two ids are different namespaces: `sessions.claude_session_id` is what
+  reaches the agent's command line, and it wins where it differs from Conductor's
+  own, because a pin filed under the other is a file nothing looks up.
+
+  The timestamp scan stays as the fallback, for a Conductor with no database, no
+  `sessions` table, or no `sqlite3` to read it with.
+
+- **The panel said "Workspace" while acting on a chat.** The scope line reads
+  `This chat in <name>` when a chat is open, and the note under the accounts says
+  the choice applies to that chat alone and that the running conversation keeps
+  what it started with.
+
 ## 0.4.0
 
 ### Security

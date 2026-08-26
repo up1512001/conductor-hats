@@ -201,9 +201,44 @@ sits under it, because that is what you type at the CLI.
 
 | Opened from | Scope line reads | What choosing an account writes |
 |---|---|---|
-| a workspace toolbar | `Workspace: <name>` | a `use` route for that workspace |
+| a workspace toolbar, chat open | `This chat in <name>` | a `pin` on that chat |
+| a workspace toolbar, no chat open | `Workspace: <name>` | a `use` route for that workspace |
 | the New Workspace modal | `New workspaces in <repo>` | a `bind` on the repository |
 | neither identified | `No workspace in view` | nothing; rows are disabled |
+
+### The toolbar belongs to the chat it was pressed in
+
+A workspace holds several chats and each runs its own agent process, so one can
+be on Personal while the next is on Work. Pressing a control inside one chat
+means that chat: the panel writes a pin and leaves the workspace route alone, so
+the other chats stay where they are.
+
+When the chat's account and the workspace's disagree, one more button appears
+under the accounts, reading `Use <account> for every chat here`. It writes the
+route and clears the pin, because a pin beats a route and the route alone would
+leave the open chat behind. It is not drawn when the two already agree, since
+there would be nothing for it to do.
+
+Neither can move the conversation already on screen. Its agent process took a
+config directory when it spawned and never reads one again, so a choice decides
+the next process Conductor starts for that chat. Reopen it, or start a new one.
+
+### Which chat is open
+
+Conductor records it: `workspaces.active_session_id` in its own database, read
+read-only, filtered to the agent whose accounts are on screen. That is exact and
+it changes the moment another chat is clicked, so the panel never has to infer
+which conversation it is looking at.
+
+The id in that column is Conductor's. A chat resumed after a compaction carries
+a `claude_session_id` of its own, and that is the one on the command line the
+router reads, so it is preferred where the two differ. Pinning the other would
+write a file nothing ever looks up.
+
+Where there is no database to read, no `sessions` table in it, or no `sqlite3` to
+read it with, the older guess still stands in: the newest transcript in the
+workspace, treated as idle beyond five minutes, and refused outright when two
+were written within two seconds of each other.
 
 ## How it is built, and how it survives an update
 

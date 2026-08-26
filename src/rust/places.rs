@@ -18,6 +18,23 @@ const WORKSPACES: &str = "select workspace_path from workspaces \
 
 const REPOS: &str = "select root_path from repos where root_path is not null";
 
+/// The chat Conductor has open in a workspace, named the way the router will see
+/// it.
+///
+/// Conductor records the selected chat itself, in `workspaces.active_session_id`,
+/// which is exact: it changes the moment another chat is clicked, and it holds
+/// while the workspace sits idle. Guessing from transcript timestamps can do
+/// neither.
+///
+/// The two ids are not the same namespace. Conductor's `sessions.id` is what it
+/// passes as `--session-id` when it starts a chat, so the two usually agree, but
+/// a conversation resumed after a compaction carries a `claude_session_id` of
+/// its own and that is the one on the command line the router reads. Pinning the
+/// other would write a file nothing ever looks up.
+const ACTIVE: &str = "select coalesce(nullif(s.claude_session_id, ''), s.id) \
+     from workspaces w join sessions s on s.id = w.active_session_id \
+     where s.agent_type = ";
+
 /// Ids come from the frontend, so they are checked before being put in a query
 /// rather than trusted. Conductor's are UUIDs.
 fn is_id(id: &str) -> bool {
@@ -61,6 +78,30 @@ fn query(db: &Path, sql: &str) -> Vec<String> {
         .filter(|l| !l.is_empty())
         .map(str::to_string)
         .collect()
+}
+
+/// Single quotes doubled, which is all SQL string quoting is. Paths arrive from
+/// the caller rather than from Conductor, so they are not ids and cannot be
+/// checked like one.
+fn quoted(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "''"))
+}
+
+/// The open chat in this workspace for one agent, or None when Conductor knows
+/// of none, the database is unreadable, or this build has no `sessions` table.
+///
+/// Filtered by agent: a workspace showing a Codex chat has no Claude chat open,
+/// and answering with the Codex one would pin the wrong agent's conversation.
+pub fn active_session(agent: &str, dir: &Path) -> Option<String> {
+    let sql = format!(
+        "{ACTIVE}{} and w.workspace_path = {}",
+        quoted(agent),
+        quoted(&dir.to_string_lossy())
+    );
+    databases()
+        .iter()
+        .flat_map(|db| query(db, &sql))
+        .find(|id| is_id(id))
 }
 
 fn basename(path: &str) -> &str {
