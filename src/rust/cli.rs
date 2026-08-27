@@ -3,7 +3,7 @@
 //! The surface matches the shell CLI it replaces, because the test suite is the
 //! contract and runs against either implementation.
 
-use crate::{chats, id, manage, paths, pending, report, session, store, wiring};
+use crate::{chats, id, manage, paths, pending, report, serve, session, store, transcript, wiring};
 
 pub fn agent_of(arg: Option<&String>) -> Result<String, String> {
     id::agent(arg.map(String::as_str).unwrap_or("claude")).map(str::to_string)
@@ -55,6 +55,8 @@ pub fn is_account_command(cmd: &str) -> bool {
             | "install"
             | "uninstall"
             | "chats"
+            | "serve"
+            | "transcript"
             | "doctor"
     )
 }
@@ -216,6 +218,31 @@ pub fn run(cmd: &str, rest: &[String]) -> Result<(), String> {
         }
         "install" => wiring::install(),
         "uninstall" => wiring::uninstall(),
+        "transcript" => {
+            let limit = rest
+                .iter()
+                .position(|a| a == "--limit")
+                .and_then(|i| rest.get(i + 1))
+                .and_then(|l| l.parse().ok())
+                .unwrap_or(60);
+            let session = positional.first().map(String::as_str).unwrap_or("");
+            println!("{}", transcript::as_json(session, limit));
+            Ok(())
+        }
+        "serve" => {
+            let port = rest
+                .iter()
+                .position(|a| a == "--port")
+                .and_then(|i| rest.get(i + 1))
+                .and_then(|p| p.parse().ok())
+                .unwrap_or(8787);
+            let host = rest
+                .iter()
+                .position(|a| a == "--host")
+                .and_then(|i| rest.get(i + 1))
+                .map(String::as_str);
+            serve::run(host, port)
+        }
         "chats" => {
             if rest.iter().any(|a| a == "--json") {
                 chats::as_json()

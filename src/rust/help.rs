@@ -27,6 +27,8 @@ Reporting
   status [path] [--mask]             what this workspace resolves to
   which [path] [agent]               the same, with every layer that fed in
   chats [--mask] [--json]            every open chat and the account it is on
+  transcript <session> [--limit N]   what was said in one chat, as JSON
+  serve [--port N] [--host H]        read-only screen for a phone, loopback by default
   json [path]                        machine-readable, for the panel
   workspaces                         every workspace Conductor knows, name and path
   repos                              every repository, the same

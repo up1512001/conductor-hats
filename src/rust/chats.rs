@@ -9,7 +9,7 @@
 //! the process after it will take. They differ exactly when a chat has been
 //! pointed somewhere new and not yet restarted.
 
-use crate::{mask, places, profile, session, store};
+use crate::{mask, places, profile, routes, session, settings, store};
 
 #[derive(serde::Serialize)]
 struct Wire<'a> {
@@ -84,14 +84,46 @@ fn parse(line: &str) -> Option<Chat> {
 
 /// A chat with no pin follows its workspace, so the workspace's answer is what
 /// its next process will take.
-fn fill_next(chat: &mut Chat) {
-    if !chat.next.is_empty() {
-        return;
+///
+/// Deliberately not `store::effective_dir`. That goes through `resolve::decide`,
+/// which is the router's decision and therefore writes: it can spend the account
+/// chosen for a new workspace and record a route as a side effect. A listing
+/// must not do that, and this one is served to a phone on a poll, which would
+/// have done it every second.
+///
+/// So the read-only layers only, in the router's own order: an exact route, then
+/// a repository binding, then a parent route or the default. Resolved once per
+/// workspace rather than once per chat, which is also what took the listing from
+/// 1.9 seconds across 161 chats down to something a phone can poll.
+fn workspace_account(agent: &str, path: &str) -> String {
+    let dir = std::path::Path::new(path);
+    let found = routes::resolve(dir);
+    if let Some(m) = &found {
+        if m.exact {
+            return m.profile.clone();
+        }
     }
-    chat.next = store::effective_dir(&chat.agent, std::path::Path::new(&chat.path))
-        .as_deref()
-        .and_then(store::profile_from_dir)
-        .unwrap_or_default();
+    if let Some(bound) = settings::repo_binding(agent, &store::repo_root(dir)) {
+        if let Some(name) = store::profile_from_dir(&bound) {
+            return name;
+        }
+    }
+    found.map(|m| m.profile).unwrap_or_default()
+}
+
+fn fill_next(chats: &mut [Chat]) {
+    let mut known: std::collections::HashMap<(String, String), String> =
+        std::collections::HashMap::new();
+    for chat in chats.iter_mut() {
+        if !chat.next.is_empty() {
+            continue;
+        }
+        let key = (chat.agent.clone(), chat.path.clone());
+        let answer = known
+            .entry(key)
+            .or_insert_with(|| workspace_account(&chat.agent, &chat.path));
+        chat.next.clone_from(answer);
+    }
 }
 
 pub fn collect() -> Vec<Chat> {
@@ -99,9 +131,7 @@ pub fn collect() -> Vec<Chat> {
         .iter()
         .filter_map(|l| parse(l))
         .collect();
-    for chat in &mut out {
-        fill_next(chat);
-    }
+    fill_next(&mut out);
     out
 }
 
@@ -117,6 +147,11 @@ fn shown(agent: &str, name: &str, masked: bool) -> String {
 
 /// The same list as JSON, which is what anything drawing a screen wants.
 pub fn as_json() -> Result<(), String> {
+    println!("{}", json_string()?);
+    Ok(())
+}
+
+pub fn json_string() -> Result<String, String> {
     store::ensure_root()?;
     let chats = collect();
     let wire: Vec<Wire> = chats
@@ -134,9 +169,7 @@ pub fn as_json() -> Result<(), String> {
             next: &c.next,
         })
         .collect();
-    let body = serde_json::to_string(&wire).map_err(|e| format!("{e}"))?;
-    println!("{body}");
-    Ok(())
+    serde_json::to_string(&wire).map_err(|e| format!("{e}"))
 }
 
 pub fn run(masked: bool) -> Result<(), String> {

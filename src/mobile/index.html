@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Conductor</title>
+<style>
+  :root { --bg:#0f0f10; --card:#17171a; --line:#26262b; --dim:#8a8a92; --fg:#ededf0; --accent:#c96442 }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+         padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) }
+  header { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); padding:14px 16px; display:flex; align-items:baseline; gap:10px }
+  h1 { font-size:17px; margin:0; font-weight:600 }
+  .count { color:var(--dim); font-size:13px }
+  main { padding:8px 12px 32px }
+  .row { display:block; width:100%; text-align:left; background:var(--card); border:1px solid var(--line); border-radius:10px;
+         padding:12px 14px; margin:8px 0; color:inherit; font:inherit; cursor:pointer }
+  .top { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap }
+  .ws { font-weight:600 }
+  .meta, .title { color:var(--dim); font-size:13px }
+  .title { margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .tag { font-size:12px; border:1px solid var(--line); border-radius:999px; padding:1px 8px; color:var(--dim) }
+  .tag.on { border-color:var(--accent); color:var(--accent) }
+  .working { color:var(--accent) }
+  .moving { color:var(--accent); font-size:12px; margin-top:6px }
+  .msg { border-bottom:1px solid var(--line); padding:12px 2px }
+  .who { font-size:12px; color:var(--dim); margin-bottom:4px }
+  .msg pre { margin:0; white-space:pre-wrap; word-wrap:break-word; font:inherit }
+  .bar { display:flex; gap:12px; align-items:center; padding:10px 4px }
+  button.link { background:none; border:0; color:var(--accent); font:inherit; padding:0; cursor:pointer }
+  .empty { color:var(--dim); padding:24px 4px }
+</style>
+
+<header><h1 id="heading">Chats</h1><span class="count" id="count"></span></header>
+<main id="view"><p class="empty">Loading…</p></main>
+
+<script>
+const view = document.getElementById("view");
+const heading = document.getElementById("heading");
+const count = document.getElementById("count");
+let open = null;
+
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+async function get(path) {
+  const r = await fetch(path, { cache: "no-store" });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+function board(list) {
+  count.textContent = list.length + (list.length === 1 ? " chat" : " chats");
+  if (!list.length) { view.innerHTML = '<p class="empty">Nothing open.</p>'; return; }
+  view.innerHTML = list.map((c) => {
+    const moving = c.on && c.next && c.on !== c.next;
+    return `<button class="row" data-session="${esc(c.session)}" data-title="${esc(c.workspace)}">
+      <div class="top">
+        <span class="ws">${esc(c.workspace)}</span>
+        <span class="meta ${c.status === "working" ? "working" : ""}">${esc(c.status || "idle")}</span>
+        <span class="tag on">${esc(c.on || c.next || "none")}</span>
+        ${c.unread ? `<span class="tag">${c.unread} unread</span>` : ""}
+      </div>
+      <div class="title">${esc(c.title)}</div>
+      ${moving ? `<div class="moving">moves to ${esc(c.next)} when reopened</div>` : ""}
+    </button>`;
+  }).join("");
+  for (const row of view.querySelectorAll(".row")) {
+    row.onclick = () => chat(row.dataset.session, row.dataset.title);
+  }
+}
+
+function chat(session, title) {
+  open = { session, title };
+  heading.textContent = title;
+  count.textContent = "";
+  view.innerHTML = '<div class="bar"><button class="link" id="back">← all chats</button></div><p class="empty">Loading…</p>';
+  document.getElementById("back").onclick = () => { open = null; heading.textContent = "Chats"; load(); };
+  get("/api/chat?limit=60&session=" + encodeURIComponent(session)).then((lines) => {
+    const body = lines.length
+      ? lines.map((m) => `<div class="msg"><div class="who">${esc(m.role)}</div><pre>${esc(m.text)}</pre></div>`).join("")
+      : '<p class="empty">Nothing said yet.</p>';
+    view.innerHTML = '<div class="bar"><button class="link" id="back2">← all chats</button></div>' + body;
+    document.getElementById("back2").onclick = () => { open = null; heading.textContent = "Chats"; load(); };
+    window.scrollTo(0, document.body.scrollHeight);
+  }).catch((e) => { view.innerHTML = `<p class="empty">${esc(e.message)}</p>`; });
+}
+
+function load() {
+  if (open) { chat(open.session, open.title); return; }
+  get("/api/chats").then(board).catch((e) => {
+    view.innerHTML = `<p class="empty">${esc(e.message)}</p>`;
+  });
+}
+
+load();
+const stream = new EventSource("/api/events");
+stream.onmessage = (e) => { if (!JSON.parse(e.data).tick) load(); };
+</script>

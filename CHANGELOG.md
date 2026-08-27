@@ -10,6 +10,30 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **`hats serve`, a read-only screen for a phone.** Every chat Conductor has
+  open, which account each is on, and what was said in any of them. Loopback by
+  default; the way out is a tunnel that connects outward and authenticates at the
+  edge, which is `cloudflared` plus a Cloudflare Access policy. See
+  [docs/mobile.md](docs/mobile.md).
+
+  Read-only on purpose. Nothing here changes an account, sends a message, or
+  writes to Conductor, and a `POST` is refused before it is parsed. That is what
+  makes it safe to leave running while the authentication story is a tunnel and a
+  policy rather than code this repository had to invent.
+
+  Written on `std::net` with no new dependencies. hats has three, and the reason
+  is a binary that needs no C toolchain; an async runtime and a web framework
+  would have been two hundred more for GET and an event stream. Server-Sent
+  Events rather than websockets, because a browser cannot set headers on a
+  websocket handshake, so a token has to go in the URL or be exchanged for a
+  ticket first. An event stream is a GET.
+
+- **`hats transcript <session>`**, what was said in one chat, as JSON. Two
+  encodings share Conductor's `content` column: a user row is plain text, an
+  assistant row is Claude Code's SDK envelope. Most envelopes are tool traffic,
+  and the text of a reply is not reliably the first block of its content array,
+  because thinking and tool-use blocks share it.
+
 - **`hats chats`**, every chat Conductor has open and the account each one is
   on. The panel answers that for the chat in front of you; this answers it for
   all of them, which is the question that gets asked once several agents are
