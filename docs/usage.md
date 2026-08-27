@@ -42,6 +42,19 @@ cd ~/conductor/workspaces/side-project/two && hats use personal
 Open a chat in each. Conductor keeps a separate agent host per workspace, so
 both run at the same time without interfering.
 
+Two chats in the *same* workspace can differ too, since each runs its own agent
+process:
+
+```sh
+hats pin work claude      # the chat open in this workspace
+hats session              # which chat that is
+hats unpin                # let it follow the workspace again
+```
+
+`hats pin` with no session argument means the chat Conductor has open here. From
+the panel it is the same thing: choosing an account in the toolbar pins the chat
+you are looking at and leaves the rest of the workspace alone.
+
 ### A whole repository on one account
 
 For a repository where every workspace should use the same account, bind the

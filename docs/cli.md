@@ -17,6 +17,11 @@ login <profile> [agent]          re-run sign in for a profile
 logout <profile> [agent]         sign out, keep the profile
 remove <profile> [agent]         sign out, delete the profile and its routes
 
+pin <profile> [agent] [session]  point one chat at a profile
+unpin [agent] [session]          let that chat follow the workspace
+session [path] [agent]           the chat currently open in a workspace
+next <profile> [agent]           the account for the workspaces created next
+
 bind <profile> [agent] [repo]    bind a whole repository to a profile
 unbind [agent] [repo]            drop a repository binding
 assign default <profile>         account for workspaces with no route
@@ -25,8 +30,16 @@ unassign [path|default]          drop a route
 install                          turn the router on, add /account
 uninstall                        turn it off again
 sessions [clear]                 show or reset per-session pins
+json [path] [session]            machine-readable, for the panel
+debug [on|off|status|read|clear] record what the panel resolved
 doctor                           check the setup end to end
 ```
+
+`bind` is the blunt one and it is worth knowing why. A binding is a single
+`CLAUDE_CONFIG_DIR` written into the repository's `.conductor` settings, which
+Conductor exports into every workspace under it, so it moves all of them at
+once. The panel never writes one. Reach for `use` for a workspace, `pin` for a
+chat, and `next` for the workspace you are about to create.
 
 
 ## Layout
@@ -120,3 +133,24 @@ any of those would otherwise have taken it.
 It stands until another is chosen, so one press of the chip covers a batch of
 workspaces created together. Each one writes itself an ordinary route as its
 first agent starts, so choosing again later does not move it.
+
+## `hats json [path] [session]`
+
+What the injected panel reads. One object per agent, and the two fields worth
+naming:
+
+- `chat` is the account the **next** process for that chat will take
+- `started` is the account the process **already running** took when it spawned
+
+They differ whenever a chat has been pointed somewhere new and not yet
+restarted, and conflating them is what made the toolbar say Work while the agent
+answering was on Personal. Anything showing a label wants `started`, falling
+back to `chat` when the chat has not started yet.
+
+The `session` argument names the chat to answer about. The panel reads that out
+of the window, which is exact; without it the chat is worked out from
+Conductor's database, which is the fallback for callers with no window to read.
+
+A path that does not exist yet is not an error here. Conductor records a
+workspace before it finishes making its working tree, and the panel asks about
+one in that state every time a workspace is created.

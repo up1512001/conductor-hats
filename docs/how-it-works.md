@@ -99,16 +99,38 @@ per-repository bindings take effect without restarting the app.
 
 ```
 1. CONDUCTOR_ACCOUNT             an explicit override for one spawn
-2. session pin                   the account this session started on
+2. session pin                   the account this chat is set to
 3. exact workspace route         `use` or `/account` named this directory
-4. an inherited CLAUDE_CONFIG_DIR a repository binding is already in effect
-5. parent-directory route, then the `default` route
+4. the account chosen while this workspace was being created  (`next`)
+5. an inherited CLAUDE_CONFIG_DIR a repository binding is already in effect
+6. parent-directory route, then the `default` route
 ```
 
 The session pin sits above routes because Conductor respawns the agent on
 resume, on model switches and on generator restarts. Without the pin, changing a
 route would move a live conversation to a different account, and `--resume`
 would fail to find its transcript.
+
+A choice made in the New Workspace composer sits below an exact route and above
+everything else. It is spent by a workspace that did not exist when it was made,
+which is checked against Conductor's list of workspaces rather than assumed:
+Conductor starts an agent with the working directory set to `/` before a new
+workspace's own, and every workspace already open respawns agents on resumes and
+model switches, and any of those would otherwise have taken it. The workspace
+that uses it writes itself an ordinary route at that moment, which is what stops
+a later choice moving it.
+
+## What a chat is running on
+
+The pin says which account the next process for a chat will take. It says
+nothing about the one already running: that agent read `CLAUDE_CONFIG_DIR` when
+it spawned and never reads it again.
+
+So the router records the account it hands each agent, under
+`sessions/<agent>/started/<session>`, as it hands it over. Written there and
+nowhere else, and never by `hats pin`, because the two are different facts.
+`hats json` reports both, and the panel names the one the conversation is on
+while saying which one it will come up on next.
 
 An exact route sits above a repository binding because naming one workspace is
 more specific than naming a repository. An inherited binding sits above a parent
