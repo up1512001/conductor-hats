@@ -40,6 +40,13 @@ pub fn clear(agent: &str) {
 /// Reads the choice and spends it, writing the workspace an ordinary route so
 /// the answer survives being asked again.
 pub fn take(agent: &str, dir: &Path) -> Option<String> {
+    /* Spent by a workspace, and only by a workspace. Conductor starts an agent
+     * with the working directory set to `/` before it starts the workspace's own,
+     * and more at the repository root; measured, each of those took the choice and
+     * left the new workspace with none. */
+    if !crate::places::is_workspace(dir) {
+        return None;
+    }
     let found = paths::first_line(&path(agent))?;
     let name = id::profile_or_none(&found)?.to_string();
     clear(agent);

@@ -163,9 +163,23 @@ impl Sandbox {
     /// Runs the router the way Conductor would, and reports the config directory
     /// the agent actually received.
     pub fn route(&self, agent: &str, workspace: &str, args: &[&str]) -> String {
+        self.route_env(agent, workspace, args, &[])
+    }
+
+    /// The same, with extra environment: a fixture database, usually.
+    pub fn route_env(
+        &self,
+        agent: &str,
+        workspace: &str,
+        args: &[&str],
+        env: &[(&str, &str)],
+    ) -> String {
         let router = self.root.join(format!("{agent}-router"));
         let workspace = self.root.join(workspace);
         let mut cmd = self.base(&router.to_string_lossy());
+        for (k, v) in env {
+            cmd.env(k, v);
+        }
         cmd.env("CONDUCTOR_WORKSPACE_PATH", &workspace)
             .current_dir(&workspace);
         let run = self.run(cmd, args);

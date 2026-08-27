@@ -109,6 +109,32 @@ fn quoted(text: &str) -> String {
     format!("'{}'", text.replace('\'', "''"))
 }
 
+/// Whether Conductor calls this directory a workspace.
+///
+/// The account chosen while creating one must not be spent by anything else, and
+/// plenty else starts an agent: Conductor runs one with the working directory set
+/// to `/` before the workspace's own, and others at the repository root. Both
+/// would swallow the choice and leave the new workspace with nothing.
+pub fn is_workspace(dir: &Path) -> bool {
+    let dbs = databases();
+    if dbs.is_empty() {
+        /* No Conductor to ask, so nothing else is starting agents either and
+         * there is nothing to protect the choice from. */
+        return true;
+    }
+    /* Compared after resolving both sides rather than as strings. On macOS the
+     * temporary directory is `/var/...`, a symlink to `/private/var/...`, and
+     * which spelling reaches here depends on who resolved it last. */
+    let want = real(dir);
+    dbs.iter()
+        .flat_map(|db| query(db, WORKSPACES))
+        .any(|path| real(Path::new(&path)) == want)
+}
+
+fn real(dir: &Path) -> PathBuf {
+    std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf())
+}
+
 /// The open chat in this workspace for one agent, or None when Conductor knows
 /// of none, the database is unreadable, or this build has no `sessions` table.
 ///

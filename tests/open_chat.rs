@@ -253,3 +253,46 @@ fn the_choice_is_spent_by_one_workspace_only() {
         "the choice leaked to a second workspace: {second}"
     );
 }
+
+/// Conductor starts an agent with the working directory set to `/` before it
+/// starts the workspace's own, and more at the repository root. Each of those
+/// took the account chosen for a new workspace and left the workspace with none.
+#[test]
+fn only_a_real_workspace_spends_the_choice() {
+    if !sqlite() {
+        eprintln!("skipped: sqlite3 is not installed");
+        return;
+    }
+    let s = Sandbox::new();
+    s.hats(&["install"]).ok();
+    s.profile("claude", "work");
+    s.profile("claude", "personal");
+    s.hats(&["assign", "default", "personal"]).ok();
+    let ws = s.workspace("ws-real");
+    let db = database(&s, "ws-real", "sss111", &[("sss111", "sss111", "claude")]);
+
+    s.hats(&["next", "work", "claude"]).ok();
+
+    let elsewhere = s.workspace("not-a-workspace");
+    let got = s.route_env(
+        "claude",
+        "not-a-workspace",
+        &["--session-id=aaa111"],
+        &[("CONDUCTOR_DB", &db)],
+    );
+    assert!(
+        got.ends_with("/claude/personal"),
+        "a directory Conductor does not call a workspace spent the choice: {got} ({elsewhere})"
+    );
+
+    let got = s.route_env(
+        "claude",
+        "ws-real",
+        &["--session-id=bbb222"],
+        &[("CONDUCTOR_DB", &db)],
+    );
+    assert!(
+        got.ends_with("/claude/work"),
+        "the workspace it was chosen for did not get it: {got} ({ws})"
+    );
+}
