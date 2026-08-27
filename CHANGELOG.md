@@ -10,9 +10,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **Each account row carries its provider's mark**, Claude's or Codex's, so a row
-  says whose account it is without reading the heading above it. The same profile
-  name can exist under both.
+- **The toolbar shows the provider beside the account**, Claude's mark or
+  Codex's, so it says whose account it is naming rather than only which one.
+  Inside the panel the heading already says which provider, so nothing is
+  repeated on the rows.
 
 ### Fixed
 
@@ -113,6 +114,15 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   never a binding, and the panel says so, `No chat here yet, so this applies to
   the workspace you create next.` The panel now carries no repository binding at
   all, which a test asserts against the built bundle.
+
+- **Switching chats felt slow.** Two process spawns stood between the switch and
+  the new label: one to turn the workspace id into a path, then one to read the
+  account. The first is the same answer every time, since switching chats does
+  not change the workspace, so it is now asked once and kept. The chat itself is
+  watched on a short interval as well as on DOM mutation, because a switch need
+  not touch the toolbar's own subtree and waiting for the observer left the wrong
+  account on screen while the window was still. Reading the chat costs a walk up
+  a kept fiber and a string compare.
 
 - **The toolbar kept the last chat's account after switching chats.** Each chat
   can be on its own account, so a label left over from the previous one does not

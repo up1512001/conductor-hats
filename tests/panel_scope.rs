@@ -49,19 +49,35 @@ fn the_panel_never_binds_a_repository() {
     );
 }
 
+/// The toolbar names the account and shows whose it is. Inside the panel the
+/// heading already says which provider, so a mark on every row was noise.
 #[test]
-fn an_account_row_says_which_provider_it_belongs_to() {
+fn the_toolbar_shows_the_provider_beside_the_account() {
     let dist = bundle();
     assert!(
         dist.contains("cma-mark"),
-        "account rows carry no provider mark"
+        "the toolbar carries no provider mark"
     );
-    for mark in ["claude", "codex"] {
-        assert!(
-            dist.contains(mark),
-            "the {mark} mark is not in the built panel"
-        );
-    }
+    assert!(
+        dist.contains("agentShowing"),
+        "nothing decides which provider the label is naming"
+    );
+}
+
+/// Switching chats must not cost a `resolve` spawn: the workspace has not
+/// changed, and two process spawns between the switch and the new label is what
+/// made it feel slow.
+#[test]
+fn a_workspace_is_resolved_once_and_remembered() {
+    let dist = bundle();
+    assert!(
+        dist.contains("resolve "),
+        "the panel no longer resolves a workspace by id"
+    );
+    assert!(
+        dist.contains("new Map"),
+        "the resolved workspace is not kept between reads"
+    );
 }
 
 #[test]

@@ -36,6 +36,30 @@ function places(): Promise<Target[]> {
   });
 }
 
+/**
+ * A workspace id to its path, remembered.
+ *
+ * Switching between chats in one workspace does not change the workspace, and
+ * every switch redraws the toolbar. Asking `hats resolve` each time spawned a
+ * process for an answer already known, and two spawns between the click and the
+ * new label is what made switching feel slow. A workspace id never changes
+ * meaning, so the answer is kept for the session.
+ */
+const resolved = new Map<string, Target>();
+
+function byId(id: string): Promise<Target | null> {
+  const known = resolved.get(id);
+  if (known) return Promise.resolve(known);
+  return acct("resolve " + q(id))
+    .then((path) => {
+      if (!path) return null;
+      const target: Target = { kind: "workspace", name: base(path), path };
+      resolved.set(id, target);
+      return target;
+    })
+    .catch(() => null);
+}
+
 /** Scoped to the chrome: the sidebar names every workspace, so a document-wide
  * search would match the wrong one. */
 function chromeText(): string {
@@ -97,13 +121,7 @@ export function currentTarget(prefer: Prefer): Promise<Placed> {
       " hops=" + (anchored ? anchored.hops : 0) +
       " fibers=" + scan.fibers + " distinctIds=" + scan.distinct
   );
-  const exact: Promise<Target | null> = id
-    ? acct("resolve " + q(id))
-        .then((path) =>
-          path ? ({ kind: "workspace", name: base(path), path } as Target) : null
-        )
-        .catch(() => null)
-    : Promise.resolve(null);
+  const exact: Promise<Target | null> = id ? byId(id) : Promise.resolve(null);
 
   return exact.then((found) => {
     if (found) {

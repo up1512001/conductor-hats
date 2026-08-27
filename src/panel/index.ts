@@ -39,13 +39,21 @@ function injectStyles(): void {
  */
 let shownFor: string | null = null;
 
+let reading = false;
+
 function chatChanged(): void {
-  if (!document.getElementById("cma-toolbar-btn")) return;
+  if (reading || !document.getElementById("cma-toolbar-btn")) return;
   const now = fromToolbar().session || "";
   if (now === shownFor) return;
   shownFor = now;
+  reading = true;
   invalidate();
-  loadState(true).then(refreshTriggers).catch(() => {});
+  loadState(true)
+    .then(refreshTriggers)
+    .catch(() => {})
+    .then(() => {
+      reading = false;
+    });
 }
 
 /** Wrapped: a throw inside a compiled bundle is somebody's white screen. */
@@ -72,6 +80,12 @@ function boot(): void {
       tick();
     }, 250);
   }).observe(document.body, { childList: true, subtree: true });
+
+  /* Watched on its own short interval as well as on mutation. A switch between
+   * chats need not touch the toolbar's own subtree, so waiting for the observer
+   * to notice left the wrong account on screen for as long as the window was
+   * still. Reading the chat id is a walk up a kept fiber and a string compare. */
+  setInterval(chatChanged, 200);
 
   setInterval(() => {
     if (

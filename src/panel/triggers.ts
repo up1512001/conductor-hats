@@ -9,7 +9,8 @@
 
 import { message } from "./cli.js";
 import { openOnPress } from "./controller.js";
-import { cap, el, primary } from "./dom.js";
+import { AGENT_ICON, cap, el, effective, primary } from "./dom.js";
+import { icon } from "./icons.js";
 import { loadState } from "./state.js";
 import type { PanelState } from "./state.js";
 
@@ -108,6 +109,9 @@ export function toolbarButton(): void {
   btn.type = "button";
   btn.setAttribute("aria-label", "Agent account");
   btn.hidden = true;
+  /* The agent's mark, then the account. Which provider an account belongs to is
+   * half of what the toolbar is saying, and a name alone does not carry it. */
+  btn.appendChild(el("span", "cma-mark"));
   btn.appendChild(el("span", "cma-label"));
   openOnPress(btn);
 
@@ -121,6 +125,14 @@ export function refreshToolbarLabel(btn: HTMLElement, state?: PanelState): void 
     const cur = primary(s);
     const lbl = btn.querySelector(".cma-label");
     if (lbl) lbl.textContent = cap(cur) || (s.enabled ? "Default" : "Off");
+
+    const mark = btn.querySelector(".cma-mark");
+    if (mark) {
+      mark.replaceChildren();
+      const agent = agentShowing(s);
+      if (agent) mark.appendChild(icon(AGENT_ICON[agent] || "chevron", 13));
+    }
+
     btn.title = cur ? "Agent account: " + cap(cur) : "No account chosen here";
     (btn as HTMLButtonElement).hidden = false;
   };
@@ -136,6 +148,15 @@ export function refreshToolbarLabel(btn: HTMLElement, state?: PanelState): void 
       btn.title = "hats did not answer: " + message(e);
       (btn as HTMLButtonElement).hidden = false;
     });
+}
+
+/** Whose account the label is naming: Claude's unless only Codex has one. */
+function agentShowing(state: PanelState): string {
+  const providers = state.providers || [];
+  const claude = providers.filter((p) => p.agent === "claude")[0];
+  if (claude && effective(claude)) return "claude";
+  const any = providers.filter((p) => effective(p))[0];
+  return any ? any.agent : "";
 }
 
 function findComposer(): HTMLElement | null {

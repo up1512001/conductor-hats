@@ -1,7 +1,7 @@
 /* One account: pick it, or sign it out. */
 
 import { acct, message } from "../cli.js";
-import { AGENT_ICON, AGENT_LABEL, cap, el, note, effective } from "../dom.js";
+import { AGENT_LABEL, cap, el, note, effective } from "../dom.js";
 import { dialog } from "../dialog.js";
 import { icon } from "../icons.js";
 import { maskEmail } from "../mask.js";
@@ -26,13 +26,6 @@ export function accountSlot(
   card.type = "button";
   card.setAttribute("role", "menuitemradio");
   card.setAttribute("aria-checked", active ? "true" : "false");
-
-  /* The provider's mark, so a row says whose account it is without reading the
-   * heading above it. The same profile name can exist under both. */
-  const mark = el("span", "cma-mark");
-  mark.appendChild(icon(AGENT_ICON[provider.agent] || "chevron", 14));
-  mark.title = AGENT_LABEL[provider.agent] || provider.agent;
-  card.appendChild(mark);
 
   const main = el("div", "cma-grow");
   const shown = account.email ? maskEmail(account.email) : cap(account.name);

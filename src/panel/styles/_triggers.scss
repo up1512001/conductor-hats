@@ -6,3 +6,15 @@
 .cma-chip {
   @include trigger;
 }
+
+/* The agent's mark in the toolbar, ahead of the account name. Sized to the text
+ * beside it and inheriting its colour, so it reads as one control. */
+.cma-btn .cma-mark {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 5px;
+}
+
+.cma-btn .cma-mark:empty {
+  display: none;
+}
