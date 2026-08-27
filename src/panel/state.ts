@@ -34,6 +34,10 @@ export interface PanelState {
   enabled: boolean;
   providers: Provider[];
   target: Target;
+  /** Which control was pressed, which is what a choice applies to. Never the
+   * name matcher's guess: the toolbar means this chat even when the only name it
+   * could find on screen was the repository's. */
+  scope: Prefer;
 }
 
 /**
@@ -94,8 +98,23 @@ function chromeText(): string {
  * chip to the repository the next workspace will come from. Length only breaks
  * ties within a kind, so `rio-branch` still beats a repo called `rio`.
  */
+/**
+ * Records what the panel decided, when `hats debug on` says to. Silent
+ * otherwise, and it never sees anything typed: only which place was resolved and
+ * how. Diagnosing the panel used to mean injecting a probe, and every injection
+ * re-signs the copy, which signs it out of Conductor.
+ */
+function note(line: string): void {
+  acct("log " + q(line)).catch(() => {});
+}
+
 function currentTarget(prefer: Prefer): Promise<Target> {
-  const id = prefer === "workspace" ? workspaceId() : null;
+  const scan = prefer === "workspace" ? workspaceId() : { id: null, fibers: 0, distinct: 0 };
+  const id = scan.id;
+  note(
+    "scope=" + prefer + " fiberId=" + (id || "none") +
+      " fibers=" + scan.fibers + " distinctIds=" + scan.distinct
+  );
   const exact: Promise<Target | null> = id
     ? acct("resolve " + q(id))
         .then((path) =>
@@ -104,7 +123,16 @@ function currentTarget(prefer: Prefer): Promise<Target> {
         .catch(() => null)
     : Promise.resolve(null);
 
-  return exact.then((found) => (found ? found : byName(prefer)));
+  return exact.then((found) => {
+    if (found) {
+      note("target by id: " + found.kind + " " + found.name);
+      return found;
+    }
+    return byName(prefer).then((t) => {
+      note("target by name: " + t.kind + " " + (t.name || "nothing matched"));
+      return t;
+    });
+  });
 }
 
 function base(path: string): string {
@@ -159,6 +187,7 @@ export function loadState(fresh?: boolean, prefer: Prefer = "workspace"): Promis
       acct("json " + (target.path ? q(target.path) : "")).then((out) => {
         const st = JSON.parse(out) as PanelState;
         st.target = target;
+        st.scope = prefer;
         return st;
       })
     )
@@ -203,14 +232,31 @@ export function applyAccount(
   profile: string
 ): Promise<string> {
   const t = state.target;
-  if (t.kind === "workspace") {
-    const session = sessionOf(state, agent);
-    return session
-      ? acct(`pin ${profile} ${agent} ${session}`)
-      : acct(`use ${profile} ${agent} ${q(t.path)}`);
+
+  /* The composer chip is the only control that means the repository, and it says
+   * so by asking for that scope. Everything else is the toolbar, which belongs to
+   * the chat it was pressed in. Deciding this from `target.kind` instead let a
+   * toolbar press bind the whole repository whenever the name matcher found the
+   * repository's name on screen and the workspace's nowhere: one value shared by
+   * every workspace in it, so the last account chosen won everywhere. */
+  note(
+    "choose " + profile + " agent=" + agent + " scope=" + state.scope +
+      " target=" + t.kind + " session=" + (sessionOf(state, agent) || "none")
+  );
+
+  if (state.scope === "repository") {
+    if (t.kind !== "repository") {
+      return Promise.reject(new Error("no repository in view"));
+    }
+    return acct(`bind ${profile} ${agent} ${q(t.path)}`);
   }
-  if (t.kind === "repository") return acct(`bind ${profile} ${agent} ${q(t.path)}`);
-  return Promise.reject(new Error("no workspace or repository in view"));
+
+  const session = sessionOf(state, agent);
+  if (session) return acct(`pin ${profile} ${agent} ${session}`);
+  if (t.kind === "workspace") return acct(`use ${profile} ${agent} ${q(t.path)}`);
+  return Promise.reject(
+    new Error("no chat open here, and this workspace could not be identified")
+  );
 }
 
 /**

@@ -47,6 +47,27 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The timestamp scan stays as the fallback, for a Conductor with no database, no
   `sessions` table, or no `sqlite3` to read it with.
 
+- **A toolbar press could bind the whole repository.** Which command a choice
+  ran was decided from `target.kind`, and the target came from matching names
+  against the visible chrome. When the repository's name was on screen and the
+  workspace's was not, the toolbar wrote a repository binding: one
+  `CLAUDE_CONFIG_DIR` in the repository's `.conductor` settings, inherited by
+  every workspace in it. Two chats set to two accounts therefore both ended up on
+  whichever was chosen last, in every workspace of that repository, which is what
+  "I set one to Work and one to Personal and both say Personal" was.
+
+  The choice now follows the control that was pressed rather than the name that
+  was found. The composer chip asks for repository scope and is the only thing
+  that may bind. The toolbar pins the open chat, falls back to the workspace
+  route when no chat is open, and can no longer bind anything.
+
+- **`hats debug` records what the panel resolved.** Off unless turned on, and it
+  logs decisions rather than anything typed: the scope asked for, the id found in
+  the fiber tree and how much of the tree was walked to find it, the target that
+  came back, and what a choice wrote. Diagnosing the panel used to mean injecting
+  a probe, and every injection re-signs the copy, which signs it out of
+  Conductor.
+
 - **Every lookup in Conductor's database could fail silently.** It is in WAL
   mode, and a WAL database opened read-only fails outright unless its `-shm`
   file already exists, which it does not while Conductor is closed or between a

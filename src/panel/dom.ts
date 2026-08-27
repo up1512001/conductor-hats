@@ -62,21 +62,27 @@ export function openChat(state: PanelState): boolean {
 }
 
 export function scopeText(state: PanelState): string {
-  if (state.target.kind === "workspace") {
-    return (openChat(state) ? "This chat in " : "Workspace: ") + state.target.name;
+  if (state.scope === "repository") {
+    return state.target.kind === "repository"
+      ? "New workspaces in " + state.target.name
+      : "No repository in view";
   }
-  if (state.target.kind === "repository") return "New workspaces in " + state.target.name;
+  if (openChat(state)) {
+    return state.target.name ? "This chat in " + state.target.name : "This chat";
+  }
+  if (state.target.kind === "workspace") return "Workspace: " + state.target.name;
   return "No workspace in view";
 }
 
 export function footText(state: PanelState): string {
-  if (state.target.kind === "workspace") {
-    return openChat(state)
-      ? "Applies to this chat alone. It comes up on the new account next time you open it; the conversation on screen keeps the one it started with."
-      : "No chat open, so this sets the workspace. Chats started here use it unless they are set on their own.";
+  if (state.scope === "repository") {
+    return "Applies to workspaces created from now on, across this whole repository.";
   }
-  if (state.target.kind === "repository") {
-    return "Applies to workspaces created from now on.";
+  if (openChat(state)) {
+    return "Applies to this chat alone. It comes up on the new account next time you open it; the conversation on screen keeps the one it started with.";
+  }
+  if (state.target.kind === "workspace") {
+    return "No chat open, so this sets the workspace. Chats started here use it unless they are set on their own.";
   }
   return "Open a workspace to choose its account.";
 }

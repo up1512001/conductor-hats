@@ -40,9 +40,17 @@ function idIn(props: Record<string, unknown> | null | undefined): string | null 
  * its own once. So the most frequent wins, and a tie means the window is not
  * showing one workspace clearly enough to act on.
  */
-export function workspaceId(): string | null {
+export interface Scan {
+  id: string | null;
+  /** How much of the tree was read, and how many ids it held: the two numbers
+   * that separate "no id in the window" from "the tree was never walked". */
+  fibers: number;
+  distinct: number;
+}
+
+export function workspaceId(): Scan {
   const start = rootFiber();
-  if (!start) return null;
+  if (!start) return { id: null, fibers: 0, distinct: 0 };
 
   const counts = new Map<string, number>();
   const stack: Fiber[] = [start];
@@ -68,5 +76,9 @@ export function workspaceId(): string | null {
       runnerUp = count;
     }
   });
-  return best && bestCount > runnerUp ? best : null;
+  return {
+    id: best && bestCount > runnerUp ? best : null,
+    fibers: seen,
+    distinct: counts.size,
+  };
 }

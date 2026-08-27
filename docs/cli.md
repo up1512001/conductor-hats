@@ -85,3 +85,23 @@ rm -rf "/Applications/Conductor Dev.app"   # the whole copy
 
 Your real Conductor was never touched by either.
 
+## `hats debug [on|off|status|read|clear]`
+
+An opt-in log of what the injected panel resolved, for when it picks the wrong
+place. Off unless turned on, and it records decisions rather than anything
+typed: the scope asked for, the workspace id found in Conductor's fiber tree and
+how much of the tree was walked to find it, the target that came back, and what
+a choice wrote.
+
+```sh
+hats debug on
+# reproduce it in Conductor
+hats debug read
+hats debug off
+```
+
+The log lives at `~/.conductor-accounts/debug.log`. `hats debug clear` empties it.
+
+It exists because the alternative is worse: injecting a probe means patching,
+patching re-signs the copy, and a re-signed copy loses the keychain items it
+stored, so every diagnosis cost a login.

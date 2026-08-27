@@ -131,6 +131,25 @@ fn choosing_an_account_sets_the_open_chat_alone() {
     );
 }
 
+/// The toolbar can never bind a repository. Deciding that from the name the
+/// matcher happened to find on screen let one press write a single value that
+/// every workspace in the repository inherits, so the last account chosen won
+/// everywhere. Only the composer, which asks for that scope, may bind.
+#[test]
+fn only_the_composer_may_bind_a_repository() {
+    let dist = bundle();
+    let bind = dist
+        .find("bind ${profile}")
+        .expect("the composer can no longer bind a repository");
+    let guard = dist[..bind]
+        .rfind("repository")
+        .expect("nothing guards the bind");
+    assert!(
+        bind - guard < 400,
+        "the bind is not guarded by the requested scope"
+    );
+}
+
 /// Setting every chat at once is still reachable, and it has to clear the open
 /// chat's pin as well as write the route: a pin beats a route, so the route
 /// alone would leave that chat behind.

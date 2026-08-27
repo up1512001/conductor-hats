@@ -5,6 +5,7 @@
 
 mod args;
 mod cli;
+mod debug;
 mod devapp;
 mod edit;
 mod help;
@@ -207,6 +208,8 @@ fn main() {
         }
         "assets" => patch::list(&args.app, args.pattern.as_deref(), args.dump),
         "verify" => verify::run(&args.app),
+        "debug" => debug::run(&rest),
+        "log" => debug::write(&rest),
         "reset-keychain" => {
             sign::drop_keychain_items(&args.app);
             Ok(())
