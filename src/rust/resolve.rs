@@ -10,9 +10,10 @@ use crate::{id, paths, routes, session};
 ///   2. the session pin, so a running conversation never changes account: an
 ///      account change under a live `--resume` would break it
 ///   3. a route naming this exact workspace, which outranks a repository binding
-///   4. a repository binding, which Conductor has already applied to the
+///   4. an account chosen while this workspace was being created, spent once
+///   5. a repository binding, which Conductor has already applied to the
 ///      environment and which has therefore answered the question
-///   5. a parent-directory route, then the default
+///   6. a parent-directory route, then the default
 ///
 /// `env_bound` is true when the agent's config directory is already set, which is
 /// how a repository binding arrives.
@@ -27,6 +28,9 @@ pub fn decide(agent: &str, dir: &Path, session: Option<&str>, env_bound: bool) -
     if let Some(session) = session.and_then(id::session) {
         if let Some(pinned) = paths::first_line(&session::pin_path(agent, session)) {
             if let Some(valid) = id::profile_or_none(&pinned) {
+                if crate::debug::on() {
+                    crate::debug::line(&format!("router: pin {session} -> {valid}"));
+                }
                 return Some(valid.to_string());
             }
         }
@@ -38,6 +42,22 @@ pub fn decide(agent: &str, dir: &Path, session: Option<&str>, env_bound: bool) -
             remember(agent, session, &m.profile);
             return Some(m.profile.clone());
         }
+    }
+
+    /* A workspace with no account of its own, and an account chosen while it was
+     * being created. Spent here, and written down as an ordinary route, so this
+     * workspace keeps it and the next one created does not inherit it. */
+    if crate::debug::on() {
+        crate::debug::line(&format!(
+            "router: dir={} exact={} pending={}",
+            dir.display(),
+            found.as_ref().map(|m| m.exact).unwrap_or(false),
+            crate::pending::peek(agent).unwrap_or_else(|| "none".into())
+        ));
+    }
+    if let Some(chosen) = crate::pending::take(agent, dir) {
+        remember(agent, session, &chosen);
+        return Some(chosen);
     }
     if env_bound {
         return None;

@@ -47,6 +47,31 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The timestamp scan stays as the fallback, for a Conductor with no database, no
   `sessions` table, or no `sqlite3` to read it with.
 
+- **The panel could not tell which workspace was on screen.** It counted
+  workspace ids across React's whole tree and took the commonest. Every sidebar
+  row is handed the id of the workspace it links to, so a real window offered 38
+  distinct ids and the count picked one that was not open, or gave up and fell
+  back to matching names, where the only name it could find was the
+  repository's. Measured, not guessed: `hats debug` records it.
+
+  The button is mounted in the open chat's own toolbar, so the components
+  enclosing it belong to that chat and the sidebar is nowhere among them. Those
+  are read instead. The chat's id is taken from the same place, sweeping each
+  enclosing level for the status indicator that reports on it, so a choice can be
+  pinned to the chat with no workspace to resolve at all.
+
+- **An account chosen while creating a workspace bound the whole repository.**
+  The composer is pressed before the workspace exists, and a binding is one value
+  for every workspace under that repository. Creating one workspace on Work and
+  the next on Personal therefore left both on Personal, and moved every other
+  workspace in the repository with them.
+
+  It records a one-shot instead, spent by the next agent to start in a workspace
+  with no account of its own, which then writes itself an ordinary route.
+  Verified end to end against the router: two workspaces created one after the
+  other on two accounts each keep theirs, and later chats in each inherit the
+  right one.
+
 - **A toolbar press could bind the whole repository.** Which command a choice
   ran was decided from `target.kind`, and the target came from matching names
   against the visible chrome. When the repository's name was on screen and the

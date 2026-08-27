@@ -131,22 +131,22 @@ fn choosing_an_account_sets_the_open_chat_alone() {
     );
 }
 
-/// The toolbar can never bind a repository. Deciding that from the name the
-/// matcher happened to find on screen let one press write a single value that
-/// every workspace in the repository inherits, so the last account chosen won
-/// everywhere. Only the composer, which asks for that scope, may bind.
+/// Nothing in the panel binds a repository any more.
+///
+/// A binding is one value for every workspace under it, so choosing Work while
+/// creating one workspace and Personal while creating the next left both on
+/// Personal, and moved every other workspace in that repository too. The
+/// composer writes a one-shot instead, spent by the workspace it was chosen for.
 #[test]
-fn only_the_composer_may_bind_a_repository() {
+fn the_panel_never_binds_a_repository() {
     let dist = bundle();
-    let bind = dist
-        .find("bind ${profile}")
-        .expect("the composer can no longer bind a repository");
-    let guard = dist[..bind]
-        .rfind("repository")
-        .expect("nothing guards the bind");
     assert!(
-        bind - guard < 400,
-        "the bind is not guarded by the requested scope"
+        !dist.contains("bind ${profile}"),
+        "the panel can still bind a repository"
+    );
+    assert!(
+        dist.contains("next ${profile} ${agent}"),
+        "the composer does not record a choice for the next workspace"
     );
 }
 

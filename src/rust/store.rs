@@ -85,8 +85,11 @@ pub fn drop_routes_to(profile_name: &str) -> Result<(), String> {
 
 /// The directory a command applies to: the argument if given, otherwise where
 /// Conductor says the agent runs, otherwise the working directory.
+/// An empty argument means "not given", so a caller can pass a placeholder in
+/// order to reach the argument after it. The panel does exactly that when it
+/// knows the chat but not the workspace around it.
 pub fn target_dir(arg: Option<&String>) -> Result<PathBuf, String> {
-    match arg {
+    match arg.filter(|p| !p.is_empty()) {
         Some(p) => {
             let path = PathBuf::from(p);
             if !path.is_dir() {

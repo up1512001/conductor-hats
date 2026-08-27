@@ -164,3 +164,92 @@ fn panel_logging_is_off_until_it_is_turned_on() {
     s.hats(&["debug", "off"]).ok();
     s.hats(&["debug", "status"]).ok().says("off");
 }
+
+/// The panel reads Conductor's id for the chat out of the window and hands it
+/// over, so the answer is about that chat rather than whichever transcript was
+/// written to last.
+#[test]
+fn json_answers_for_the_chat_it_is_given() {
+    let s = Sandbox::new();
+    s.hats(&["install"]).ok();
+    s.profile("claude", "work");
+    s.profile("claude", "personal");
+    let ws = s.workspace("ws-a");
+    s.transcript("ws-a", "aaa111");
+    s.hats(&["use", "work", "claude", &ws]).ok();
+    s.hats(&["pin", "personal", "claude", "bbb222"]).ok();
+
+    let out = s.hats(&["json", &ws, "bbb222"]).out();
+    let state: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+    let p = state["providers"][0].clone();
+    assert_eq!(p["session"], "bbb222", "the named chat was not used");
+    assert_eq!(p["chat"], "personal", "the named chat's pin was not read");
+    assert_eq!(p["current"], "work", "the workspace route changed");
+}
+
+/// With the chat known but the workspace around it not, the chat still answers.
+#[test]
+fn a_chat_can_be_asked_about_without_naming_a_workspace() {
+    let s = Sandbox::new();
+    s.profile("claude", "work");
+    s.workspace("ws-a");
+    s.hats(&["pin", "work", "claude", "ccc333"]).ok();
+
+    let out = s.hats(&["json", "", "ccc333"]).out();
+    let state: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+    assert_eq!(state["providers"][0]["session"], "ccc333");
+    assert_eq!(state["providers"][0]["chat"], "work");
+}
+
+/// Two workspaces created one after the other, on two accounts, keep them.
+///
+/// This is the failure as reported: the composer bound the repository, which is
+/// a single value for every workspace under it, so the second creation moved the
+/// first and everything else in the repository with it.
+#[test]
+fn each_workspace_keeps_the_account_it_was_created_with() {
+    let s = Sandbox::new();
+    s.hats(&["install"]).ok();
+    s.profile("claude", "work");
+    s.profile("claude", "personal");
+    let first = s.workspace("repo/ws-work");
+    let second = s.workspace("repo/ws-personal");
+
+    s.hats(&["next", "work", "claude"]).ok();
+    let got = s.route("claude", "repo/ws-work", &["--session-id=aaa111"]);
+    assert!(got.ends_with("/claude/work"), "first workspace: {got}");
+
+    s.hats(&["next", "personal", "claude"]).ok();
+    let got = s.route("claude", "repo/ws-personal", &["--session-id=bbb222"]);
+    assert!(got.ends_with("/claude/personal"), "second workspace: {got}");
+
+    let out = s.hats(&["which", &first]).out();
+    assert!(out.contains("work"), "the first workspace moved:\n{out}");
+    let out = s.hats(&["which", &second]).out();
+    assert!(
+        out.contains("personal"),
+        "the second workspace moved:\n{out}"
+    );
+}
+
+/// Spent once. A third workspace created without a choice does not inherit it.
+#[test]
+fn the_choice_is_spent_by_one_workspace_only() {
+    let s = Sandbox::new();
+    s.hats(&["install"]).ok();
+    s.profile("claude", "work");
+    s.profile("claude", "personal");
+    s.hats(&["assign", "default", "personal"]).ok();
+    s.workspace("repo/ws-a");
+    s.workspace("repo/ws-b");
+
+    s.hats(&["next", "work", "claude"]).ok();
+    let first = s.route("claude", "repo/ws-a", &["--session-id=aaa111"]);
+    assert!(first.ends_with("/claude/work"), "first: {first}");
+
+    let second = s.route("claude", "repo/ws-b", &["--session-id=bbb222"]);
+    assert!(
+        second.ends_with("/claude/personal"),
+        "the choice leaked to a second workspace: {second}"
+    );
+}

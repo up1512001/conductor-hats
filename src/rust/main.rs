@@ -16,6 +16,7 @@ mod manage;
 mod mask;
 mod patch;
 mod paths;
+mod pending;
 mod places;
 mod profile;
 mod repatch;

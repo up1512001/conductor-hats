@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::{mask, paths, profile, resolve, routes, session, settings, store};
+use crate::{id, mask, paths, profile, resolve, routes, session, settings, store};
 
 pub fn list(masked: bool) -> Result<(), String> {
     store::ensure_root()?;
@@ -201,17 +201,26 @@ struct State {
     providers: Vec<Provider>,
 }
 
-pub fn json(dir: &Path) -> Result<(), String> {
+/// `given` is the chat the caller already knows it is looking at.
+///
+/// The panel reads it out of the components the toolbar sits inside, which is
+/// exact. Detecting it here is a fallback for callers with no window to read:
+/// the terminal, and `/account`.
+pub fn json(dir: &Path, given: Option<&str>) -> Result<(), String> {
     store::ensure_root()?;
+    let named = given.and_then(id::session);
     let mut providers = Vec::new();
     for agent in ["claude", "codex"] {
         let current = store::effective_dir(agent, dir)
             .as_deref()
             .and_then(store::profile_from_dir)
             .unwrap_or_default();
-        let live = match session::current(agent, dir) {
-            session::Current::Chat(id) => id,
-            _ => String::new(),
+        let live = match named {
+            Some(id) => id.to_string(),
+            None => match session::current(agent, dir) {
+                session::Current::Chat(id) => id,
+                _ => String::new(),
+            },
         };
         let pin = if live.is_empty() {
             None

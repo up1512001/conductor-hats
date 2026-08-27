@@ -58,14 +58,13 @@ export function primary(state: PanelState): string {
  * and it sets the workspace instead.
  */
 export function openChat(state: PanelState): boolean {
+  if (state.chatId) return true;
   return (state.providers || []).filter((p) => !!p.session).length > 0;
 }
 
 export function scopeText(state: PanelState): string {
   if (state.scope === "repository") {
-    return state.target.kind === "repository"
-      ? "New workspaces in " + state.target.name
-      : "No repository in view";
+    return state.target.name ? "New workspace in " + state.target.name : "New workspace";
   }
   if (openChat(state)) {
     return state.target.name ? "This chat in " + state.target.name : "This chat";
@@ -76,7 +75,7 @@ export function scopeText(state: PanelState): string {
 
 export function footText(state: PanelState): string {
   if (state.scope === "repository") {
-    return "Applies to workspaces created from now on, across this whole repository.";
+    return "Applies to the workspace you create next, and to that one alone.";
   }
   if (openChat(state)) {
     return "Applies to this chat alone. It comes up on the new account next time you open it; the conversation on screen keeps the one it started with.";

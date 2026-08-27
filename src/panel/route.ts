@@ -16,6 +16,8 @@ const NODES = 20000;
 type Fiber = {
   child?: Fiber | null;
   sibling?: Fiber | null;
+  return?: Fiber | null;
+  stateNode?: unknown;
   memoizedProps?: Record<string, unknown> | null;
 };
 
@@ -26,13 +28,31 @@ function rootFiber(): Fiber | null {
   return key ? (root[key] as Fiber) : null;
 }
 
-function idIn(props: Record<string, unknown> | null | undefined): string | null {
+/**
+ * A workspace id, and whether it came from the router's matched parameters.
+ *
+ * The distinction is the whole of it. Every sidebar row is handed the id of the
+ * workspace it links to, so a window listing thirty workspaces holds thirty ids
+ * and counting them cannot say which one is open. Only the route that matched
+ * carries its id under `params`, and there is one of those.
+ */
+function idIn(props: Record<string, unknown> | null | undefined): Found | null {
   if (!props) return null;
-  const direct = props.workspaceId;
-  if (typeof direct === "string" && UUID.test(direct)) return direct;
   const params = props.params as Record<string, unknown> | undefined;
-  const nested = params && params.workspaceId;
-  return typeof nested === "string" && UUID.test(nested) ? nested : null;
+  const routed = params && params.workspaceId;
+  if (typeof routed === "string" && UUID.test(routed)) {
+    return { id: routed, routed: true };
+  }
+  const direct = props.workspaceId;
+  if (typeof direct === "string" && UUID.test(direct)) {
+    return { id: direct, routed: false };
+  }
+  return null;
+}
+
+interface Found {
+  id: string;
+  routed: boolean;
 }
 
 /**
@@ -46,22 +66,193 @@ export interface Scan {
    * that separate "no id in the window" from "the tree was never walked". */
   fibers: number;
   distinct: number;
+  /** Which reading answered: the tree above the button, the matched route, the
+   * commonest id, or neither. */
+  how: "anchor" | "routed" | "counted" | "none";
+}
+
+
+/** React hangs its fiber off the DOM node under a versioned key. */
+function fiberOf(node: Element): Fiber | null {
+  const bag = node as unknown as Record<string, unknown>;
+  const key = Object.keys(bag).find((k) => k.indexOf("__reactFiber$") === 0);
+  return key ? (bag[key] as Fiber) : null;
+}
+
+/**
+ * The id held by the components the toolbar button sits inside.
+ *
+ * This is the reading that works. Counting ids across the whole tree cannot say
+ * which workspace is open, because every sidebar row is handed the id of the one
+ * it links to: measured on a real window, 3897 fibers held 35 distinct ids and
+ * no winner. The button, though, is mounted in the workspace's own toolbar, so
+ * every component enclosing it belongs to the workspace on screen and the
+ * sidebar is nowhere among them.
+ */
+function uuid(value: unknown): string | null {
+  return typeof value === "string" && UUID.test(value) ? value : null;
+}
+
+/** What the components enclosing the toolbar button know about where they are. */
+export interface Anchored {
+  workspace: string | null;
+  /** Conductor's own id for the chat, which is what it passes the agent as
+   * `--session-id` and therefore what a pin has to be filed under. */
+  session: string | null;
+  /** Whether a React fiber was reachable at all, which separates "the toolbar
+   * knows nothing" from "we never found the tree". */
+  attached: boolean;
+  hops: number;
+}
+
+/**
+ * Read from the components the toolbar button sits inside.
+ *
+ * Counting ids across the whole tree cannot say which workspace is open, because
+ * every sidebar row is handed the id of the one it links to: measured on a real
+ * window, 4296 fibers held 38 distinct ids and the count picked a workspace that
+ * was not even on screen. The button is mounted in the open chat's own toolbar,
+ * so its ancestors belong to that chat and the sidebar is nowhere among them.
+ *
+ * The session id is the prize. With it a choice can be pinned to the chat
+ * directly, with no workspace to resolve and no database to consult.
+ */
+/**
+ * The deepest fiber whose element contains the button.
+ *
+ * Reading `__reactFiber$` off the button's ancestors is the obvious way and it
+ * does not work here: measured on a real window, no ancestor of the toolbar
+ * carries one. Walking down from the root does work, so the tree is searched for
+ * the elements that enclose the button and the innermost is kept. From there
+ * `return` climbs the components that own it.
+ */
+function containing(button: Element): Fiber | null {
+  const start = rootFiber();
+  if (!start) return null;
+
+  let best: Fiber | null = null;
+  let bestDepth = -1;
+  const stack: { node: Fiber; depth: number }[] = [{ node: start, depth: 0 }];
+  let seen = 0;
+  while (stack.length && seen < NODES) {
+    const here = stack.pop() as { node: Fiber; depth: number };
+    seen += 1;
+    const el = here.node.stateNode as Element | null;
+    if (el && typeof (el as Element).contains === "function" && el.contains(button)) {
+      if (here.depth > bestDepth) {
+        best = here.node;
+        bestDepth = here.depth;
+      }
+    }
+    if (here.node.child) stack.push({ node: here.node.child, depth: here.depth + 1 });
+    if (here.node.sibling) stack.push({ node: here.node.sibling, depth: here.depth });
+  }
+  return best;
+}
+
+export function fromToolbar(): Anchored {
+  /* The button is ours: we created it and put it in Conductor's toolbar, so React
+   * does not own it and it carries no fiber of its own. */
+  const button = document.getElementById("cma-toolbar-btn");
+  let node: Fiber | null = null;
+  if (button) {
+    let host: Element | null = button;
+    while (host && !node) {
+      node = fiberOf(host);
+      host = host.parentElement;
+    }
+    if (!node) node = containing(button);
+  }
+
+  const out: Anchored = { workspace: null, session: null, attached: !!node, hops: 0 };
+  let climbed: Fiber | null = node;
+  while (climbed && out.hops < 600 && !(out.workspace && out.session)) {
+    const props = climbed.memoizedProps;
+    if (props) {
+      const params = props.params as Record<string, unknown> | undefined;
+      if (!out.workspace) {
+        out.workspace = uuid(params && params.workspaceId) || uuid(props.workspaceId);
+      }
+      if (!out.session) {
+        out.session = uuid(params && params.sessionId) || uuid(props.sessionId);
+      }
+    }
+    if (!out.session) {
+      out.session = sessionBeside(climbed);
+    }
+    climbed = climbed.return || null;
+    out.hops += 1;
+  }
+  return out;
+}
+
+/**
+ * One chat's id from the components sitting beside the button.
+ *
+ * The toolbar carries the chat's own status, the "Working…" and its spinner, and
+ * those are handed the id of the chat they report on. They are siblings of the
+ * button rather than its ancestors, so climbing alone never sees them. Each
+ * enclosing level is swept on the way up and the first that holds exactly one
+ * chat is the answer: one id means one chat, and the sweep is still inside the
+ * toolbar rather than out in the sidebar where every row would offer its own.
+ */
+function sessionBeside(top: Fiber): string | null {
+  const found = new Set<string>();
+  const stack: Fiber[] = [top];
+  let seen = 0;
+  while (stack.length && seen < 4000) {
+    const node = stack.pop() as Fiber;
+    seen += 1;
+    const props = node.memoizedProps;
+    if (props) {
+      const params = props.params as Record<string, unknown> | undefined;
+      const id = uuid(params && params.sessionId) || uuid(props.sessionId);
+      if (id) {
+        found.add(id);
+        if (found.size > 1) return null;
+      }
+    }
+    if (node.child) stack.push(node.child);
+    if (node !== top && node.sibling) stack.push(node.sibling);
+  }
+  return found.size === 1 ? (found.values().next().value as string) : null;
+}
+
+function fromAnchor(): string | null {
+  return fromToolbar().workspace;
 }
 
 export function workspaceId(): Scan {
+  const above = fromAnchor();
+  if (above) {
+    return { id: above, fibers: 0, distinct: 0, how: "anchor" };
+  }
+
   const start = rootFiber();
-  if (!start) return { id: null, fibers: 0, distinct: 0 };
+  if (!start) return { id: null, fibers: 0, distinct: 0, how: "none" };
 
   const counts = new Map<string, number>();
+  const routed = new Map<string, number>();
   const stack: Fiber[] = [start];
   let seen = 0;
   while (stack.length && seen < NODES) {
     const node = stack.pop() as Fiber;
     seen += 1;
-    const id = idIn(node.memoizedProps);
-    if (id) counts.set(id, (counts.get(id) || 0) + 1);
+    const found = idIn(node.memoizedProps);
+    if (found) {
+      counts.set(found.id, (counts.get(found.id) || 0) + 1);
+      if (found.routed) routed.set(found.id, (routed.get(found.id) || 0) + 1);
+    }
     if (node.child) stack.push(node.child);
     if (node.sibling) stack.push(node.sibling);
+  }
+
+  /* One matched route means one open workspace. Counting is only reached when
+   * the router put nothing in reach, and it is a guess: a sidebar listing thirty
+   * workspaces holds thirty ids, none of them the answer. */
+  if (routed.size === 1) {
+    const only = routed.keys().next().value as string;
+    return { id: only, fibers: seen, distinct: counts.size, how: "routed" };
   }
 
   let best = "";
@@ -76,9 +267,11 @@ export function workspaceId(): Scan {
       runnerUp = count;
     }
   });
+  const won = best && bestCount > runnerUp ? best : null;
   return {
-    id: best && bestCount > runnerUp ? best : null,
+    id: won,
     fibers: seen,
     distinct: counts.size,
+    how: won ? "counted" : "none",
   };
 }

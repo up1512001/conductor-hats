@@ -69,3 +69,8 @@ pub fn write(rest: &[String]) -> Result<(), String> {
         .map_err(|e| format!("{e}"))?;
     writeln!(file, "{line}").map_err(|e| format!("{e}"))
 }
+
+/// One line from inside the program, for the same log the panel writes to.
+pub fn line(text: &str) {
+    let _ = write(&[text.to_string()]);
+}
