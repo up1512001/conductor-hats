@@ -72,6 +72,37 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   other on two accounts each keep theirs, and later chats in each inherit the
   right one.
 
+- **A workspace did not keep the account it was created with.** Choosing one in
+  the New Workspace composer bound the repository, so the second creation
+  overwrote the first and both moved, along with every other workspace under it.
+  The choice is recorded instead, and used by the workspaces created after it,
+  until another is chosen. Each writes itself an ordinary route as its first agent
+  starts, so a later choice cannot move it.
+
+  Getting "created after it" right took three goes, each one measured rather than
+  guessed. Any agent could take it, and Conductor starts one with the working
+  directory set to `/` before the workspace's own, which swallowed it. Limiting it
+  to real workspaces was not enough, because a dozen are open at any time and each
+  respawns an agent on a resume, a model switch or a generator restart. So the
+  workspaces that already exist are written down beside the choice, and only one
+  absent from that list may use it.
+
+  The toolbar reports it before anything has run, too. A workspace created a
+  moment ago has no route yet, and showing the default until the first message
+  would name one account while the next spawn used another.
+
+- **The panel could not tell which workspace was on screen.** It counted
+  workspace ids across React's tree and took the commonest, but every sidebar row
+  is handed the id of the workspace it links to: measured on a real window, 4296
+  fibers held 38 distinct ids and the winner was a workspace that was not on
+  screen at all. The toolbar button is mounted inside the open chat, so the
+  components enclosing it are the answer. Its DOM ancestors carry no React key
+  here, so the tree is walked from the root for the innermost fiber whose element
+  contains the button, and the component chain is climbed from there. The chat's
+  own session id comes back with it, and is handed to `hats json`, so the CLI
+  answers about the chat in the window rather than inferring one from transcript
+  timestamps.
+
 - **A toolbar press could bind the whole repository.** Which command a choice
   ran was decided from `target.kind`, and the target came from matching names
   against the visible chrome. When the repository's name was on screen and the

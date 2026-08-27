@@ -215,6 +215,10 @@ pub fn json(dir: &Path, given: Option<&str>) -> Result<(), String> {
             .as_deref()
             .and_then(store::profile_from_dir)
             .unwrap_or_default();
+        /* A workspace created moments ago has no route yet, because nothing has
+         * started an agent in it. It still has an account: the one chosen while
+         * it was being created, which the first spawn will take. */
+        let current = crate::pending::would_take(agent, dir).unwrap_or(current);
         let live = match named {
             Some(id) => id.to_string(),
             None => match session::current(agent, dir) {

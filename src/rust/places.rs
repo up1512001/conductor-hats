@@ -109,6 +109,19 @@ fn quoted(text: &str) -> String {
     format!("'{}'", text.replace('\'', "''"))
 }
 
+/// Every workspace Conductor currently knows, resolved.
+///
+/// Recorded when an account is chosen for a workspace that does not exist yet,
+/// so the one that appears afterwards can be told apart from the ones already
+/// there.
+pub fn workspace_paths() -> Vec<PathBuf> {
+    databases()
+        .iter()
+        .flat_map(|db| query(db, WORKSPACES))
+        .map(|path| real(Path::new(&path)))
+        .collect()
+}
+
 /// Whether Conductor calls this directory a workspace.
 ///
 /// The account chosen while creating one must not be spent by anything else, and
