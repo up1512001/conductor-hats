@@ -28,7 +28,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   websocket handshake, so a token has to go in the URL or be exchanged for a
   ticket first. An event stream is a GET.
 
-- **`hats transcript <session>`**, what was said in one chat, as JSON. Two
+- **`hats transcript <session>`**, one chat as JSON, drawn the way Conductor
+  draws it: prose, and the tool calls between it. A `Bash` or `Read` is a row of
+  its own, collapsed to a verb and the one detail worth showing, and thinking is
+  a row too. Keeping only what was said loses the shape of the work, which is
+  most of what a transcript is for. Two
   encodings share Conductor's `content` column: a user row is plain text, an
   assistant row is Claude Code's SDK envelope. Most envelopes are tool traffic,
   and the text of a reply is not reliably the first block of its content array,

@@ -26,34 +26,110 @@ use crate::{id, places};
 /// all of it, then reversed for display.
 const MESSAGES: &str = "select json_group_array(json_object('role', role, 'kind',      case when json_valid(content) then coalesce(json_extract(content,'$.type'),'') else 'text' end,      'body', case when json_valid(content) then json_extract(content,'$.message.content') else content end,      'at', coalesce(sent_at, created_at))) from (select * from session_messages where session_id = ";
 
+/// One entry in a conversation as it is drawn.
+///
+/// Conductor shows more than what was said: a tool call is a row of its own,
+/// collapsed to a verb and a detail, and thinking is a row too. Dropping those
+/// and keeping only prose loses the shape of the work, which is most of what a
+/// transcript is for.
 pub struct Line {
+    /// `say` for prose, `tool` for a call, `thinking` for reasoning.
+    pub kind: String,
     pub role: String,
     pub at: String,
+    /// The verb for a tool row: Bash, Read, Edit. Empty for prose.
+    pub name: String,
     pub text: String,
 }
 
-/// Pulls the readable text out of one SDK envelope.
+fn say(role: &str, at: &str, text: String) -> Line {
+    Line {
+        kind: "say".into(),
+        role: role.into(),
+        at: at.into(),
+        name: String::new(),
+        text,
+    }
+}
+
+/// The one detail worth putting beside a tool's name.
 ///
-/// The blocks are walked rather than indexed: a reply that thought before it
-/// spoke has the thinking at 0 and the words later, and taking index 0 returns
-/// an empty string that looks like missing data.
-fn text_of(blocks: Option<&serde_json::Value>) -> String {
-    let Some(list) = blocks.and_then(|b| b.as_array()) else {
+/// Each tool carries a different shape of input and only one field of it is
+/// worth a row: the command for Bash, the path for a file tool. Anything else
+/// falls back to the first string, which is usually the interesting one.
+fn detail_of(input: Option<&serde_json::Value>) -> String {
+    let Some(input) = input else {
         return String::new();
     };
-    let mut out = String::new();
-    for block in list {
-        if block.get("type").and_then(|t| t.as_str()) != Some("text") {
-            continue;
-        }
-        if let Some(text) = block.get("text").and_then(|t| t.as_str()) {
-            if !out.is_empty() {
-                out.push('\n');
-            }
-            out.push_str(text.trim());
+    for key in [
+        "command",
+        "file_path",
+        "path",
+        "pattern",
+        "query",
+        "url",
+        "prompt",
+    ] {
+        if let Some(found) = input.get(key).and_then(|v| v.as_str()) {
+            return found.trim().to_string();
         }
     }
-    out
+    input
+        .as_object()
+        .and_then(|map| map.values().find_map(|v| v.as_str()))
+        .unwrap_or_default()
+        .trim()
+        .to_string()
+}
+
+/// Turns one assistant envelope into the rows it draws as.
+fn blocks_of(blocks: Option<&serde_json::Value>, at: &str, out: &mut Vec<Line>) {
+    let Some(list) = blocks.and_then(|b| b.as_array()) else {
+        return;
+    };
+    for block in list {
+        let kind = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
+        match kind {
+            "text" => {
+                let text = block
+                    .get("text")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or_default()
+                    .trim();
+                if !text.is_empty() {
+                    out.push(say("assistant", at, text.to_string()));
+                }
+            }
+            "thinking" => {
+                let text = block
+                    .get("thinking")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or_default()
+                    .trim();
+                if !text.is_empty() {
+                    out.push(Line {
+                        kind: "thinking".into(),
+                        role: "assistant".into(),
+                        at: at.into(),
+                        name: "Thinking".into(),
+                        text: text.to_string(),
+                    });
+                }
+            }
+            "tool_use" => out.push(Line {
+                kind: "tool".into(),
+                role: "assistant".into(),
+                at: at.into(),
+                name: block
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("Tool")
+                    .to_string(),
+                text: detail_of(block.get("input")),
+            }),
+            _ => {}
+        }
+    }
 }
 
 /// The readable part of one chat: what was said, not how it was carried out.
@@ -83,32 +159,35 @@ pub fn lines(session: &str, limit: usize) -> Vec<Line> {
     };
 
     let mut out = Vec::new();
-    for row in list {
+    /* Oldest first. The query returns newest-envelope-first so a phone can read
+     * the end of a long conversation without fetching all of it, but reversing
+     * the flat list afterwards also reverses the rows inside each envelope, and
+     * a tool call would land before the text that introduced it. */
+    for row in list.iter().rev() {
         let field = |name: &str| row.get(name).and_then(|v| v.as_str()).unwrap_or_default();
-        /* `system` is tool traffic and `user` inside an envelope is a tool
-         * result. Neither is anything a person said. */
-        let text = match field("kind") {
-            "text" => field("body").trim().to_string(),
-            "assistant" => text_of(row.get("body")),
+        let at = field("at");
+        /* `system` is Conductor's own bookkeeping and `user` inside an envelope
+         * is a tool result: neither is part of the conversation. */
+        match field("kind") {
+            "text" => {
+                let text = field("body").trim();
+                if !text.is_empty() {
+                    out.push(say(field("role"), at, text.to_string()));
+                }
+            }
+            "assistant" => blocks_of(row.get("body"), at, &mut out),
             _ => continue,
-        };
-        if text.is_empty() {
-            continue;
         }
-        out.push(Line {
-            role: field("role").to_string(),
-            at: field("at").to_string(),
-            text,
-        });
     }
-    out.reverse();
     out
 }
 
 #[derive(serde::Serialize)]
 struct Wire<'a> {
+    kind: &'a str,
     role: &'a str,
     at: &'a str,
+    name: &'a str,
     text: &'a str,
 }
 
@@ -117,8 +196,10 @@ pub fn as_json(session: &str, limit: usize) -> String {
     let wire: Vec<Wire> = lines
         .iter()
         .map(|l| Wire {
+            kind: &l.kind,
             role: &l.role,
             at: &l.at,
+            name: &l.name,
             text: &l.text,
         })
         .collect();

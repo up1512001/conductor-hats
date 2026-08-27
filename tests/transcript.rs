@@ -57,7 +57,7 @@ fn read(s: &Sandbox, db: &str) -> serde_json::Value {
 }
 
 #[test]
-fn it_reads_what_was_said_and_skips_what_was_done() {
+fn it_draws_tool_calls_as_rows_beside_what_was_said() {
     if !sqlite() {
         eprintln!("skipped: sqlite3 is not installed");
         return;
@@ -70,9 +70,30 @@ fn it_reads_what_was_said_and_skips_what_was_done() {
 
     let lines = read(&s, &db);
     let list = lines.as_array().expect("an array");
-    assert_eq!(list.len(), 2, "wrong set of messages:\n{lines:#}");
-    assert_eq!(list[0]["role"], "user");
-    assert_eq!(list[1]["role"], "assistant");
+    let kinds: Vec<&str> = list
+        .iter()
+        .map(|l| l["kind"].as_str().unwrap_or(""))
+        .collect();
+
+    /* Conductor shows the shape of the work, not only the prose: a tool call is
+     * a row and so is thinking. Keeping only what was said loses most of it. */
+    assert_eq!(
+        kinds,
+        vec!["say", "thinking", "say", "tool"],
+        "wrong shape:\n{lines:#}"
+    );
+
+    let tool = list
+        .iter()
+        .find(|l| l["kind"] == "tool")
+        .expect("a tool row");
+    assert_eq!(tool["name"], "Bash", "the tool is not named");
+
+    /* Conductor's own bookkeeping is not part of the conversation. */
+    assert!(
+        !lines.to_string().contains("subtype"),
+        "a system envelope was drawn:\n{lines:#}"
+    );
 }
 
 /// The column separator is a pipe and message bodies are full of them: shell
@@ -90,9 +111,19 @@ fn a_pipe_in_a_message_survives() {
     s.workspace("ws-a");
     let db = database(&s);
 
+    /* Selected by role rather than index: rows shift as the shape of an
+     * envelope changes, and an index makes the test brittle for no reason. */
     let lines = read(&s, &db);
-    assert_eq!(lines[0]["text"], "count | sort | uniq -c");
-    assert_eq!(lines[1]["text"], "piped: a | b");
+    let list = lines.as_array().expect("an array");
+    let said = |role: &str| -> String {
+        list.iter()
+            .find(|l| l["kind"] == "say" && l["role"] == role)
+            .and_then(|l| l["text"].as_str())
+            .unwrap_or_default()
+            .to_string()
+    };
+    assert_eq!(said("user"), "count | sort | uniq -c");
+    assert_eq!(said("assistant"), "piped: a | b");
 }
 
 /// Thinking and tool-use blocks share the content array, so the text is not
@@ -111,9 +142,16 @@ fn text_is_found_past_a_thinking_block() {
     let db = database(&s);
 
     let lines = read(&s, &db);
+    let spoken = lines
+        .as_array()
+        .expect("an array")
+        .iter()
+        .find(|l| l["kind"] == "say" && l["role"] == "assistant")
+        .and_then(|l| l["text"].as_str())
+        .unwrap_or_default();
     assert!(
-        lines[1]["text"].as_str().unwrap_or("").contains("piped"),
-        "the reply's text was not found:\n{lines:#}"
+        spoken.contains("piped"),
+        "the reply's text was not found past the thinking block:\n{lines:#}"
     );
 }
 
