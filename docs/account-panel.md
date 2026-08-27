@@ -203,8 +203,15 @@ sits under it, because that is what you type at the CLI.
 |---|---|---|
 | a workspace toolbar, chat open | `This chat in <name>` | a `pin` on that chat |
 | a workspace toolbar, no chat open | `Workspace: <name>` | a `use` route for that workspace |
-| the New Workspace modal | `New workspaces in <repo>` | a `bind` on the repository |
+| a workspace toolbar, workspace not named | `The next workspace in <repo>` | `next`, for the workspace being created |
+| the New Workspace composer | `New workspaces in <repo>` | `next`, for the workspaces created after it |
 | neither identified | `No workspace in view` | nothing; rows are disabled |
+
+Nothing in that table binds a repository. A binding is one `CLAUDE_CONFIG_DIR`
+in the repository's `.conductor` settings, inherited by every workspace under
+it, so choosing an account for one workspace moved all of them. `hats bind` is
+still there for anyone who wants that on purpose; the panel does not, and a test
+asserts the built bundle carries no such call.
 
 ### The toolbar belongs to the chat it was pressed in
 
@@ -223,12 +230,43 @@ Neither can move the conversation already on screen. Its agent process took a
 config directory when it spawned and never reads one again, so a choice decides
 the next process Conductor starts for that chat. Reopen it, or start a new one.
 
-### Which chat is open
+### What it is on, and what it will be on
 
-Conductor records it: `workspaces.active_session_id` in its own database, read
-read-only, filtered to the agent whose accounts are on screen. That is exact and
-it changes the moment another chat is clicked, so the panel never has to infer
-which conversation it is looking at.
+Those are two different facts and the panel keeps them apart, because reporting
+the second as though it were the first is the misreporting this exists to end:
+the toolbar said Work while the agent answering in that chat was on Personal.
+
+The router records the account it hands each agent as it starts it, separately
+from the pin. The label names that one, so it always matches what the
+conversation is actually running under. When a pin points somewhere else, the
+panel says so rather than quietly showing the future:
+
+> This conversation is on Personal and cannot move. Reopen it, or start a new
+> one, and it comes up on Work.
+
+A chat that has not started yet has nothing recorded, so it reports what its
+first process will take.
+
+### Which workspace, and which chat
+
+Both are read from the components the toolbar button is mounted inside. The
+button sits in the open chat's own toolbar, so everything enclosing it belongs
+to that chat.
+
+Counting workspace ids across React's tree was the earlier answer and it cannot
+work: every sidebar row is handed the id of the workspace it links to, so a real
+window offered 4296 fibers holding 38 distinct ids, and the id that won was a
+workspace that was not on screen. Nothing about the button's own ancestors
+carries a React key either, so the tree is walked once for the innermost element
+that contains the button, and the components are climbed from there. That
+element is remembered, never the fiber: React replaces a fiber on every render
+and leaves the old one holding the props it had at the time, so keeping one
+reported the workspace that was open when it was cached, for every workspace
+after it.
+
+Where the window says nothing, Conductor's own record answers:
+`workspaces.active_session_id` in its database, read read-only, filtered to the
+agent whose accounts are on screen.
 
 The id in that column is Conductor's. A chat resumed after a compaction carries
 a `claude_session_id` of its own, and that is the one on the command line the

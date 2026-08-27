@@ -3,8 +3,8 @@
 https://github.com/user-attachments/assets/9b8a35f4-1f67-453c-930b-93992a531f02
 
 Run as many Claude Code or Codex accounts as you like in
-[Conductor](https://conductor.build) **at the same time**, one per workspace,
-with no signing in and out.
+[Conductor](https://conductor.build) **at the same time**, one per chat, with no
+signing in and out.
 
 **With a real account picker in Conductor's own toolbar.** A button beside
 "Open in" and a chip in the New Workspace composer, drawn in Conductor's own
@@ -33,7 +33,8 @@ setting for agent environment variables. Point that setting at a config
 directory and *every* workspace moves to that account, which is the same churn
 as signing out and back in.
 
-This routes per workspace instead, so every account you add stays live at once.
+This routes per chat instead, so every account you add stays live at once. Two
+chats in one workspace can be on two accounts, answering at the same time.
 
 ## Requirements
 
@@ -91,9 +92,17 @@ Your skills, plugins, commands and transcripts stay shared.
 If you would rather not patch anything, `hats add work` does the same
 from a terminal, and `/account` in any chat covers the rest.
 
-**5. Pick an account per workspace.** Open a workspace, click the account button,
-choose one. The next chat there runs on it. The chip in the New Workspace composer
-does the same for a whole repository.
+**5. Pick an account per chat.** Open a chat, click the account button, choose
+one. That chat alone moves; the others in the workspace stay where they are. The
+same button sets the workspace when no chat is open, and one line under the
+accounts sets every chat in it at once.
+
+Choosing in the New Workspace composer sets the workspace you are about to
+create, and the ones after it until you choose again.
+
+A conversation that is already running cannot change account: its agent took one
+when it started and never reads another. The panel says which account it is on
+and which it will come up on next time you open it.
 
 **6. After a Conductor update**, which replaces the bundle and removes the panel:
 
