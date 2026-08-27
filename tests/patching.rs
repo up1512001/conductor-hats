@@ -141,3 +141,21 @@ fn dumping_an_asset_from_a_bogus_binary_fails_cleanly() {
     assert_ne!(run.status, 0);
     assert!(!run.out().contains("panicked"), "{}", run.out());
 }
+
+/// Rebuilding the copy must never disturb the original.
+///
+/// `quit` used to ask LaunchServices to quit the copy by bundle identifier. The
+/// copy is Conductor with one string rewritten, so LaunchServices resolved the id
+/// back to the original and quit that instead: the real Conductor, and every
+/// agent running inside it, including the one that had asked for the rebuild.
+#[test]
+fn repatch_refuses_to_rebuild_the_real_application_onto_itself() {
+    let s = Sandbox::new();
+    let app = s.path("Conductor.app");
+    std::fs::create_dir_all(app.join("Contents/MacOS")).expect("a bundle");
+    let path = app.to_string_lossy().to_string();
+
+    s.hats(&["repatch", "--app", &path, "--src", &path, "--no-launch"])
+        .failed()
+        .says("refusing");
+}

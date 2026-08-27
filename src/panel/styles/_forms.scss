@@ -2,6 +2,12 @@
 
 @use "tokens" as *;
 
+/** The workspace-wide action, which is a choice rather than an addition, so it
+ * does not borrow the dashed edge that means "add one". */
+.cma-whole {
+  border-style: solid;
+}
+
 .cma-add {
   display: flex;
   align-items: center;

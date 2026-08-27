@@ -85,3 +85,38 @@ rm -rf "/Applications/Conductor Dev.app"   # the whole copy
 
 Your real Conductor was never touched by either.
 
+## `hats debug [on|off|status|read|clear]`
+
+An opt-in log of what the injected panel resolved, for when it picks the wrong
+place. Off unless turned on, and it records decisions rather than anything
+typed: the scope asked for, the workspace id found in Conductor's fiber tree and
+how much of the tree was walked to find it, the target that came back, and what
+a choice wrote.
+
+```sh
+hats debug on
+# reproduce it in Conductor
+hats debug read
+hats debug off
+```
+
+The log lives at `~/.conductor-accounts/debug.log`. `hats debug clear` empties it.
+
+It exists because the alternative is worse: injecting a probe means patching,
+patching re-signs the copy, and a re-signed copy loses the keychain items it
+stored, so every diagnosis cost a login.
+
+## `hats next <profile> [agent]`
+
+The account for the workspaces created from now on. What the account chip in the
+New Workspace composer writes.
+
+It applies to workspaces that appear after it and not to any that already exist,
+which is checked against Conductor's own list rather than assumed: Conductor
+starts an agent with the working directory set to `/` before a new workspace's
+own, and every open workspace respawns agents on resumes and model switches, and
+any of those would otherwise have taken it.
+
+It stands until another is chosen, so one press of the chip covers a batch of
+workspaces created together. Each one writes itself an ordinary route as its
+first agent starts, so choosing again later does not move it.

@@ -3,7 +3,7 @@
 //! The surface matches the shell CLI it replaces, because the test suite is the
 //! contract and runs against either implementation.
 
-use crate::{id, manage, paths, report, session, store, wiring};
+use crate::{id, manage, paths, pending, report, session, store, wiring};
 
 pub fn agent_of(arg: Option<&String>) -> Result<String, String> {
     id::agent(arg.map(String::as_str).unwrap_or("claude")).map(str::to_string)
@@ -38,6 +38,7 @@ pub fn is_account_command(cmd: &str) -> bool {
             | "check"
             | "json"
             | "which"
+            | "next"
             | "use"
             | "bind"
             | "unbind"
@@ -77,11 +78,19 @@ pub fn run(cmd: &str, rest: &[String]) -> Result<(), String> {
         }
         "status" => store::target_dir(positional.first()).and_then(|d| report::status(&d, masked)),
         "check" => store::target_dir(positional.first()).and_then(|d| report::check(&d)),
-        "json" => store::target_dir(positional.first()).and_then(|d| report::json(&d)),
+        "json" => store::report_dir(positional.first())
+            .and_then(|d| report::json(&d, positional.get(1).map(String::as_str))),
         "which" => {
             let dir = store::target_dir(positional.first())?;
             let agent = agent_of(positional.get(1)).unwrap_or_else(|_| "claude".into());
             report::which(&dir, &agent)
+        }
+        "next" => {
+            let name = positional
+                .first()
+                .ok_or("usage: hats next <profile> [agent]")?;
+            let agent = agent_of(positional.get(1)).unwrap_or_else(|_| "claude".into());
+            pending::set(name, &agent)
         }
         "use" => {
             let (name, agent, path) = profile_agent_path(&positional)?;

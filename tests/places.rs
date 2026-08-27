@@ -112,3 +112,38 @@ fn no_database_is_an_empty_list_rather_than_a_failure() {
     let out = run.ok();
     assert_eq!(out.stdout.trim(), "");
 }
+
+/// Conductor's database is in WAL mode, and a WAL database opened read-only
+/// fails outright unless its `-shm` file already exists. It does not while
+/// Conductor is closed, or between a quit and the next launch.
+///
+/// The failure is silent in the worst way: sqlite3 exits non-zero with an empty
+/// result, which every caller reads as "Conductor knows of no workspaces". The
+/// panel then cannot tell which workspace or which chat is on screen, falls back
+/// to the workspace route, and one toolbar choice moves every chat at once.
+#[test]
+fn a_wal_database_with_no_shared_index_is_still_read() {
+    if !sqlite() {
+        eprintln!("skipped: sqlite3 is not installed");
+        return;
+    }
+    let s = Sandbox::new();
+    let db = database(&s);
+
+    let wal = std::process::Command::new("sqlite3")
+        .arg(&db)
+        .arg("pragma journal_mode=wal;")
+        .output()
+        .expect("switching the fixture to WAL");
+    assert!(wal.status.success(), "sqlite3 refused the pragma");
+
+    for suffix in ["-shm", "-wal"] {
+        let _ = std::fs::remove_file(format!("{db}{suffix}"));
+    }
+
+    let out = s.hats_env(&["workspaces"], &[("CONDUCTOR_DB", &db)]).out();
+    assert!(
+        out.contains("alpha") && out.contains("beta"),
+        "a WAL database with no -shm read as empty:\n{out}"
+    );
+}

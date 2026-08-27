@@ -6,6 +6,237 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **The toolbar shows the provider beside the account**, Claude's mark or
+  Codex's, so it says whose account it is naming rather than only which one.
+  Inside the panel the heading already says which provider, so nothing is
+  repeated on the rows.
+
+### Fixed
+
+- **The toolbar moved every chat in the workspace, not the one it was pressed
+  in.** Choosing an account wrote the workspace route and then cleared the open
+  chat's pin, so two chats set to two accounts converged on one. A workspace
+  holds several chats and each runs its own agent process; pressing a control
+  inside one chat now means that chat, and writes a pin. The workspace route is
+  left alone, so the others stay where they are.
+
+  Setting every chat at once is still there, as one button under the accounts
+  reading `Use <account> for every chat here`. It appears only when the chat's
+  account and the workspace's disagree, which is the only time it would do
+  anything. It writes the route and clears the pin, because a pin beats a route
+  and the route alone would leave the open chat behind.
+
+  Neither moves the conversation already on screen. That has not changed and
+  cannot: the agent took its config directory when it spawned.
+
+- **The panel often could not tell which chat was open, and fell back to the
+  workspace.** Which chat is live was inferred from transcript timestamps, which
+  fails in three ordinary situations: a workspace nobody has typed in for five
+  minutes read as idle, two chats answering within two seconds of each other were
+  refused as ambiguous, and a conversation resumed after a compaction is filed
+  under a different id. Every one of those left the toolbar with no chat to act
+  on, which is what made a choice hit the whole workspace.
+
+  Conductor records the open chat itself, in `workspaces.active_session_id`.
+  That is read directly now, read-only, filtered to the agent whose accounts are
+  on screen so a Codex chat is never offered as the Claude one. Measured against
+  the running app, three workspaces that all had a chat open reported "no chat
+  active here recently" before this and resolve exactly now.
+
+  The two ids are different namespaces: `sessions.claude_session_id` is what
+  reaches the agent's command line, and it wins where it differs from Conductor's
+  own, because a pin filed under the other is a file nothing looks up.
+
+  The timestamp scan stays as the fallback, for a Conductor with no database, no
+  `sessions` table, or no `sqlite3` to read it with.
+
+- **The panel could not tell which workspace was on screen.** It counted
+  workspace ids across React's whole tree and took the commonest. Every sidebar
+  row is handed the id of the workspace it links to, so a real window offered 38
+  distinct ids and the count picked one that was not open, or gave up and fell
+  back to matching names, where the only name it could find was the
+  repository's. Measured, not guessed: `hats debug` records it.
+
+  The button is mounted in the open chat's own toolbar, so the components
+  enclosing it belong to that chat and the sidebar is nowhere among them. Those
+  are read instead. The chat's id is taken from the same place, sweeping each
+  enclosing level for the status indicator that reports on it, so a choice can be
+  pinned to the chat with no workspace to resolve at all.
+
+- **An account chosen while creating a workspace bound the whole repository.**
+  The composer is pressed before the workspace exists, and a binding is one value
+  for every workspace under that repository. Creating one workspace on Work and
+  the next on Personal therefore left both on Personal, and moved every other
+  workspace in the repository with them.
+
+  It records a one-shot instead, spent by the next agent to start in a workspace
+  with no account of its own, which then writes itself an ordinary route.
+  Verified end to end against the router: two workspaces created one after the
+  other on two accounts each keep theirs, and later chats in each inherit the
+  right one.
+
+### Security
+
+- **`repatch` quit the real Conductor.** It asked LaunchServices to quit the copy
+  by bundle identifier, `quit app id "com.conductor.dev"`. The copy is Conductor
+  with one string rewritten, so LaunchServices resolved that identifier back to
+  the original and quit that: the real application, and every agent running
+  inside it, including whichever one had asked for the rebuild. It also fell back
+  to `pkill -f`, whose pattern is a regular expression, so every `.` in an
+  application path is a wildcard and the two paths differ by very little.
+
+  Nothing is resolved by name or identifier now. The process list is read and
+  only processes whose executable path sits inside the target bundle are
+  signalled, compared as a plain prefix. Two refusals sit in front of that:
+  rebuilding a bundle onto itself, and quitting an application this process is
+  running inside. The second holds whatever else goes wrong, so an agent cannot
+  be made to close the window it is working in.
+
+- **Pressing an account before creating a workspace looked inert.** The choice
+  was recorded, but the tick stayed where it was, so it read as a dead control
+  and the account ended up being set afterwards from inside the chat instead. The
+  panel is looking at the repository there, and the check that reports a pending
+  choice only answered for workspaces. It answers for anywhere that is not a
+  workspace too, since that is the New Workspace view and the choice is precisely
+  what the workspace made there will use. A workspace that already exists still
+  reports its own account, which a test pins down with a default that matches
+  neither choice, so nothing passes by coincidence.
+
+- **The New Workspace view refused every choice.** With no chat and no workspace
+  to name, the panel matched the repository, and the toolbar is not allowed to
+  bind one, so it said "no chat open here, and this workspace could not be
+  identified" and did nothing. There is something to mean there: the workspace
+  about to be created. It goes through the same one-shot the composer chip uses,
+  never a binding, and the panel says so, `No chat here yet, so this applies to
+  the workspace you create next.` The panel now carries no repository binding at
+  all, which a test asserts against the built bundle.
+
+- **The panel and the toolbar disagreed in plain sight.** Level one showed
+  `provider.current`, the workspace route; the toolbar showed what the chat would
+  run on. Where a chat carried a pin the two differed, so the panel said Personal
+  while the toolbar beside it said Work, and both were right about different
+  questions. Level one reads the same value the toolbar does.
+
+- **The open panel described the place it was opened from, not the one on
+  screen.** Moving to another workspace with it open left `This chat in macau`
+  above a window showing amman. The panel is redrawn along with the toolbar when
+  the workspace or chat changes, and the change is detected on the workspace as
+  well as the chat.
+
+- **The toolbar named the account a chat would take next, not the one it is
+  running on.** A conversation cannot change account once its agent has spawned,
+  so pinning one made the panel report the new account immediately while the
+  agent answering carried on under the old: `CLAUDE_CONFIG_DIR` said personal
+  while the toolbar said Work. The account an agent takes is recorded as it
+  starts, separately from the pin, and that is what the label names. Where the
+  two differ the panel says so: which account the conversation is on, and which
+  one it will come up on next time it is opened.
+
+- **The toolbar showed the previous workspace's account.** Caching the fiber the
+  toolbar climbs from, added to make watching for a change of chat cheap, cached
+  the wrong thing. React replaces a fiber on every render and leaves the old one
+  holding the props it had at the time, so the panel went on reporting whichever
+  workspace was open when the cache was filled: measured against Conductor's own
+  database, it answered `pangyo` while `albany` was on screen, every time. The
+  element is kept now, never the fiber. React hangs the live fiber off the
+  element, so reading it back costs nothing and cannot be out of date.
+
+- **Switching chats felt slow.** Two process spawns stood between the switch and
+  the new label: one to turn the workspace id into a path, then one to read the
+  account. The first is the same answer every time, since switching chats does
+  not change the workspace, so it is now asked once and kept. The chat itself is
+  watched on a short interval as well as on DOM mutation, because a switch need
+  not touch the toolbar's own subtree and waiting for the observer left the wrong
+  account on screen while the window was still. Reading the chat costs a walk up
+  a kept fiber and a string compare.
+
+- **The toolbar kept the last chat's account after switching chats.** Each chat
+  can be on its own account, so a label left over from the previous one does not
+  read as stale, it names the wrong account. The button survives a switch, so
+  nothing prompted a re-read and the old label stood until the panel was opened
+  by hand. The chat behind the button is checked as the window changes, and the
+  label is re-read the moment it differs. The fiber that check starts from is kept
+  between calls so it costs nothing, and validated before reuse: React leaves a
+  replaced fiber holding the props it had at the time, and reusing one would have
+  frozen the label on whichever chat was open when it was cached.
+
+- **`no such directory` where an account should have been.** Conductor records a
+  workspace before it finishes making its working tree, so the panel can ask
+  about one that does not exist on disk yet, and `json` refused. Nothing in that
+  answer needs the directory: routes are matched as paths.
+
+- **A workspace did not keep the account it was created with.** Choosing one in
+  the New Workspace composer bound the repository, so the second creation
+  overwrote the first and both moved, along with every other workspace under it.
+  The choice is recorded instead, and used by the workspaces created after it,
+  until another is chosen. Each writes itself an ordinary route as its first agent
+  starts, so a later choice cannot move it.
+
+  Getting "created after it" right took three goes, each one measured rather than
+  guessed. Any agent could take it, and Conductor starts one with the working
+  directory set to `/` before the workspace's own, which swallowed it. Limiting it
+  to real workspaces was not enough, because a dozen are open at any time and each
+  respawns an agent on a resume, a model switch or a generator restart. So the
+  workspaces that already exist are written down beside the choice, and only one
+  absent from that list may use it.
+
+  The toolbar reports it before anything has run, too. A workspace created a
+  moment ago has no route yet, and showing the default until the first message
+  would name one account while the next spawn used another.
+
+- **The panel could not tell which workspace was on screen.** It counted
+  workspace ids across React's tree and took the commonest, but every sidebar row
+  is handed the id of the workspace it links to: measured on a real window, 4296
+  fibers held 38 distinct ids and the winner was a workspace that was not on
+  screen at all. The toolbar button is mounted inside the open chat, so the
+  components enclosing it are the answer. Its DOM ancestors carry no React key
+  here, so the tree is walked from the root for the innermost fiber whose element
+  contains the button, and the component chain is climbed from there. The chat's
+  own session id comes back with it, and is handed to `hats json`, so the CLI
+  answers about the chat in the window rather than inferring one from transcript
+  timestamps.
+
+- **A toolbar press could bind the whole repository.** Which command a choice
+  ran was decided from `target.kind`, and the target came from matching names
+  against the visible chrome. When the repository's name was on screen and the
+  workspace's was not, the toolbar wrote a repository binding: one
+  `CLAUDE_CONFIG_DIR` in the repository's `.conductor` settings, inherited by
+  every workspace in it. Two chats set to two accounts therefore both ended up on
+  whichever was chosen last, in every workspace of that repository, which is what
+  "I set one to Work and one to Personal and both say Personal" was.
+
+  The choice now follows the control that was pressed rather than the name that
+  was found. The composer chip asks for repository scope and is the only thing
+  that may bind. The toolbar pins the open chat, falls back to the workspace
+  route when no chat is open, and can no longer bind anything.
+
+- **`hats debug` records what the panel resolved.** Off unless turned on, and it
+  logs decisions rather than anything typed: the scope asked for, the id found in
+  the fiber tree and how much of the tree was walked to find it, the target that
+  came back, and what a choice wrote. Diagnosing the panel used to mean injecting
+  a probe, and every injection re-signs the copy, which signs it out of
+  Conductor.
+
+- **Every lookup in Conductor's database could fail silently.** It is in WAL
+  mode, and a WAL database opened read-only fails outright unless its `-shm`
+  file already exists, which it does not while Conductor is closed or between a
+  quit and the next launch. `sqlite3` exited non-zero with an empty result, and
+  an empty result is indistinguishable from an answer: `workspaces`, `repos`,
+  `resolve` and the open chat all read as "Conductor knows of none". The panel
+  then could not identify the workspace or the chat, and fell back to the
+  workspace route, which is the whole-workspace switching this release exists to
+  end. A refusal is retried as `immutable=1`, which reads the file without the
+  shared index; it is only reached when there is no live index to share.
+
+- **The panel said "Workspace" while acting on a chat.** The scope line reads
+  `This chat in <name>` when a chat is open, and the note under the accounts says
+  the choice applies to that chat alone and that the running conversation keeps
+  what it started with.
+
 ## 0.4.0
 
 ### Security

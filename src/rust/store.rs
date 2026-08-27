@@ -85,14 +85,33 @@ pub fn drop_routes_to(profile_name: &str) -> Result<(), String> {
 
 /// The directory a command applies to: the argument if given, otherwise where
 /// Conductor says the agent runs, otherwise the working directory.
+/// An empty argument means "not given", so a caller can pass a placeholder in
+/// order to reach the argument after it. The panel does exactly that when it
+/// knows the chat but not the workspace around it.
 pub fn target_dir(arg: Option<&String>) -> Result<PathBuf, String> {
-    match arg {
+    match arg.filter(|p| !p.is_empty()) {
         Some(p) => {
             let path = PathBuf::from(p);
             if !path.is_dir() {
                 return Err(format!("no such directory: {p}"));
             }
             Ok(logical(&path))
+        }
+        None => Ok(paths::workspace_dir()),
+    }
+}
+
+/// The same, for reading rather than writing.
+///
+/// Conductor records a workspace before it finishes making its working tree, so
+/// the panel can be asked about a directory that does not exist yet. Refusing
+/// there put `no such directory: .../bangkok` in the panel instead of the
+/// account. Nothing here needs the directory: routes are matched as paths.
+pub fn report_dir(arg: Option<&String>) -> Result<PathBuf, String> {
+    match arg.filter(|p| !p.is_empty()) {
+        Some(p) => {
+            let path = PathBuf::from(p);
+            Ok(if path.is_dir() { logical(&path) } else { path })
         }
         None => Ok(paths::workspace_dir()),
     }

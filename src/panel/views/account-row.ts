@@ -45,6 +45,9 @@ export function accountSlot(
   if (active) tickslot.appendChild(icon("tick", 13));
   card.appendChild(tickslot);
 
+  /* With no place identified there is no chat either: `hats json` was asked
+   * without a path, so anything it reported came from the shell's directory
+   * rather than from the window. Pinning on that would pin some other chat. */
   if (state.target.kind === "none") {
     row.setAttribute("aria-disabled", "true");
     card.setAttribute("aria-disabled", "true");

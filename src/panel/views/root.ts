@@ -1,7 +1,16 @@
 /** Level one: providers, the routing switch, and the placeholder states. */
 
 import { acct, cliPath, log, message } from "../cli.js";
-import { AGENT_ICON, AGENT_LABEL, el, footText, label, note, scopeText } from "../dom.js";
+import {
+  AGENT_ICON,
+  AGENT_LABEL,
+  effective,
+  el,
+  footText,
+  label,
+  note,
+  scopeText,
+} from "../dom.js";
 import { icon } from "../icons.js";
 import type { PanelState, Provider } from "../state.js";
 import { panel, redraw, reload } from "../store.js";
@@ -17,8 +26,13 @@ function providerCard(provider: Provider): HTMLElement {
   main.appendChild(el("div", "cma-sub", n === 1 ? "1 Account" : n + " Accounts"));
   card.appendChild(main);
 
-  const badge = provider.current
-    ? provider.current.charAt(0).toUpperCase() + provider.current.slice(1)
+  /* What the chat on screen will run on, which is what the toolbar says. Reading
+   * the workspace route here instead made level one and the toolbar disagree in
+   * plain sight: the route said Personal while the chat, carrying a pin, said
+   * Work. Both were true and neither was the same question. */
+  const shown = effective(provider);
+  const badge = shown
+    ? shown.charAt(0).toUpperCase() + shown.slice(1)
     : provider.accounts.length
       ? "Not set"
       : "None";

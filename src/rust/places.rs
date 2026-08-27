@@ -18,6 +18,23 @@ const WORKSPACES: &str = "select workspace_path from workspaces \
 
 const REPOS: &str = "select root_path from repos where root_path is not null";
 
+/// The chat Conductor has open in a workspace, named the way the router will see
+/// it.
+///
+/// Conductor records the selected chat itself, in `workspaces.active_session_id`,
+/// which is exact: it changes the moment another chat is clicked, and it holds
+/// while the workspace sits idle. Guessing from transcript timestamps can do
+/// neither.
+///
+/// The two ids are not the same namespace. Conductor's `sessions.id` is what it
+/// passes as `--session-id` when it starts a chat, so the two usually agree, but
+/// a conversation resumed after a compaction carries a `claude_session_id` of
+/// its own and that is the one on the command line the router reads. Pinning the
+/// other would write a file nothing ever looks up.
+const ACTIVE: &str = "select coalesce(nullif(s.claude_session_id, ''), s.id) \
+     from workspaces w join sessions s on s.id = w.active_session_id \
+     where w.state != 'archived' and s.agent_type = ";
+
 /// Ids come from the frontend, so they are checked before being put in a query
 /// rather than trusted. Conductor's are UUIDs.
 fn is_id(id: &str) -> bool {
@@ -48,19 +65,104 @@ fn databases() -> Vec<PathBuf> {
     found
 }
 
-/// `mode=ro` rather than a copy: the database is usually open in a running
-/// Conductor, and read-only is the whole of what is needed here.
+fn ask(db: &Path, sql: &str, mode: &str) -> Option<Vec<String>> {
+    let uri = format!("file:{}?{mode}", db.display());
+    let out = Command::new("sqlite3").arg(uri).arg(sql).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+/// Read-only rather than a copy: the database is usually open in a running
+/// Conductor, and reading is the whole of what is needed here. The database is
+/// also 1.6 GB, so copying it to read two columns is not an option.
+///
+/// `mode=ro` alone is not enough. Conductor's database is in WAL mode, and
+/// opening one of those read-only fails outright unless its `-shm` file already
+/// exists, which it does not while Conductor is closed or between a quit and the
+/// next launch. The failure is silent in the worst way: sqlite3 exits non-zero
+/// with an empty result, so every caller reads it as "Conductor knows of no
+/// workspaces" and the panel quietly falls back to guessing from the screen.
+///
+/// So a refusal is retried as `immutable=1`, which reads the file without the
+/// shared-memory index. It is only reached when there is no live index to share,
+/// and a possibly stale answer beats an empty one that reads as fact.
 fn query(db: &Path, sql: &str) -> Vec<String> {
-    let uri = format!("file:{}?mode=ro", db.display());
-    let Ok(out) = Command::new("sqlite3").arg(uri).arg(sql).output() else {
-        return Vec::new();
-    };
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .map(str::to_string)
+    if let Some(rows) = ask(db, sql, "mode=ro") {
+        return rows;
+    }
+    ask(db, sql, "immutable=1").unwrap_or_default()
+}
+
+/// Single quotes doubled, which is all SQL string quoting is. Paths arrive from
+/// the caller rather than from Conductor, so they are not ids and cannot be
+/// checked like one.
+fn quoted(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "''"))
+}
+
+/// Every workspace Conductor currently knows, resolved.
+///
+/// Recorded when an account is chosen for a workspace that does not exist yet,
+/// so the one that appears afterwards can be told apart from the ones already
+/// there.
+pub fn workspace_paths() -> Vec<PathBuf> {
+    databases()
+        .iter()
+        .flat_map(|db| query(db, WORKSPACES))
+        .map(|path| real(Path::new(&path)))
         .collect()
+}
+
+/// Whether Conductor calls this directory a workspace.
+///
+/// The account chosen while creating one must not be spent by anything else, and
+/// plenty else starts an agent: Conductor runs one with the working directory set
+/// to `/` before the workspace's own, and others at the repository root. Both
+/// would swallow the choice and leave the new workspace with nothing.
+pub fn is_workspace(dir: &Path) -> bool {
+    let dbs = databases();
+    if dbs.is_empty() {
+        /* No Conductor to ask, so nothing else is starting agents either and
+         * there is nothing to protect the choice from. */
+        return true;
+    }
+    /* Compared after resolving both sides rather than as strings. On macOS the
+     * temporary directory is `/var/...`, a symlink to `/private/var/...`, and
+     * which spelling reaches here depends on who resolved it last. */
+    let want = real(dir);
+    dbs.iter()
+        .flat_map(|db| query(db, WORKSPACES))
+        .any(|path| real(Path::new(&path)) == want)
+}
+
+fn real(dir: &Path) -> PathBuf {
+    std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf())
+}
+
+/// The open chat in this workspace for one agent, or None when Conductor knows
+/// of none, the database is unreadable, or this build has no `sessions` table.
+///
+/// Filtered by agent: a workspace showing a Codex chat has no Claude chat open,
+/// and answering with the Codex one would pin the wrong agent's conversation.
+pub fn active_session(agent: &str, dir: &Path) -> Option<String> {
+    let sql = format!(
+        "{ACTIVE}{} and w.workspace_path = {}",
+        quoted(agent),
+        quoted(&dir.to_string_lossy())
+    );
+    databases()
+        .iter()
+        .flat_map(|db| query(db, &sql))
+        .find(|id| is_id(id))
 }
 
 fn basename(path: &str) -> &str {

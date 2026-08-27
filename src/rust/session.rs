@@ -94,12 +94,22 @@ pub enum Current {
     Ambiguous(usize),
 }
 
-/// The chat being written to in this workspace.
+/// The chat on screen in this workspace.
 ///
-/// Refuses to choose when two chats were written within a couple of seconds of
-/// each other: both are plausibly on screen, and picking one would silently pin
-/// the wrong conversation.
+/// Conductor's own record comes first: it stores the selected chat against the
+/// workspace, so there is nothing to infer. It is right while the workspace is
+/// idle, right when two chats answer at once, and right for a conversation whose
+/// transcript is named something else after a compaction.
+///
+/// The scan below stays as the fallback, for a Conductor with no database to
+/// read, no `sessions` table, or no `sqlite3` to read it with. It infers the chat
+/// from transcript timestamps, and refuses to choose when two were written within
+/// a couple of seconds of each other: both are plausibly on screen, and picking
+/// one would silently pin the wrong conversation.
 pub fn current(agent: &str, dir: &Path) -> Current {
+    if let Some(open) = crate::places::active_session(agent, dir) {
+        return Current::Chat(open);
+    }
     let found = transcripts(agent, dir);
     let Some(newest) = found.first() else {
         return Current::Idle;
@@ -118,6 +128,43 @@ pub fn current(agent: &str, dir: &Path) -> Current {
         return Current::Ambiguous(rivals);
     }
     Current::Chat(newest.session.clone())
+}
+
+/// Where the account a chat actually started on is recorded.
+///
+/// Separate from the pin, and it has to be. The pin says what the next process
+/// will use; a running conversation took its account when it spawned and cannot
+/// be moved. With one file for both, choosing an account made the panel report
+/// the new one immediately while the conversation on screen carried on under the
+/// old, which is the misreporting this whole feature exists to end.
+fn started_path(agent: &str, session: &str) -> PathBuf {
+    paths::session_dir()
+        .join(agent)
+        .join("started")
+        .join(session)
+}
+
+/// The account the agent for this chat took when it spawned.
+pub fn started(agent: &str, session: &str) -> Option<String> {
+    let found = paths::first_line(&started_path(agent, session))?;
+    id::profile_or_none(&found).map(str::to_string)
+}
+
+/// Written by the router as it hands an agent its account, and by nothing else.
+pub fn record_started(agent: &str, session: &str, name: &str) {
+    let Some(session) = id::session(session) else {
+        return;
+    };
+    let Some(name) = id::profile_or_none(name) else {
+        return;
+    };
+    let path = started_path(agent, session);
+    if let Some(parent) = path.parent() {
+        if std::fs::create_dir_all(parent).is_err() {
+            return;
+        }
+    }
+    let _ = crate::lock::write_atomic(&path, &format!("{name}\n"));
 }
 
 pub fn pinned(agent: &str, session: &str) -> Option<String> {

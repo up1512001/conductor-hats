@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::{mask, paths, profile, resolve, routes, session, settings, store};
+use crate::{id, mask, paths, profile, resolve, routes, session, settings, store};
 
 pub fn list(masked: bool) -> Result<(), String> {
     store::ensure_root()?;
@@ -188,7 +188,11 @@ struct Provider {
     agent: String,
     current: String,
     session: String,
+    /// What the next process for this chat will use.
     chat: String,
+    /// What the process already running for it took when it spawned, which is
+    /// what the conversation on screen is actually on. Empty before it starts.
+    started: String,
     pinned: bool,
     accounts: Vec<Account>,
 }
@@ -201,17 +205,30 @@ struct State {
     providers: Vec<Provider>,
 }
 
-pub fn json(dir: &Path) -> Result<(), String> {
+/// `given` is the chat the caller already knows it is looking at.
+///
+/// The panel reads it out of the components the toolbar sits inside, which is
+/// exact. Detecting it here is a fallback for callers with no window to read:
+/// the terminal, and `/account`.
+pub fn json(dir: &Path, given: Option<&str>) -> Result<(), String> {
     store::ensure_root()?;
+    let named = given.and_then(id::session);
     let mut providers = Vec::new();
     for agent in ["claude", "codex"] {
         let current = store::effective_dir(agent, dir)
             .as_deref()
             .and_then(store::profile_from_dir)
             .unwrap_or_default();
-        let live = match session::current(agent, dir) {
-            session::Current::Chat(id) => id,
-            _ => String::new(),
+        /* A workspace created moments ago has no route yet, because nothing has
+         * started an agent in it. It still has an account: the one chosen while
+         * it was being created, which the first spawn will take. */
+        let current = crate::pending::for_display(agent, dir).unwrap_or(current);
+        let live = match named {
+            Some(id) => id.to_string(),
+            None => match session::current(agent, dir) {
+                session::Current::Chat(id) => id,
+                _ => String::new(),
+            },
         };
         let pin = if live.is_empty() {
             None
@@ -219,6 +236,11 @@ pub fn json(dir: &Path) -> Result<(), String> {
             session::pinned(agent, &live)
         };
         let chat = pin.clone().unwrap_or_else(|| current.clone());
+        let started = if live.is_empty() {
+            String::new()
+        } else {
+            session::started(agent, &live).unwrap_or_default()
+        };
 
         let accounts = paths::profiles(agent)
             .into_iter()
@@ -235,6 +257,7 @@ pub fn json(dir: &Path) -> Result<(), String> {
             session: live,
             pinned: pin.is_some(),
             chat,
+            started,
             accounts,
         });
     }

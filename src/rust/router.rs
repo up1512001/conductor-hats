@@ -50,13 +50,19 @@ pub fn run(agent: &str, args: Vec<String>) -> ! {
         let session = paths::session_id(&args);
         let profile = resolve::decide(agent, &dir, session.as_deref(), env_bound);
         let binary = resolve::agent_binary(agent);
-        (profile, binary)
+        (profile, binary, session)
     }))
-    .unwrap_or((None, None));
+    .unwrap_or((None, None, None));
 
-    let (profile, binary) = decision;
+    let (profile, binary, session) = decision;
 
     if let Some(profile) = profile {
+        /* Recorded here rather than inside the decision, because the decision
+         * returns early when a pin already answers it and a respawn under a pin
+         * is exactly when what the chat is running on changes. */
+        if let Some(id) = session.as_deref() {
+            crate::session::record_started(agent, id, &profile);
+        }
         let dir = paths::profile_dir(agent, &profile);
         if dir.is_dir() {
             std::env::set_var(var, &dir);

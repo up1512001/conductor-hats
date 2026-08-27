@@ -101,36 +101,27 @@ fn the_guard_answers_only_the_version_check() {
     );
 }
 
-/// The panel offers one thing per level, as it did before a scope switch was
-/// added to it: providers, then that provider's accounts. A choice means the
-/// workspace on screen.
-#[test]
-fn the_panel_offers_no_scope_switch() {
-    let dist = bundle();
-    for gone in ["cma-scope", "cma-seg", "This chat"] {
-        assert!(
-            !dist.contains(gone),
-            "the panel still carries {gone:?}, which belongs to the removed scope switch"
-        );
-    }
-}
-
-/// A chat that started before the route changed carries a pin, and a pin beats
-/// the route. The label reads what the chat will actually run on, and choosing
-/// an account clears the pin, so the two can never disagree.
-#[test]
-fn choosing_an_account_leaves_nothing_pinned_against_it() {
-    let dist = bundle();
-    assert!(
-        dist.contains("unpin ${agent} ${session}"),
-        "choosing an account does not clear the chat's pin"
-    );
-    assert!(
-        dist.contains("function effective("),
-        "the label does not read the account the chat will use"
-    );
-}
-
+/// The panel offers one thing per level: providers, then that provider's
+/// accounts. The segmented control that once sat between them is gone and stays
+/// gone; what a choice applies to is said in words instead.
+/// The toolbar belongs to the chat it was pressed in. Choosing an account pins
+/// that chat and writes no route, so the other chats in the workspace are left
+/// where they are.
+/// Nothing in the panel binds a repository any more.
+///
+/// A binding is one value for every workspace under it, so choosing Work while
+/// creating one workspace and Personal while creating the next left both on
+/// Personal, and moved every other workspace in that repository too. The
+/// composer writes a one-shot instead, spent by the workspace it was chosen for.
+/// Each account row carries its provider's mark. The same profile name can exist
+/// under Claude and under Codex, and the heading is easy to miss.
+/// With no chat and no workspace, the toolbar in the New Workspace view still
+/// has something to mean: the workspace about to be made. It must reach that
+/// through the one-shot and never through a repository binding, which would move
+/// every workspace under it.
+/// Setting every chat at once is still reachable, and it has to clear the open
+/// chat's pin as well as write the route: a pin beats a route, so the route
+/// alone would leave that chat behind.
 #[test]
 fn the_built_panel_is_one_self_contained_iife() {
     let dist = bundle();

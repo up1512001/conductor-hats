@@ -40,8 +40,29 @@ export const AGENT_ICON: Record<string, string> = {
  * started with, so reading the route here made the label claim one account
  * while messages went to another.
  */
-export function effective(p: { current: string; chat?: string; session?: string }): string {
+export function effective(p: {
+  current: string;
+  chat?: string;
+  session?: string;
+  started?: string;
+}): string {
+  /* What it is running on comes first. A chat that has already started cannot be
+   * moved, so naming the account its next process will take would be describing
+   * something that has not happened: the toolbar said Work while the agent
+   * answering was on Personal. */
+  if (p.session && p.started) return p.started;
   return p.session && p.chat ? p.chat : p.current;
+}
+
+/** The account this chat will move to when it next starts, if that is not the
+ * one it is on. */
+export function pendingChange(p: {
+  chat?: string;
+  session?: string;
+  started?: string;
+}): string {
+  if (!p.session || !p.started || !p.chat) return "";
+  return p.chat === p.started ? "" : p.chat;
 }
 
 export function primary(state: PanelState): string {
@@ -52,18 +73,40 @@ export function primary(state: PanelState): string {
   return any ? effective(any) : "";
 }
 
+/**
+ * Whether Conductor has a chat open here, which decides what a choice writes.
+ * With one open the toolbar sets that chat; without one there is nothing to pin
+ * and it sets the workspace instead.
+ */
+export function openChat(state: PanelState): boolean {
+  if (state.chatId) return true;
+  return (state.providers || []).filter((p) => !!p.session).length > 0;
+}
+
 export function scopeText(state: PanelState): string {
+  if (state.scope === "repository") {
+    return state.target.name ? "New workspace in " + state.target.name : "New workspace";
+  }
+  if (openChat(state)) {
+    return state.target.name ? "This chat in " + state.target.name : "This chat";
+  }
   if (state.target.kind === "workspace") return "Workspace: " + state.target.name;
-  if (state.target.kind === "repository") return "New workspaces in " + state.target.name;
+  if (state.target.kind === "repository") return "The next workspace in " + state.target.name;
   return "No workspace in view";
 }
 
 export function footText(state: PanelState): string {
+  if (state.scope === "repository") {
+    return "Applies to the workspace you create next, and to that one alone.";
+  }
+  if (openChat(state)) {
+    return "Applies to this chat alone. It comes up on the new account next time you open it; the conversation on screen keeps the one it started with.";
+  }
   if (state.target.kind === "workspace") {
-    return "Applies to new chats in this workspace. Chats already running keep the account they started on.";
+    return "No chat open, so this sets the workspace. Chats started here use it unless they are set on their own.";
   }
   if (state.target.kind === "repository") {
-    return "Applies to workspaces created from now on.";
+    return "No chat here yet, so this applies to the workspace you create next.";
   }
   return "Open a workspace to choose its account.";
 }
