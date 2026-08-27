@@ -35,6 +35,24 @@ pub struct Options {
 }
 
 pub fn run(opts: &Options) -> Result<(), String> {
+    /* The copy is the only thing this may touch. Rebuilding it reads the real
+     * Conductor and must never disturb it: quitting that closes every agent
+     * running inside it, which is how this was found. */
+    if same_bundle(&opts.app, &opts.src) {
+        return Err(format!(
+            "refusing to rebuild {} onto itself: that is the real Conductor",
+            opts.src.display()
+        ));
+    }
+    if let Some(pid) = own_ancestor(&opts.app.join("Contents/MacOS/")) {
+        return Err(format!(
+            "refusing: this is running inside {} (pid {pid}).\n\
+             Quitting it would kill the agent asking for the rebuild. Run this \
+             from a terminal outside that application.",
+            opts.app.display()
+        ));
+    }
+
     println!("==> Quitting {}", opts.app.display());
     quit(&opts.app);
 
@@ -82,40 +100,90 @@ pub fn run(opts: &Options) -> Result<(), String> {
     Ok(())
 }
 
+/// Quits the copy, and nothing else.
+///
+/// It used to ask LaunchServices, `quit app id "com.conductor.dev"`. The copy is
+/// Conductor with one string rewritten, so LaunchServices resolved that id back
+/// to the original and quit that instead: the real Conductor, and every agent
+/// running inside it, including whichever one had just asked for the rebuild.
+///
+/// Nothing is resolved by name or identifier now. The process list is read, and
+/// only processes whose executable is inside this bundle are signalled.
 fn quit(app: &Path) {
-    let ident = Command::new("/usr/libexec/PlistBuddy")
-        .args(["-c", "Print :CFBundleIdentifier"])
-        .arg(app.join("Contents/Info.plist"))
-        .output()
-        .ok()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|| "com.conductor.dev".into());
-    let _ = Command::new("osascript")
-        .arg("-e")
-        .arg(format!("quit app id \"{ident}\""))
-        .status();
-
     let inner = app.join("Contents/MacOS/");
+    let mut pids = pids_under(&inner);
+    if pids.is_empty() {
+        println!("    not running");
+        return;
+    }
+    for pid in &pids {
+        let _ = Command::new("kill").arg("-TERM").arg(pid).status();
+    }
     for _ in 0..10 {
-        if !running(&inner) {
+        pids = pids_under(&inner);
+        if pids.is_empty() {
             println!("    quit");
             return;
         }
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
     println!("    still running, asking harder");
-    let _ = Command::new("pkill")
-        .arg("-f")
-        .arg(inner.to_string_lossy().to_string())
-        .status();
+    for pid in &pids {
+        let _ = Command::new("kill").arg("-KILL").arg(pid).status();
+    }
     std::thread::sleep(std::time::Duration::from_secs(2));
 }
 
-fn running(inner: &Path) -> bool {
-    Command::new("pgrep")
-        .arg("-f")
-        .arg(inner.to_string_lossy().to_string())
-        .output()
-        .map(|o| !o.stdout.is_empty())
-        .unwrap_or(false)
+fn same_bundle(a: &Path, b: &Path) -> bool {
+    let real = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    real(a) == real(b)
+}
+
+/// This process's own ancestry, if any of it lives inside the bundle.
+///
+/// A belt beside the brace: whatever else goes wrong, an agent cannot be made to
+/// quit the application it is running inside.
+fn own_ancestor(inner: &Path) -> Option<u32> {
+    let mine = pids_under(inner);
+    if mine.is_empty() {
+        return None;
+    }
+    let mut pid = std::process::id();
+    for _ in 0..12 {
+        if mine.iter().any(|p| p.parse::<u32>().ok() == Some(pid)) {
+            return Some(pid);
+        }
+        let out = Command::new("ps")
+            .args(["-o", "ppid=", "-p", &pid.to_string()])
+            .output()
+            .ok()?;
+        let parent: u32 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
+        if parent <= 1 {
+            return None;
+        }
+        pid = parent;
+    }
+    None
+}
+
+/// The pids whose executable path sits inside this bundle.
+///
+/// Compared as a plain prefix rather than matched with `pkill -f`, whose pattern
+/// is a regular expression: every `.` in an application path is a wildcard, and
+/// the paths of the copy and the original differ by very little.
+fn pids_under(inner: &Path) -> Vec<String> {
+    let want = inner.to_string_lossy().to_string();
+    let Ok(out) = Command::new("ps").args(["-eo", "pid=,comm="]).output() else {
+        return Vec::new();
+    };
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim_start();
+            let (pid, comm) = line.split_once(char::is_whitespace)?;
+            comm.trim_start()
+                .starts_with(&want)
+                .then(|| pid.to_string())
+        })
+        .collect()
 }

@@ -72,6 +72,23 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   other on two accounts each keep theirs, and later chats in each inherit the
   right one.
 
+### Security
+
+- **`repatch` quit the real Conductor.** It asked LaunchServices to quit the copy
+  by bundle identifier, `quit app id "com.conductor.dev"`. The copy is Conductor
+  with one string rewritten, so LaunchServices resolved that identifier back to
+  the original and quit that: the real application, and every agent running
+  inside it, including whichever one had asked for the rebuild. It also fell back
+  to `pkill -f`, whose pattern is a regular expression, so every `.` in an
+  application path is a wildcard and the two paths differ by very little.
+
+  Nothing is resolved by name or identifier now. The process list is read and
+  only processes whose executable path sits inside the target bundle are
+  signalled, compared as a plain prefix. Two refusals sit in front of that:
+  rebuilding a bundle onto itself, and quitting an application this process is
+  running inside. The second holds whatever else goes wrong, so an agent cannot
+  be made to close the window it is working in.
+
 - **A workspace did not keep the account it was created with.** Choosing one in
   the New Workspace composer bound the repository, so the second creation
   overwrote the first and both moved, along with every other workspace under it.
