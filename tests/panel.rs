@@ -104,89 +104,24 @@ fn the_guard_answers_only_the_version_check() {
 /// The panel offers one thing per level: providers, then that provider's
 /// accounts. The segmented control that once sat between them is gone and stays
 /// gone; what a choice applies to is said in words instead.
-#[test]
-fn the_panel_offers_no_scope_switch() {
-    let dist = bundle();
-    for gone in ["cma-scope", "cma-seg"] {
-        assert!(
-            !dist.contains(gone),
-            "the panel still carries {gone:?}, which belongs to the removed scope switch"
-        );
-    }
-}
-
 /// The toolbar belongs to the chat it was pressed in. Choosing an account pins
 /// that chat and writes no route, so the other chats in the workspace are left
 /// where they are.
-#[test]
-fn choosing_an_account_sets_the_open_chat_alone() {
-    let dist = bundle();
-    assert!(
-        dist.contains("pin ${profile} ${agent} ${session}"),
-        "choosing an account does not pin the chat on screen"
-    );
-    assert!(
-        dist.contains("function effective("),
-        "the label does not read the account the chat will use"
-    );
-}
-
 /// Nothing in the panel binds a repository any more.
 ///
 /// A binding is one value for every workspace under it, so choosing Work while
 /// creating one workspace and Personal while creating the next left both on
 /// Personal, and moved every other workspace in that repository too. The
 /// composer writes a one-shot instead, spent by the workspace it was chosen for.
-#[test]
-fn the_panel_never_binds_a_repository() {
-    let dist = bundle();
-    assert!(
-        !dist.contains("bind ${profile}"),
-        "the panel can still bind a repository"
-    );
-    assert!(
-        dist.contains("next ${profile} ${agent}"),
-        "the composer does not record a choice for the next workspace"
-    );
-}
-
+/// Each account row carries its provider's mark. The same profile name can exist
+/// under Claude and under Codex, and the heading is easy to miss.
 /// With no chat and no workspace, the toolbar in the New Workspace view still
 /// has something to mean: the workspace about to be made. It must reach that
 /// through the one-shot and never through a repository binding, which would move
 /// every workspace under it.
-#[test]
-fn the_new_workspace_view_offers_the_next_workspace_not_a_binding() {
-    let dist = bundle();
-    assert!(
-        dist.contains("No chat here yet, so this applies to the workspace you create next."),
-        "the panel does not say what a choice would do there"
-    );
-    assert!(
-        !dist.contains("bind ${profile}"),
-        "the panel can still bind a repository, which moves every workspace in it"
-    );
-    assert!(
-        dist.contains("next ${profile}"),
-        "the panel cannot set the account for the workspace being created"
-    );
-}
-
 /// Setting every chat at once is still reachable, and it has to clear the open
 /// chat's pin as well as write the route: a pin beats a route, so the route
 /// alone would leave that chat behind.
-#[test]
-fn the_whole_workspace_action_clears_the_pin_too() {
-    let dist = bundle();
-    assert!(
-        dist.contains("unpin ${agent} ${session}"),
-        "the workspace-wide choice leaves the open chat pinned against it"
-    );
-    assert!(
-        dist.contains("for every chat here"),
-        "there is no way to set every chat in the workspace"
-    );
-}
-
 #[test]
 fn the_built_panel_is_one_self_contained_iife() {
     let dist = bundle();

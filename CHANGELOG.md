@@ -8,6 +8,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- **Each account row carries its provider's mark**, Claude's or Codex's, so a row
+  says whose account it is without reading the heading above it. The same profile
+  name can exist under both.
+
 ### Fixed
 
 - **The toolbar moved every chat in the workspace, not the one it was pressed

@@ -109,3 +109,18 @@
   color: var(--foreground);
   opacity: 0.9;
 }
+
+/* The provider mark on an account row. Dimmer than the name it sits beside: it
+ * says which agent, and the account is what is being chosen. */
+.cma-mark {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: $muted;
+}
+
+.cma-card[aria-checked="true"] .cma-mark {
+  color: inherit;
+}
