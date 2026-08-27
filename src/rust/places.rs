@@ -33,7 +33,7 @@ const REPOS: &str = "select root_path from repos where root_path is not null";
 /// other would write a file nothing ever looks up.
 const ACTIVE: &str = "select coalesce(nullif(s.claude_session_id, ''), s.id) \
      from workspaces w join sessions s on s.id = w.active_session_id \
-     where s.agent_type = ";
+     where w.state != 'archived' and s.agent_type = ";
 
 /// Ids come from the frontend, so they are checked before being put in a query
 /// rather than trusted. Conductor's are UUIDs.
@@ -65,19 +65,41 @@ fn databases() -> Vec<PathBuf> {
     found
 }
 
-/// `mode=ro` rather than a copy: the database is usually open in a running
-/// Conductor, and read-only is the whole of what is needed here.
+fn ask(db: &Path, sql: &str, mode: &str) -> Option<Vec<String>> {
+    let uri = format!("file:{}?{mode}", db.display());
+    let out = Command::new("sqlite3").arg(uri).arg(sql).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
+/// Read-only rather than a copy: the database is usually open in a running
+/// Conductor, and reading is the whole of what is needed here. The database is
+/// also 1.6 GB, so copying it to read two columns is not an option.
+///
+/// `mode=ro` alone is not enough. Conductor's database is in WAL mode, and
+/// opening one of those read-only fails outright unless its `-shm` file already
+/// exists, which it does not while Conductor is closed or between a quit and the
+/// next launch. The failure is silent in the worst way: sqlite3 exits non-zero
+/// with an empty result, so every caller reads it as "Conductor knows of no
+/// workspaces" and the panel quietly falls back to guessing from the screen.
+///
+/// So a refusal is retried as `immutable=1`, which reads the file without the
+/// shared-memory index. It is only reached when there is no live index to share,
+/// and a possibly stale answer beats an empty one that reads as fact.
 fn query(db: &Path, sql: &str) -> Vec<String> {
-    let uri = format!("file:{}?mode=ro", db.display());
-    let Ok(out) = Command::new("sqlite3").arg(uri).arg(sql).output() else {
-        return Vec::new();
-    };
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .map(str::to_string)
-        .collect()
+    if let Some(rows) = ask(db, sql, "mode=ro") {
+        return rows;
+    }
+    ask(db, sql, "immutable=1").unwrap_or_default()
 }
 
 /// Single quotes doubled, which is all SQL string quoting is. Paths arrive from

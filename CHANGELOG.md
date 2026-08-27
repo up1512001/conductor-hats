@@ -47,6 +47,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The timestamp scan stays as the fallback, for a Conductor with no database, no
   `sessions` table, or no `sqlite3` to read it with.
 
+- **Every lookup in Conductor's database could fail silently.** It is in WAL
+  mode, and a WAL database opened read-only fails outright unless its `-shm`
+  file already exists, which it does not while Conductor is closed or between a
+  quit and the next launch. `sqlite3` exited non-zero with an empty result, and
+  an empty result is indistinguishable from an answer: `workspaces`, `repos`,
+  `resolve` and the open chat all read as "Conductor knows of none". The panel
+  then could not identify the workspace or the chat, and fell back to the
+  workspace route, which is the whole-workspace switching this release exists to
+  end. A refusal is retried as `immutable=1`, which reads the file without the
+  shared index; it is only reached when there is no live index to share.
+
 - **The panel said "Workspace" while acting on a chat.** The scope line reads
   `This chat in <name>` when a chat is open, and the note under the accounts says
   the choice applies to that chat alone and that the running conversation keeps
