@@ -235,3 +235,61 @@ fn a_workspace_that_already_existed_cannot_spend_the_choice() {
         "the workspace created for it did not get it: {got}"
     );
 }
+
+/// The tick in the New Workspace view has to follow the choice, or pressing an
+/// account looks like it did nothing and the account gets set again afterwards,
+/// from inside the chat, which is the long way round.
+#[test]
+fn the_new_workspace_view_shows_the_account_it_will_use() {
+    if !sqlite() {
+        eprintln!("skipped: sqlite3 is not installed");
+        return;
+    }
+    let s = Sandbox::new();
+    s.hats(&["install"]).ok();
+    s.profile("claude", "work");
+    s.profile("claude", "personal");
+    /* The default is deliberately not either choice below, so nothing passes by
+     * coincidence. */
+    s.hats(&["assign", "default", "personal"]).ok();
+
+    let ws = s.workspace("ws-old");
+    let db = database(&s, "ws-old", "sss111", &[("sss111", "sss111", "claude")]);
+    let repo = s.workspace("repo-root");
+    assert_eq!(
+        account_of(&s, &db, &ws),
+        "personal",
+        "the fixture is not as assumed"
+    );
+
+    s.hats_env(&["next", "work", "claude"], &[("CONDUCTOR_DB", &db)])
+        .ok();
+    assert_eq!(
+        account_of(&s, &db, &repo),
+        "work",
+        "the New Workspace view ignores the choice, so pressing an account looks inert"
+    );
+    /* An existing workspace is not the one being created, and must not move. */
+    assert_eq!(
+        account_of(&s, &db, &ws),
+        "personal",
+        "a workspace that already existed was moved by the choice"
+    );
+
+    s.hats_env(&["next", "personal", "claude"], &[("CONDUCTOR_DB", &db)])
+        .ok();
+    assert_eq!(
+        account_of(&s, &db, &repo),
+        "personal",
+        "choosing a second time does not show"
+    );
+}
+
+fn account_of(s: &Sandbox, db: &str, path: &str) -> String {
+    let out = s.hats_env(&["json", path], &[("CONDUCTOR_DB", db)]).out();
+    let state: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+    state["providers"][0]["current"]
+        .as_str()
+        .unwrap_or("")
+        .to_string()
+}

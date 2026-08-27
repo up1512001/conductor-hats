@@ -218,7 +218,7 @@ pub fn json(dir: &Path, given: Option<&str>) -> Result<(), String> {
         /* A workspace created moments ago has no route yet, because nothing has
          * started an agent in it. It still has an account: the one chosen while
          * it was being created, which the first spawn will take. */
-        let current = crate::pending::would_take(agent, dir).unwrap_or(current);
+        let current = crate::pending::for_display(agent, dir).unwrap_or(current);
         let live = match named {
             Some(id) => id.to_string(),
             None => match session::current(agent, dir) {

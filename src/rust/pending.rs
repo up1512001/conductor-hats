@@ -72,6 +72,27 @@ pub fn would_take(agent: &str, dir: &Path) -> Option<String> {
     Some(name)
 }
 
+/// What to show as this place's account, choice included.
+///
+/// Two cases, and the difference matters. A workspace that will take the choice
+/// reports it, so a freshly created one names the right account before anything
+/// has run in it. Somewhere that is not a workspace at all is the New Workspace
+/// view, where the panel is looking at the repository: the choice is what the
+/// workspace made there will use, so that is what the tick should follow.
+///
+/// A workspace that already existed reports neither. It has its own account and
+/// the choice is not for it.
+pub fn for_display(agent: &str, dir: &Path) -> Option<String> {
+    if let Some(name) = would_take(agent, dir) {
+        return Some(name);
+    }
+    if crate::places::is_workspace(dir) {
+        return None;
+    }
+    let first = paths::first_line(&path(agent))?;
+    id::profile_or_none(&first).map(str::to_string)
+}
+
 pub fn take(agent: &str, dir: &Path) -> Option<String> {
     /* Used by a workspace, and only by one that did not exist when the choice was
      * made. Conductor starts an agent at `/` before the workspace's own, and every

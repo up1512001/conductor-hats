@@ -89,6 +89,16 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   running inside. The second holds whatever else goes wrong, so an agent cannot
   be made to close the window it is working in.
 
+- **Pressing an account before creating a workspace looked inert.** The choice
+  was recorded, but the tick stayed where it was, so it read as a dead control
+  and the account ended up being set afterwards from inside the chat instead. The
+  panel is looking at the repository there, and the check that reports a pending
+  choice only answered for workspaces. It answers for anywhere that is not a
+  workspace too, since that is the New Workspace view and the choice is precisely
+  what the workspace made there will use. A workspace that already exists still
+  reports its own account, which a test pins down with a default that matches
+  neither choice, so nothing passes by coincidence.
+
 - **The New Workspace view refused every choice.** With no chat and no workspace
   to name, the panel matched the repository, and the toolbar is not allowed to
   bind one, so it said "no chat open here, and this workspace could not be
