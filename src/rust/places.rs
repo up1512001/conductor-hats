@@ -109,6 +109,15 @@ fn quoted(text: &str) -> String {
     format!("'{}'", text.replace('\'', "''"))
 }
 
+/// Runs a query across every Conductor database and returns the rows.
+///
+/// For callers that need more than one column: `sqlite3` separates them with a
+/// pipe, so the caller splits. Anything derived from user input has to go
+/// through `quoted` before it reaches here.
+pub fn rows(sql: &str) -> Vec<String> {
+    databases().iter().flat_map(|db| query(db, sql)).collect()
+}
+
 /// Every workspace Conductor currently knows, resolved.
 ///
 /// Recorded when an account is chosen for a workspace that does not exist yet,

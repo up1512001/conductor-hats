@@ -4,6 +4,7 @@
 //! command installed.
 
 mod args;
+mod chats;
 mod cli;
 mod debug;
 mod devapp;

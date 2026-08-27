@@ -3,7 +3,7 @@
 //! The surface matches the shell CLI it replaces, because the test suite is the
 //! contract and runs against either implementation.
 
-use crate::{id, manage, paths, pending, report, session, store, wiring};
+use crate::{chats, id, manage, paths, pending, report, session, store, wiring};
 
 pub fn agent_of(arg: Option<&String>) -> Result<String, String> {
     id::agent(arg.map(String::as_str).unwrap_or("claude")).map(str::to_string)
@@ -54,6 +54,7 @@ pub fn is_account_command(cmd: &str) -> bool {
             | "unpin"
             | "install"
             | "uninstall"
+            | "chats"
             | "doctor"
     )
 }
@@ -215,6 +216,13 @@ pub fn run(cmd: &str, rest: &[String]) -> Result<(), String> {
         }
         "install" => wiring::install(),
         "uninstall" => wiring::uninstall(),
+        "chats" => {
+            if rest.iter().any(|a| a == "--json") {
+                chats::as_json()
+            } else {
+                chats::run(masked)
+            }
+        }
         "doctor" => store::target_dir(positional.first()).and_then(|d| wiring::doctor(&d)),
         other => Err(format!("unknown command '{other}'")),
     }

@@ -26,6 +26,7 @@ Choosing one
 Reporting
   status [path] [--mask]             what this workspace resolves to
   which [path] [agent]               the same, with every layer that fed in
+  chats [--mask] [--json]            every open chat and the account it is on
   json [path]                        machine-readable, for the panel
   workspaces                         every workspace Conductor knows, name and path
   repos                              every repository, the same

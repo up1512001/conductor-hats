@@ -6,6 +6,22 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **`hats chats`**, every chat Conductor has open and the account each one is
+  on. The panel answers that for the chat in front of you; this answers it for
+  all of them, which is the question that gets asked once several agents are
+  running and it is no longer obvious which is on what.
+
+  Two accounts per chat, because they are different facts: what the running
+  process took when it spawned, and what the next one will take. The listing
+  counts how many are about to change and says so.
+
+  `--json` prints the same list as an array. Archived workspaces and hidden
+  chats are left out of both forms.
+
 ## 0.5.0
 
 The release that makes an account a property of a chat rather than of a

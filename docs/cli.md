@@ -20,6 +20,7 @@ remove <profile> [agent]         sign out, delete the profile and its routes
 pin <profile> [agent] [session]  point one chat at a profile
 unpin [agent] [session]          let that chat follow the workspace
 session [path] [agent]           the chat currently open in a workspace
+chats [--mask] [--json]          every open chat and the account it is on
 next <profile> [agent]           the account for the workspaces created next
 
 bind <profile> [agent] [repo]    bind a whole repository to a profile
@@ -154,3 +155,27 @@ Conductor's database, which is the fallback for callers with no window to read.
 A path that does not exist yet is not an error here. Conductor records a
 workspace before it finishes making its working tree, and the panel asks about
 one in that state every time a workspace is created.
+
+## `hats chats [--mask] [--json]`
+
+Every chat Conductor has open, and the account each one is on. The panel answers
+that for the chat in front of you; this answers it for all of them, which is the
+question that gets asked once several agents are running.
+
+```
+WORKSPACE            AGENT    STATUS      CTX  ON         NEXT       TITLE
+atlanta              claude   working     62%  work       personal   Update Conductor-hats
+lagos                claude   idle        17%  work       work       Create rtcamp2 PR
+```
+
+Two accounts per chat, and the difference is the point. **ON** is what the
+process already running took when it spawned, which cannot be changed. **NEXT**
+is what the process after it will take. They differ exactly when a chat has been
+pointed somewhere new and not yet restarted, and the listing says how many are
+in that state.
+
+`-` in either column means there is nothing recorded: a chat that has not
+started yet, or one that started before hats began keeping this.
+
+`--json` prints the same list as an array, which is what anything drawing a
+screen should read. Archived workspaces and hidden chats are left out of both.
