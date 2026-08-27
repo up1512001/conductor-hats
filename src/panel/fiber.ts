@@ -65,26 +65,23 @@ export function containing(button: Element): Fiber | null {
 }
 
 /* The search for the enclosing fiber walks the whole tree, which is too much to
- * repeat while looking for a change of chat. The button is the same element from
- * one render to the next, so the answer is kept against it. */
+ * repeat while watching for a change of chat. What is kept is the element it
+ * found, never the fiber: React replaces a fiber on every render and leaves the
+ * old one holding the props it had at the time. Keeping one showed the account of
+ * whichever workspace was open when it was cached, for every workspace after it.
+ *
+ * The element is stable and React hangs the current fiber off it, so reading it
+ * back costs nothing and is never out of date. */
 let anchoredTo: Element | null = null;
-let anchoredFiber: Fiber | null = null;
+let anchoredHost: Element | null = null;
 
 /**
- * Whether a kept fiber is still the live one.
+ * Whether the kept element is still the one wrapping the button.
  *
- * React replaces a fiber on re-render and leaves the old one holding the props
- * it had at the time. Reusing one of those would report whichever chat was open
- * when it was cached, for ever, which is the bug this cache exists to fix.
+ * Detached, or no longer containing it, means the window moved on.
  */
-function stillHolds(node: Fiber, button: Element): boolean {
-  const el = node.stateNode as Element | null;
-  return (
-    !!el &&
-    typeof (el as Element).contains === "function" &&
-    el.isConnected &&
-    el.contains(button)
-  );
+function stillHolds(host: Element, button: Element): boolean {
+  return host.isConnected && host.contains(button);
 }
 
 /**
@@ -92,14 +89,15 @@ function stillHolds(node: Fiber, button: Element): boolean {
  *
  * The button is ours: we created it and put it in Conductor's toolbar, so React
  * does not own it and it carries no fiber of its own. Its DOM ancestors carry
- * none either, measured on a real window, so the tree is searched instead. That
- * search is too heavy to repeat while watching for a change of chat, so the
- * answer is kept against the button and checked before it is reused.
+ * none either, measured on a real window, so the tree is searched for the
+ * innermost element that encloses it.
  */
 export function anchorFiber(button: Element): Fiber | null {
-  if (anchoredTo === button && anchoredFiber && stillHolds(anchoredFiber, button)) {
-    return anchoredFiber;
+  if (anchoredTo === button && anchoredHost && stillHolds(anchoredHost, button)) {
+    const live = fiberOf(anchoredHost);
+    if (live) return live;
   }
+
   let node: Fiber | null = null;
   let host: Element | null = button;
   while (host && !node) {
@@ -107,7 +105,10 @@ export function anchorFiber(button: Element): Fiber | null {
     host = host.parentElement;
   }
   if (!node) node = containing(button);
+
   anchoredTo = button;
-  anchoredFiber = node;
+  const found = node && (node.stateNode as Element | null);
+  anchoredHost =
+    found && typeof found.contains === "function" && found.contains(button) ? found : null;
   return node;
 }

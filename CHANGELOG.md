@@ -115,6 +115,15 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the workspace you create next.` The panel now carries no repository binding at
   all, which a test asserts against the built bundle.
 
+- **The toolbar showed the previous workspace's account.** Caching the fiber the
+  toolbar climbs from, added to make watching for a change of chat cheap, cached
+  the wrong thing. React replaces a fiber on every render and leaves the old one
+  holding the props it had at the time, so the panel went on reporting whichever
+  workspace was open when the cache was filled: measured against Conductor's own
+  database, it answered `pangyo` while `albany` was on screen, every time. The
+  element is kept now, never the fiber. React hangs the live fiber off the
+  element, so reading it back costs nothing and cannot be out of date.
+
 - **Switching chats felt slow.** Two process spawns stood between the switch and
   the new label: one to turn the workspace id into a path, then one to read the
   account. The first is the same answer every time, since switching chats does
