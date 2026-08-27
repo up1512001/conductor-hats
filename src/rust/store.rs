@@ -101,6 +101,22 @@ pub fn target_dir(arg: Option<&String>) -> Result<PathBuf, String> {
     }
 }
 
+/// The same, for reading rather than writing.
+///
+/// Conductor records a workspace before it finishes making its working tree, so
+/// the panel can be asked about a directory that does not exist yet. Refusing
+/// there put `no such directory: .../bangkok` in the panel instead of the
+/// account. Nothing here needs the directory: routes are matched as paths.
+pub fn report_dir(arg: Option<&String>) -> Result<PathBuf, String> {
+    match arg.filter(|p| !p.is_empty()) {
+        Some(p) => {
+            let path = PathBuf::from(p);
+            Ok(if path.is_dir() { logical(&path) } else { path })
+        }
+        None => Ok(paths::workspace_dir()),
+    }
+}
+
 /// `cd` then `pwd`, which keeps the logical path. Routes recorded from a shell
 /// look like this, and matching compares both forms anyway.
 fn logical(path: &Path) -> PathBuf {

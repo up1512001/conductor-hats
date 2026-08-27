@@ -10,23 +10,11 @@
  * to matching by name rather than breaking the panel.
  */
 
+import { anchorFiber, NODES, rootFiber } from "./fiber.js";
+import type { Fiber } from "./fiber.js";
+
 const UUID = /^[0-9a-f-]{8,36}$/i;
-const NODES = 20000;
 
-type Fiber = {
-  child?: Fiber | null;
-  sibling?: Fiber | null;
-  return?: Fiber | null;
-  stateNode?: unknown;
-  memoizedProps?: Record<string, unknown> | null;
-};
-
-function rootFiber(): Fiber | null {
-  const root = document.getElementById("root") as unknown as Record<string, unknown>;
-  if (!root) return null;
-  const key = Object.keys(root).find((k) => k.indexOf("__reactContainer") === 0);
-  return key ? (root[key] as Fiber) : null;
-}
 
 /**
  * A workspace id, and whether it came from the router's matched parameters.
@@ -72,12 +60,6 @@ export interface Scan {
 }
 
 
-/** React hangs its fiber off the DOM node under a versioned key. */
-function fiberOf(node: Element): Fiber | null {
-  const bag = node as unknown as Record<string, unknown>;
-  const key = Object.keys(bag).find((k) => k.indexOf("__reactFiber$") === 0);
-  return key ? (bag[key] as Fiber) : null;
-}
 
 /**
  * The id held by the components the toolbar button sits inside.
@@ -105,64 +87,15 @@ export interface Anchored {
   hops: number;
 }
 
-/**
- * Read from the components the toolbar button sits inside.
- *
- * Counting ids across the whole tree cannot say which workspace is open, because
- * every sidebar row is handed the id of the one it links to: measured on a real
- * window, 4296 fibers held 38 distinct ids and the count picked a workspace that
- * was not even on screen. The button is mounted in the open chat's own toolbar,
- * so its ancestors belong to that chat and the sidebar is nowhere among them.
- *
- * The session id is the prize. With it a choice can be pinned to the chat
- * directly, with no workspace to resolve and no database to consult.
- */
-/**
- * The deepest fiber whose element contains the button.
- *
- * Reading `__reactFiber$` off the button's ancestors is the obvious way and it
- * does not work here: measured on a real window, no ancestor of the toolbar
- * carries one. Walking down from the root does work, so the tree is searched for
- * the elements that enclose the button and the innermost is kept. From there
- * `return` climbs the components that own it.
- */
-function containing(button: Element): Fiber | null {
-  const start = rootFiber();
-  if (!start) return null;
 
-  let best: Fiber | null = null;
-  let bestDepth = -1;
-  const stack: { node: Fiber; depth: number }[] = [{ node: start, depth: 0 }];
-  let seen = 0;
-  while (stack.length && seen < NODES) {
-    const here = stack.pop() as { node: Fiber; depth: number };
-    seen += 1;
-    const el = here.node.stateNode as Element | null;
-    if (el && typeof (el as Element).contains === "function" && el.contains(button)) {
-      if (here.depth > bestDepth) {
-        best = here.node;
-        bestDepth = here.depth;
-      }
-    }
-    if (here.node.child) stack.push({ node: here.node.child, depth: here.depth + 1 });
-    if (here.node.sibling) stack.push({ node: here.node.sibling, depth: here.depth });
-  }
-  return best;
-}
+
 
 export function fromToolbar(): Anchored {
   /* The button is ours: we created it and put it in Conductor's toolbar, so React
    * does not own it and it carries no fiber of its own. */
   const button = document.getElementById("cma-toolbar-btn");
-  let node: Fiber | null = null;
-  if (button) {
-    let host: Element | null = button;
-    while (host && !node) {
-      node = fiberOf(host);
-      host = host.parentElement;
-    }
-    if (!node) node = containing(button);
-  }
+  const node0 = button ? anchorFiber(button) : null;
+  let node: Fiber | null = node0;
 
   const out: Anchored = { workspace: null, session: null, attached: !!node, hops: 0 };
   let climbed: Fiber | null = node;

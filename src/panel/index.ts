@@ -10,7 +10,8 @@
  */
 
 import { log } from "./cli.js";
-import { loadState } from "./state.js";
+import { invalidate, loadState } from "./state.js";
+import { fromToolbar } from "./route.js";
 import { onRefreshTriggers } from "./store.js";
 import { composerChip, refreshTriggers, toolbarButton } from "./triggers.js";
 import styles from "./styles.scss";
@@ -25,12 +26,35 @@ function injectStyles(): void {
   document.head.appendChild(style);
 }
 
+/**
+ * Redraws the toolbar when the chat behind it changes.
+ *
+ * Each chat can be on its own account, so a label left over from the last one is
+ * not stale decoration, it names the wrong account. The button survives the
+ * switch, so nothing else prompts a re-read and the old label stayed until the
+ * panel was opened by hand.
+ *
+ * The chat id is read from the components around the button, which is cheap
+ * because the fiber it starts from is kept between calls.
+ */
+let shownFor: string | null = null;
+
+function chatChanged(): void {
+  if (!document.getElementById("cma-toolbar-btn")) return;
+  const now = fromToolbar().session || "";
+  if (now === shownFor) return;
+  shownFor = now;
+  invalidate();
+  loadState(true).then(refreshTriggers).catch(() => {});
+}
+
 /** Wrapped: a throw inside a compiled bundle is somebody's white screen. */
 function tick(): void {
   try {
     injectStyles();
     toolbarButton();
     composerChip();
+    chatChanged();
   } catch (e) {
     log("tick failed", e);
   }

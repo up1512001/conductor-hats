@@ -178,3 +178,19 @@ fn a_chat_can_be_asked_about_without_naming_a_workspace() {
     assert_eq!(state["providers"][0]["session"], "ccc333");
     assert_eq!(state["providers"][0]["chat"], "work");
 }
+
+/// Conductor records a workspace before it finishes making its working tree, so
+/// the panel can be asked about a directory that does not exist yet. Refusing
+/// there put `no such directory: .../bangkok` in the panel instead of an account.
+#[test]
+fn a_workspace_with_no_directory_yet_still_reports() {
+    let s = Sandbox::new();
+    s.hats(&["install"]).ok();
+    s.profile("claude", "work");
+    s.hats(&["assign", "default", "work"]).ok();
+
+    let missing = s.path("not-made-yet").to_string_lossy().to_string();
+    let out = s.hats(&["json", &missing]).ok().out();
+    let state: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
+    assert_eq!(state["providers"][0]["current"], "work");
+}

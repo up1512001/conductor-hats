@@ -78,7 +78,7 @@ pub fn run(cmd: &str, rest: &[String]) -> Result<(), String> {
         }
         "status" => store::target_dir(positional.first()).and_then(|d| report::status(&d, masked)),
         "check" => store::target_dir(positional.first()).and_then(|d| report::check(&d)),
-        "json" => store::target_dir(positional.first())
+        "json" => store::report_dir(positional.first())
             .and_then(|d| report::json(&d, positional.get(1).map(String::as_str))),
         "which" => {
             let dir = store::target_dir(positional.first())?;

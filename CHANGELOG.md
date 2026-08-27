@@ -89,6 +89,21 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   running inside. The second holds whatever else goes wrong, so an agent cannot
   be made to close the window it is working in.
 
+- **The toolbar kept the last chat's account after switching chats.** Each chat
+  can be on its own account, so a label left over from the previous one does not
+  read as stale, it names the wrong account. The button survives a switch, so
+  nothing prompted a re-read and the old label stood until the panel was opened
+  by hand. The chat behind the button is checked as the window changes, and the
+  label is re-read the moment it differs. The fiber that check starts from is kept
+  between calls so it costs nothing, and validated before reuse: React leaves a
+  replaced fiber holding the props it had at the time, and reusing one would have
+  frozen the label on whichever chat was open when it was cached.
+
+- **`no such directory` where an account should have been.** Conductor records a
+  workspace before it finishes making its working tree, so the panel can ask
+  about one that does not exist on disk yet, and `json` refused. Nothing in that
+  answer needs the directory: routes are matched as paths.
+
 - **A workspace did not keep the account it was created with.** Choosing one in
   the New Workspace composer bound the repository, so the second creation
   overwrote the first and both moved, along with every other workspace under it.
