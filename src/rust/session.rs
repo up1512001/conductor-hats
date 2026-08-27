@@ -130,6 +130,43 @@ pub fn current(agent: &str, dir: &Path) -> Current {
     Current::Chat(newest.session.clone())
 }
 
+/// Where the account a chat actually started on is recorded.
+///
+/// Separate from the pin, and it has to be. The pin says what the next process
+/// will use; a running conversation took its account when it spawned and cannot
+/// be moved. With one file for both, choosing an account made the panel report
+/// the new one immediately while the conversation on screen carried on under the
+/// old, which is the misreporting this whole feature exists to end.
+fn started_path(agent: &str, session: &str) -> PathBuf {
+    paths::session_dir()
+        .join(agent)
+        .join("started")
+        .join(session)
+}
+
+/// The account the agent for this chat took when it spawned.
+pub fn started(agent: &str, session: &str) -> Option<String> {
+    let found = paths::first_line(&started_path(agent, session))?;
+    id::profile_or_none(&found).map(str::to_string)
+}
+
+/// Written by the router as it hands an agent its account, and by nothing else.
+pub fn record_started(agent: &str, session: &str, name: &str) {
+    let Some(session) = id::session(session) else {
+        return;
+    };
+    let Some(name) = id::profile_or_none(name) else {
+        return;
+    };
+    let path = started_path(agent, session);
+    if let Some(parent) = path.parent() {
+        if std::fs::create_dir_all(parent).is_err() {
+            return;
+        }
+    }
+    let _ = crate::lock::write_atomic(&path, &format!("{name}\n"));
+}
+
 pub fn pinned(agent: &str, session: &str) -> Option<String> {
     let found = paths::first_line(&pin_path(agent, session))?;
     id::profile_or_none(&found).map(str::to_string)

@@ -13,8 +13,11 @@ export interface Provider {
   current: string;
   /** The chat being typed in, empty when none is live or two are equally fresh. */
   session: string;
-  /** What that chat actually resolves to, which differs when it carries a pin. */
+  /** What the next process for that chat will use. */
   chat: string;
+  /** What the process already running for it took when it spawned, which is what
+   * the conversation on screen is on. Empty before it starts. */
+  started: string;
   pinned: boolean;
   accounts: Account[];
 }

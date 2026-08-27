@@ -194,3 +194,45 @@ fn a_workspace_with_no_directory_yet_still_reports() {
     let state: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
     assert_eq!(state["providers"][0]["current"], "work");
 }
+
+/// A running conversation cannot change account, so the panel must name the one
+/// it is on rather than the one its next process will take. Reporting only the
+/// pin made the toolbar say Work while the agent answering was on Personal.
+#[test]
+fn a_chat_reports_what_it_is_running_on_and_what_it_will_move_to() {
+    let s = Sandbox::new();
+    s.hats(&["install"]).ok();
+    s.profile("claude", "work");
+    s.profile("claude", "personal");
+    let ws = s.workspace("ws-a");
+    s.hats(&["use", "personal", "claude", &ws]).ok();
+
+    /* Starting an agent is what records the account it took. */
+    s.route("claude", "ws-a", &["--session-id=aaa111"]);
+
+    let read = |session: &str| -> serde_json::Value {
+        let out = s.hats(&["json", &ws, session]).out();
+        serde_json::from_str::<serde_json::Value>(&out).expect("valid JSON")["providers"][0].clone()
+    };
+
+    let p = read("aaa111");
+    assert_eq!(
+        p["started"], "personal",
+        "the account it took was not recorded"
+    );
+    assert_eq!(p["chat"], "personal", "nothing is pending yet");
+
+    s.hats(&["pin", "work", "claude", "aaa111"]).ok();
+    let p = read("aaa111");
+    assert_eq!(
+        p["started"], "personal",
+        "pinning moved what the running conversation reports"
+    );
+    assert_eq!(p["chat"], "work", "the pin does not decide the next start");
+
+    /* The next start takes it, and from then on that is what it is running on. */
+    s.route("claude", "ws-a", &["--session-id=aaa111"]);
+    let p = read("aaa111");
+    assert_eq!(p["started"], "work");
+    assert_eq!(p["chat"], "work");
+}

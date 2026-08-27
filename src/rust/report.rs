@@ -188,7 +188,11 @@ struct Provider {
     agent: String,
     current: String,
     session: String,
+    /// What the next process for this chat will use.
     chat: String,
+    /// What the process already running for it took when it spawned, which is
+    /// what the conversation on screen is actually on. Empty before it starts.
+    started: String,
     pinned: bool,
     accounts: Vec<Account>,
 }
@@ -232,6 +236,11 @@ pub fn json(dir: &Path, given: Option<&str>) -> Result<(), String> {
             session::pinned(agent, &live)
         };
         let chat = pin.clone().unwrap_or_else(|| current.clone());
+        let started = if live.is_empty() {
+            String::new()
+        } else {
+            session::started(agent, &live).unwrap_or_default()
+        };
 
         let accounts = paths::profiles(agent)
             .into_iter()
@@ -248,6 +257,7 @@ pub fn json(dir: &Path, given: Option<&str>) -> Result<(), String> {
             session: live,
             pinned: pin.is_some(),
             chat,
+            started,
             accounts,
         });
     }

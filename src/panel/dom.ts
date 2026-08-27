@@ -40,8 +40,29 @@ export const AGENT_ICON: Record<string, string> = {
  * started with, so reading the route here made the label claim one account
  * while messages went to another.
  */
-export function effective(p: { current: string; chat?: string; session?: string }): string {
+export function effective(p: {
+  current: string;
+  chat?: string;
+  session?: string;
+  started?: string;
+}): string {
+  /* What it is running on comes first. A chat that has already started cannot be
+   * moved, so naming the account its next process will take would be describing
+   * something that has not happened: the toolbar said Work while the agent
+   * answering was on Personal. */
+  if (p.session && p.started) return p.started;
   return p.session && p.chat ? p.chat : p.current;
+}
+
+/** The account this chat will move to when it next starts, if that is not the
+ * one it is on. */
+export function pendingChange(p: {
+  chat?: string;
+  session?: string;
+  started?: string;
+}): string {
+  if (!p.session || !p.started || !p.chat) return "";
+  return p.chat === p.started ? "" : p.chat;
 }
 
 export function primary(state: PanelState): string {

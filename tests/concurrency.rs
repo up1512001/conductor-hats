@@ -121,15 +121,32 @@ fn concurrent_session_pins_do_not_collide() {
         }
     });
 
+    /* `started` is a directory beside the pins, holding what each chat's agent
+     * actually took. Both are per session and both have to survive the race. */
     let dir = s.accounts().join("sessions/claude");
     let pins: Vec<_> = std::fs::read_dir(&dir)
         .expect("session pins")
         .flatten()
+        .filter(|e| e.path().is_file())
         .collect();
     assert_eq!(pins.len(), 50, "every session got its own pin");
     for pin in pins {
         let body = std::fs::read_to_string(pin.path()).unwrap_or_default();
         assert_eq!(body.trim(), "work", "every pin names the routed account");
+    }
+
+    let started: Vec<_> = std::fs::read_dir(dir.join("started"))
+        .expect("what each chat started on")
+        .flatten()
+        .collect();
+    assert_eq!(
+        started.len(),
+        50,
+        "every session recorded what it started on"
+    );
+    for one in started {
+        let body = std::fs::read_to_string(one.path()).unwrap_or_default();
+        assert_eq!(body.trim(), "work", "a chat recorded the wrong account");
     }
 }
 

@@ -12,7 +12,7 @@
 import { log } from "./cli.js";
 import { invalidate, loadState } from "./state.js";
 import { fromToolbar } from "./route.js";
-import { onRefreshTriggers } from "./store.js";
+import { onRefreshTriggers, panel, redraw } from "./store.js";
 import { composerChip, refreshTriggers, toolbarButton } from "./triggers.js";
 import styles from "./styles.scss";
 
@@ -43,13 +43,23 @@ let reading = false;
 
 function chatChanged(): void {
   if (reading || !document.getElementById("cma-toolbar-btn")) return;
-  const now = fromToolbar().session || "";
+  const at = fromToolbar();
+  /* The workspace as well as the chat. Moving between workspaces is the case
+   * that left "This chat in macau" on screen while amman was open. */
+  const now = (at.workspace || "") + "/" + (at.session || "");
   if (now === shownFor) return;
   shownFor = now;
   reading = true;
   invalidate();
   loadState(true)
-    .then(refreshTriggers)
+    .then((state) => {
+      refreshTriggers(state);
+      /* An open panel is describing the place that just changed underneath it. */
+      if (panel) {
+        panel.state = state;
+        redraw();
+      }
+    })
     .catch(() => {})
     .then(() => {
       reading = false;

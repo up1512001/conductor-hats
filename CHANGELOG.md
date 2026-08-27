@@ -115,6 +115,27 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the workspace you create next.` The panel now carries no repository binding at
   all, which a test asserts against the built bundle.
 
+- **The panel and the toolbar disagreed in plain sight.** Level one showed
+  `provider.current`, the workspace route; the toolbar showed what the chat would
+  run on. Where a chat carried a pin the two differed, so the panel said Personal
+  while the toolbar beside it said Work, and both were right about different
+  questions. Level one reads the same value the toolbar does.
+
+- **The open panel described the place it was opened from, not the one on
+  screen.** Moving to another workspace with it open left `This chat in macau`
+  above a window showing amman. The panel is redrawn along with the toolbar when
+  the workspace or chat changes, and the change is detected on the workspace as
+  well as the chat.
+
+- **The toolbar named the account a chat would take next, not the one it is
+  running on.** A conversation cannot change account once its agent has spawned,
+  so pinning one made the panel report the new account immediately while the
+  agent answering carried on under the old: `CLAUDE_CONFIG_DIR` said personal
+  while the toolbar said Work. The account an agent takes is recorded as it
+  starts, separately from the pin, and that is what the label names. Where the
+  two differ the panel says so: which account the conversation is on, and which
+  one it will come up on next time it is opened.
+
 - **The toolbar showed the previous workspace's account.** Caching the fiber the
   toolbar climbs from, added to make watching for a change of chat cheap, cached
   the wrong thing. React replaces a fiber on every render and leaves the old one

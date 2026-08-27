@@ -1,7 +1,16 @@
 /* Level two: one provider's accounts, with a way in and a way out of each. */
 
 import { message } from "../cli.js";
-import { AGENT_ICON, AGENT_LABEL, cap, effective, el, footText, note } from "../dom.js";
+import {
+  AGENT_ICON,
+  AGENT_LABEL,
+  cap,
+  effective,
+  el,
+  footText,
+  note,
+  pendingChange,
+} from "../dom.js";
 import { icon } from "../icons.js";
 import { applyToWorkspace } from "../state.js";
 import type { PanelState, Provider } from "../state.js";
@@ -54,6 +63,18 @@ export function providerView(state: PanelState, host: HTMLElement, agent: string
     signInForm(agent, { host, replace: add, profile: null, state });
   });
   host.appendChild(add);
+
+  const moving = pendingChange(provider);
+  if (moving) {
+    host.appendChild(
+      el(
+        "div",
+        "cma-note",
+        "This conversation is on " + cap(effective(provider)) + " and cannot move. " +
+          "Reopen it, or start a new one, and it comes up on " + cap(moving) + "."
+      )
+    );
+  }
 
   host.appendChild(el("div", "cma-note", footText(state)));
 }
