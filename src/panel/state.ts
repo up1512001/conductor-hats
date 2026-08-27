@@ -119,9 +119,13 @@ export function applyAccount(
   const session = sessionOf(state, agent);
   if (session) return acct(`pin ${profile} ${agent} ${session}`);
   if (t.kind === "workspace") return acct(`use ${profile} ${agent} ${q(t.path)}`);
-  return Promise.reject(
-    new Error("no chat open here, and this workspace could not be identified")
-  );
+
+  /* No chat and no workspace, but a repository: this is the New Workspace view,
+   * where the only workspace there is to mean is the one about to be made. It
+   * still never binds the repository, which would move every workspace in it. */
+  if (t.kind === "repository") return acct(`next ${profile} ${agent}`);
+
+  return Promise.reject(new Error("open a workspace or a chat to choose an account"));
 }
 
 /**

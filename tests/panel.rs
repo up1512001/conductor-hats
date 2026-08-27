@@ -150,6 +150,27 @@ fn the_panel_never_binds_a_repository() {
     );
 }
 
+/// With no chat and no workspace, the toolbar in the New Workspace view still
+/// has something to mean: the workspace about to be made. It must reach that
+/// through the one-shot and never through a repository binding, which would move
+/// every workspace under it.
+#[test]
+fn the_new_workspace_view_offers_the_next_workspace_not_a_binding() {
+    let dist = bundle();
+    assert!(
+        dist.contains("No chat here yet, so this applies to the workspace you create next."),
+        "the panel does not say what a choice would do there"
+    );
+    assert!(
+        !dist.contains("bind ${profile}"),
+        "the panel can still bind a repository, which moves every workspace in it"
+    );
+    assert!(
+        dist.contains("next ${profile}"),
+        "the panel cannot set the account for the workspace being created"
+    );
+}
+
 /// Setting every chat at once is still reachable, and it has to clear the open
 /// chat's pin as well as write the route: a pin beats a route, so the route
 /// alone would leave that chat behind.

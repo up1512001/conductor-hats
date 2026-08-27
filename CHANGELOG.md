@@ -89,6 +89,15 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   running inside. The second holds whatever else goes wrong, so an agent cannot
   be made to close the window it is working in.
 
+- **The New Workspace view refused every choice.** With no chat and no workspace
+  to name, the panel matched the repository, and the toolbar is not allowed to
+  bind one, so it said "no chat open here, and this workspace could not be
+  identified" and did nothing. There is something to mean there: the workspace
+  about to be created. It goes through the same one-shot the composer chip uses,
+  never a binding, and the panel says so, `No chat here yet, so this applies to
+  the workspace you create next.` The panel now carries no repository binding at
+  all, which a test asserts against the built bundle.
+
 - **The toolbar kept the last chat's account after switching chats.** Each chat
   can be on its own account, so a label left over from the previous one does not
   read as stale, it names the wrong account. The button survives a switch, so

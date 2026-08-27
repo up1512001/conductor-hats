@@ -70,6 +70,7 @@ export function scopeText(state: PanelState): string {
     return state.target.name ? "This chat in " + state.target.name : "This chat";
   }
   if (state.target.kind === "workspace") return "Workspace: " + state.target.name;
+  if (state.target.kind === "repository") return "The next workspace in " + state.target.name;
   return "No workspace in view";
 }
 
@@ -82,6 +83,9 @@ export function footText(state: PanelState): string {
   }
   if (state.target.kind === "workspace") {
     return "No chat open, so this sets the workspace. Chats started here use it unless they are set on their own.";
+  }
+  if (state.target.kind === "repository") {
+    return "No chat here yet, so this applies to the workspace you create next.";
   }
   return "Open a workspace to choose its account.";
 }
