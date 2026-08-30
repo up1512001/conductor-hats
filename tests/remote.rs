@@ -18,8 +18,8 @@ fn database(s: &Sandbox) -> String {
          content text, created_at text, sent_at text, cancelled_at text); \
          create table workspaces (id text, repository_id text); \
          insert into workspaces values ('w1','r1'); \
-         create table sessions (id text, claude_session_id text, agent_type text, workspace_id text); \
-         insert into sessions values ('s1','router-s1','claude','w1');";
+         create table sessions (id text, claude_session_id text, agent_type text, workspace_id text, model text); \
+         insert into sessions values ('s1','router-s1','claude','w1','gpt-5.5');";
     let out = std::process::Command::new("sqlite3")
         .arg(&path)
         .arg(sql)
@@ -89,6 +89,12 @@ fn run_settings_are_durable_and_route_to_the_exact_chat() {
         serde_json::from_str(&remote(&s, &db, &["control-claim", "s1"])).unwrap();
     assert_eq!(claim["id"], made["id"]);
     assert_eq!(claim["value"], "gpt-5.6-sol");
+    let changed = std::process::Command::new("sqlite3")
+        .arg(&db)
+        .arg("update sessions set model='gpt-5.6-sol' where id='s1'")
+        .output()
+        .unwrap();
+    assert!(changed.status.success());
     remote(
         &s,
         &db,
