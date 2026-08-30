@@ -154,19 +154,29 @@ fn reported_header_and_toolbar_spacing_is_explicit() {
 #[test]
 fn thinking_and_tool_activity_match_conductors_compact_rows() {
     let activity = source("src/mobile/activity.ts");
+    let icons = source("src/mobile/icons.ts");
     let render = source("src/mobile/render.ts");
     let styles = source("src/mobile/styles.css");
     must(
         &activity,
         &[
-            "brain:",
-            "terminal:",
-            "search:",
-            "globe:",
-            "agent:",
             "activityCluster",
             "tool call",
             "activity-icons",
+            "activity-counts",
+        ],
+    );
+    must(
+        &icons,
+        &[
+            "brain: ",
+            "terminal: ",
+            "Bash: \"terminal\"",
+            "Grep: \"search\"",
+            "Edit: \"file-pen\"",
+            "Read: \"file-text\"",
+            "Agent: \"file-code\"",
+            "WebSearch: \"globe\"",
         ],
     );
     must(&render, &["activityLine(line)", "activityCluster(group)"]);

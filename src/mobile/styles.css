@@ -150,15 +150,19 @@ main { flex: 1 1 auto; min-height: 0; width: 100%; max-width: 720px; margin: 0 a
 
 .activity, .activity-cluster { margin: 2px 0; color: var(--muted); }
 .activity summary, .activity-cluster > summary { align-items: center; min-width: 0; padding: 6px 0; list-style: none; font-size: 12.5px; }
-.activity summary { display: grid; grid-template-columns: 17px minmax(0, 1fr) 13px; gap: 7px; }
+.activity summary { display: flex; gap: 7px; }
 .activity-cluster > summary { display: grid; grid-template-columns: 13px minmax(0, 1fr) auto; gap: 8px; }
 .activity summary::-webkit-details-marker, .activity-cluster > summary::-webkit-details-marker { display: none; }
-.activity-icon { display: grid; place-items: center; width: 16px; height: 16px; color: var(--muted); }
+.activity-icon { flex: 0 0 16px; display: grid; place-items: center; height: 16px; color: var(--muted); }
 .activity-icon svg { width: 15px; height: 15px; }
-.activity-copy { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.activity-copy { flex: 1 1 auto; display: flex; min-width: 0; align-items: center; gap: 7px; }
 .activity-name { flex: 0 0 auto; color: var(--dim); font-weight: 550; }
 .activity-preview { min-width: 0; overflow: hidden; padding: 2px 6px; border-radius: 4px; background: var(--raised); color: var(--muted); font: 11px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
-.activity-chevron { display: grid; width: 13px; height: 13px; color: var(--muted); transition: transform 120ms ease; }
+.activity-chevron { flex: 0 0 13px; display: grid; height: 13px; color: var(--muted); transition: transform 120ms ease; }
+/** What a change to a file moved, in Conductor's own two colours. */
+.activity-counts { flex: 0 0 auto; display: flex; gap: 6px; font: 11px var(--mono); font-variant-numeric: tabular-nums; }
+.activity-counts .added { color: var(--green); }
+.activity-counts .removed { color: var(--red); }
 .activity[open] > summary .activity-chevron, .activity-cluster[open] > summary .activity-chevron { transform: rotate(90deg); }
 .activity-body { overflow: auto; max-height: 320px; margin: 2px 0 7px 24px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px; background: #0f0d0c; color: var(--dim); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; }
 .activity.failed .activity-name, .activity-cluster.failed > summary .activity-name { color: var(--red); }

@@ -105,7 +105,7 @@ function transcript(lines: TranscriptLine[]): string {
       group.push(lines[at] as TranscriptLine);
       at += 1;
     }
-    out.push(group.length === 1 ? activityLine(group[0] as TranscriptLine) : activityCluster(group));
+    out.push(activityCluster(group));
   }
   return out.join("");
 }
