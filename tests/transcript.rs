@@ -30,12 +30,14 @@ fn database(s: &Sandbox) -> String {
              workspace_id text, updated_at text);\n\
          insert into sessions values ('s1','s1','claude','idle',0,'Talk',0,0,'w1','2026-08-27T10:00:00Z');\n\
          create table session_messages (id text, session_id text, role text, content text, \
-             created_at text, sent_at text, cancelled_at text);\n\
-         insert into session_messages values ('m1','s1','user','count | sort | uniq -c','2026-08-27T10:00:01Z','2026-08-27T10:00:01Z',null);\n\
-         insert into session_messages values ('m2','s1','assistant','{{\"type\":\"assistant\",\"message\":{{\"content\":[{{\"type\":\"thinking\",\"thinking\":\"hmm\"}},{{\"type\":\"text\",\"text\":\"piped: a | b\"}}]}}}}','2026-08-27T10:00:02Z','2026-08-27T10:00:02Z',null);\n\
-         insert into session_messages values ('m3','s1','assistant','{{\"type\":\"system\",\"subtype\":\"tool\"}}','2026-08-27T10:00:03Z','2026-08-27T10:00:03Z',null);\n\
-         insert into session_messages values ('m4','s1','assistant','{{\"type\":\"assistant\",\"message\":{{\"content\":[{{\"type\":\"tool_use\",\"name\":\"Bash\"}}]}}}}','2026-08-27T10:00:04Z','2026-08-27T10:00:04Z',null);\n\
-         insert into session_messages values ('m5','s1','user','cancelled','2026-08-27T10:00:05Z',null,'2026-08-27T10:00:06Z');\n"
+             created_at text, sent_at text, cancelled_at text, model text);\n\
+         insert into session_messages values ('m1','s1','user','count | sort | uniq -c','2026-08-27T10:00:01Z','2026-08-27T10:00:01Z',null,'');\n\
+         insert into session_messages values ('m2','s1','assistant','{{\"type\":\"assistant\",\"message\":{{\"content\":[{{\"type\":\"thinking\",\"thinking\":\"hmm\"}},{{\"type\":\"text\",\"text\":\"piped: a | b\"}}]}}}}','2026-08-27T10:00:02Z','2026-08-27T10:00:02Z',null,'opus');\n\
+         insert into session_messages values ('m3','s1','assistant','{{\"type\":\"system\",\"subtype\":\"tool\"}}','2026-08-27T10:00:03Z','2026-08-27T10:00:03Z',null,'');\n\
+         insert into session_messages values ('m4','s1','assistant','{{\"type\":\"assistant\",\"message\":{{\"content\":[{{\"type\":\"tool_use\",\"name\":\"Bash\"}}]}}}}','2026-08-27T10:00:04Z','2026-08-27T10:00:04Z',null,'opus');\n\
+         insert into session_messages values ('m6','s1','assistant','{{\"type\":\"user\",\"message\":{{\"content\":[{{\"type\":\"tool_result\",\"tool_use_id\":\"tool-1\",\"content\":\"done\"}}]}}}}','2026-08-27T10:00:05Z','2026-08-27T10:00:05Z',null,'opus');\n\
+         insert into session_messages values ('m7','s1','assistant','{{\"type\":\"system\",\"subtype\":\"compact_boundary\"}}','2026-08-27T10:00:06Z','2026-08-27T10:00:06Z',null,'');\n\
+         insert into session_messages values ('m5','s1','user','cancelled','2026-08-27T10:00:07Z',null,'2026-08-27T10:00:08Z','');\n"
     );
     let out = std::process::Command::new("sqlite3")
         .arg(&db)
@@ -79,7 +81,7 @@ fn it_draws_tool_calls_as_rows_beside_what_was_said() {
      * a row and so is thinking. Keeping only what was said loses most of it. */
     assert_eq!(
         kinds,
-        vec!["say", "thinking", "say", "tool"],
+        vec!["say", "thinking", "say", "tool", "tool_result", "event"],
         "wrong shape:\n{lines:#}"
     );
 
@@ -88,6 +90,11 @@ fn it_draws_tool_calls_as_rows_beside_what_was_said() {
         .find(|l| l["kind"] == "tool")
         .expect("a tool row");
     assert_eq!(tool["name"], "Bash", "the tool is not named");
+    assert!(
+        list.iter()
+            .any(|line| line["kind"] == "tool_result" && line["text"] == "done"),
+        "the tool result is missing:\n{lines:#}"
+    );
 
     /* Conductor's own bookkeeping is not part of the conversation. */
     assert!(

@@ -4,8 +4,11 @@
 //! command installed.
 
 mod args;
+mod auth;
 mod chats;
+mod chats_table;
 mod cli;
+mod conductor_session;
 mod debug;
 mod devapp;
 mod edit;
@@ -16,11 +19,23 @@ mod lock;
 mod macho;
 mod manage;
 mod mask;
+mod mobile_page;
+mod mobile_scope;
+mod mobile_service;
+mod mobile_socket;
+mod mobile_state;
+mod origin;
+mod panel_login;
 mod patch;
 mod paths;
 mod pending;
 mod places;
 mod profile;
+mod remote;
+mod remote_cli;
+mod remote_control;
+mod remote_create;
+mod remote_scan;
 mod repatch;
 mod report;
 mod resolve;
@@ -30,6 +45,7 @@ mod serve;
 mod session;
 mod settings;
 mod sign;
+mod source;
 mod store;
 mod transcript;
 mod verify;
@@ -40,7 +56,7 @@ use std::path::{Path, PathBuf};
 use args::{parse, Args};
 
 const REAL_APP: &str = "/Applications/Conductor.app";
-const DEV_APP: &str = "/Applications/Conductor Dev.app";
+pub const DEV_APP: &str = "/Applications/Conductor Dev.app";
 const DEV_ID: &str = "com.conductor.dev";
 
 pub fn binary_in(app: &Path) -> PathBuf {

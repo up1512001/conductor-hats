@@ -1,135 +1,246 @@
-//! The screen a phone reads, served from this machine.
+//! The authenticated Conductor screen served from this Mac.
 //!
-//! Loopback by default and on purpose. The way out is a tunnel that connects
-//! outward and authenticates at the edge, not a port opened on a laptop that
-//! moves between networks. `--host` exists for trying it on a LAN and says so.
-//!
-//! Read-only. Every route here answers a question about Conductor's state and
-//! none of them change it, which is what makes the first version of this safe
-//! enough to leave running.
+//! It binds loopback by default. A named outbound tunnel supplies the stable
+//! public HTTPS origin; no router port or laptop firewall opening is needed.
+//! Reads come from Conductor's databases. Mobile writes stop in hats' private
+//! durable queue until the injected panel submits them through Conductor's real
+//! composer and the database confirms delivery.
 
 use std::net::TcpListener;
+use std::time::Duration;
 
-use crate::{chats, http, places, store, transcript};
+use crate::{
+    auth, chats, http, mobile_page, mobile_scope, mobile_service, mobile_socket, origin, remote,
+    store, transcript,
+};
 
-const PAGE: &str = include_str!("../mobile/index.html");
+fn allowed(request: &http::Request) -> bool {
+    let Some(offered) = credential(request) else {
+        return false;
+    };
+    auth::session()
+        .map(|expected| auth::same(&offered, &expected))
+        .unwrap_or(false)
+}
 
-/// The cheapest question that changes when anything else does.
-///
-/// `pragma data_version` would be the right primitive, and it is unavailable:
-/// it only moves on a long-lived connection, and every query here is a fresh
-/// `sqlite3`. Linking a SQLite library to get one would mean a C dependency.
-/// Measured, this costs about 5.5 ms including the process start.
-const PROBE: &str = "select (select max(rowid) from session_messages) || ':' || \
-     (select count(*) from sessions where status is not null and status != 'idle')";
+fn credential(request: &http::Request) -> Option<String> {
+    request
+        .headers
+        .get("cookie")
+        .and_then(|header| auth::cookie(header, auth::COOKIE))
+}
 
-fn probe() -> String {
-    places::rows(PROBE).first().cloned().unwrap_or_default()
+fn error(stream: &mut std::net::TcpStream, status: &str, message: &str) {
+    let quoted = serde_json::to_string(message).unwrap_or_else(|_| "\"error\"".into());
+    http::send(
+        stream,
+        status,
+        "application/json",
+        format!("{{\"error\":{quoted}}}").as_bytes(),
+    );
+}
+
+fn pair(stream: &mut std::net::TcpStream, request: &http::Request) {
+    let offered = request
+        .headers
+        .get("x-hats-token")
+        .map(String::as_str)
+        .unwrap_or("");
+    match auth::consume_pairing(offered) {
+        Ok(true) => match auth::session() {
+            Ok(session) => http::send_with(
+                stream,
+                "200 OK",
+                "application/json",
+                b"{\"paired\":true}",
+                &format!("Set-Cookie: {}\r\n", auth::set_cookie(&session)),
+            ),
+            Err(problem) => error(stream, "500 Internal Server Error", &problem),
+        },
+        Ok(false) => error(
+            stream,
+            "401 Unauthorized",
+            "pairing token expired or already used",
+        ),
+        Err(problem) => error(stream, "500 Internal Server Error", &problem),
+    }
+}
+
+fn enqueue(stream: &mut std::net::TcpStream, request: &http::Request) {
+    let input = serde_json::from_slice::<serde_json::Value>(&request.body);
+    let Ok(input) = input else {
+        error(stream, "400 Bad Request", "the request body is not JSON");
+        return;
+    };
+    let session = input
+        .get("session")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let message = input
+        .get("message")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    match remote::enqueue(session, message) {
+        Ok(item) => http::send(
+            stream,
+            "202 Accepted",
+            "application/json",
+            format!("{{\"queued\":true,\"id\":\"{}\"}}", item.id).as_bytes(),
+        ),
+        Err(problem) => error(stream, "400 Bad Request", &problem),
+    }
+}
+
+fn protected(stream: &mut std::net::TcpStream, request: &http::Request) {
+    match (request.method.as_str(), request.path.as_str()) {
+        ("GET", "/api/chats") => match chats::json_string() {
+            Ok(body) => http::json(stream, &body),
+            Err(problem) => error(stream, "500 Internal Server Error", &problem),
+        },
+        ("GET", "/api/chat") => {
+            let session = http::param(&request.query, "session").unwrap_or_default();
+            let limit = http::param(&request.query, "limit")
+                .and_then(|value| value.parse().ok())
+                .unwrap_or(160);
+            http::json(stream, &transcript::as_json(&session, limit));
+        }
+        ("GET", "/api/outbox") => {
+            let session = http::param(&request.query, "session").unwrap_or_default();
+            match remote::pending_json(&session) {
+                Ok(body) => http::json(stream, &body),
+                Err(problem) => error(stream, "400 Bad Request", &problem),
+            }
+        }
+        ("GET", "/api/health") => http::json(stream, "{\"ok\":true}"),
+        ("POST", "/api/messages") => enqueue(stream, request),
+        ("GET", _) => http::not_found(stream),
+        _ => error(stream, "405 Method Not Allowed", "method not allowed"),
+    }
 }
 
 fn handle(mut stream: std::net::TcpStream) {
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(20)));
     let Some(request) = http::read(&stream) else {
-        return;
-    };
-    if request.method != "GET" {
-        http::send(
+        error(
             &mut stream,
-            "405 Method Not Allowed",
-            "application/json",
-            b"{\"error\":\"read only\"}",
+            "400 Bad Request",
+            "invalid or oversized request",
         );
         return;
-    }
+    };
 
-    match request.path.as_str() {
-        "/" => http::send(
+    match (request.method.as_str(), request.path.as_str()) {
+        ("GET", "/") => http::send(
             &mut stream,
             "200 OK",
             "text/html; charset=utf-8",
-            PAGE.as_bytes(),
+            mobile_page::page().as_bytes(),
         ),
-        "/api/chats" => match chats::json_string() {
-            Ok(body) => http::json(&mut stream, &body),
-            Err(e) => http::send(
+        ("GET", path) if path == mobile_page::css_path() || path == "/mobile.css" => http::send(
+            &mut stream,
+            "200 OK",
+            "text/css; charset=utf-8",
+            mobile_page::style().as_bytes(),
+        ),
+        ("GET", path) if path == mobile_page::js_path() || path == "/mobile.js" => http::send(
+            &mut stream,
+            "200 OK",
+            "text/javascript; charset=utf-8",
+            mobile_page::script().as_bytes(),
+        ),
+        ("GET", "/logo.png") => {
+            let mark = mobile_page::logo();
+            if mark.is_empty() {
+                http::not_found(&mut stream);
+            } else {
+                http::send(&mut stream, "200 OK", "image/png", mark);
+            }
+        }
+        ("GET", "/favicon.ico") => http::send(&mut stream, "204 No Content", "image/x-icon", b""),
+        ("GET", path)
+            if auth::is_pairing_path(path) && (auth::route_matches(path) || allowed(&request)) =>
+        {
+            http::send(
                 &mut stream,
-                "500 Internal Server Error",
-                "application/json",
-                format!("{{\"error\":{}}}", quoted(&e)).as_bytes(),
-            ),
-        },
-        "/api/chat" => {
-            let session = http::param(&request.query, "session").unwrap_or_default();
-            let limit = http::param(&request.query, "limit")
-                .and_then(|l| l.parse().ok())
-                .unwrap_or(60);
-            http::json(&mut stream, &transcript::as_json(&session, limit));
+                "200 OK",
+                "text/html; charset=utf-8",
+                mobile_page::page().as_bytes(),
+            )
         }
-        "/api/events" => events(&mut stream),
-        _ => http::not_found(&mut stream),
-    }
-}
-
-fn quoted(text: &str) -> String {
-    serde_json::to_string(text).unwrap_or_else(|_| "\"error\"".into())
-}
-
-/// Holds the connection open and writes when Conductor's state moves.
-///
-/// A tick is sent every fifteen seconds even when nothing has changed, because
-/// an idle stream through a tunnel is a stream something in the middle will
-/// eventually close.
-fn events(stream: &mut std::net::TcpStream) {
-    if !http::open_stream(stream) {
-        return;
-    }
-    let mut last = String::new();
-    let mut idle = 0;
-    loop {
-        let now = probe();
-        if now != last {
-            last = now.clone();
-            if !http::event(stream, &format!("{{\"state\":{}}}", quoted(&now))) {
-                return;
-            }
-            idle = 0;
-        } else {
-            idle += 1;
-            if idle >= 30 && !http::event(stream, "{\"tick\":true}") {
-                return;
-            }
-            if idle >= 30 {
-                idle = 0;
-            }
+        ("POST", "/api/pair") => pair(&mut stream, &request),
+        _ if !allowed(&request) => error(&mut stream, "401 Unauthorized", "pair first"),
+        ("GET", "/ws") => {
+            let offered = credential(&request).unwrap_or_default();
+            mobile_socket::open(stream, &request, offered);
         }
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        _ => protected(&mut stream, &request),
     }
 }
 
-pub fn run(host: Option<&str>, port: u16) -> Result<(), String> {
+fn option<'a>(rest: &'a [String], name: &str) -> Option<&'a str> {
+    rest.iter()
+        .position(|item| item == name)
+        .and_then(|index| rest.get(index + 1))
+        .map(String::as_str)
+}
+
+fn origin(rest: &[String]) -> Result<String, String> {
+    origin::public(option(rest, "--origin"))?.ok_or_else(|| {
+        "pass the stable public HTTPS URL with --origin https://host.example.com".to_string()
+    })
+}
+
+pub fn command(rest: &[String]) -> Result<(), String> {
+    if rest
+        .iter()
+        .any(|item| item == "--pair" || item == "--revoke")
+    {
+        let pairing =
+            auth::pairing_for(&origin(rest)?, rest.iter().any(|item| item == "--revoke"))?;
+        println!("{}", pairing.url);
+        return Ok(());
+    }
+    let port = match option(rest, "--port") {
+        Some(value) => value
+            .parse()
+            .map_err(|_| format!("invalid port: {value}"))?,
+        None => 8787,
+    };
+    let host = option(rest, "--host").unwrap_or("127.0.0.1");
+    let public = origin::public(option(rest, "--origin"))?;
+    run(host, port, public.as_deref())
+}
+
+pub fn run(host: &str, port: u16, origin: Option<&str>) -> Result<(), String> {
     store::ensure_root()?;
-    let host = host.unwrap_or("127.0.0.1");
+    let scope = mobile_scope::adopt()?;
+    auth::session()?;
+    let public_url = origin
+        .map(|value| auth::pairing_for(value, false).map(|pairing| pairing.url))
+        .transpose()?;
     let bind = format!("{host}:{port}");
     let listener = TcpListener::bind(&bind).map_err(|e| format!("{bind}: {e}"))?;
+    let _runtime = mobile_service::register(&bind)?;
 
-    println!("hats serve, read-only, on http://{bind}");
-    if host != "127.0.0.1" && host != "localhost" {
-        println!();
-        println!("Bound beyond loopback, so anything on this network can read it,");
-        println!("and there is no password on it. For anywhere else, put a tunnel");
-        println!("in front and keep this on 127.0.0.1. See docs/mobile.md.");
+    println!("hats serve on http://{bind}");
+    println!("Showing {} and no other Conductor copy.", scope.label());
+    match public_url {
+        Some(url) => println!("Pair this browser once (expires in ten minutes):\n\n  {url}"),
+        None => println!(
+            "Loopback only. For remote access, configure the named HTTPS tunnel and restart with:\n\n  hats serve --origin https://host.example.com"
+        ),
     }
-    println!();
-    println!("  /            the screen");
-    println!("  /api/chats   every open chat and its account");
-    println!("  /api/chat    one conversation, ?session=<id>&limit=<n>");
-    println!("  /api/events  a stream that fires when Conductor's state moves");
+    if host != "127.0.0.1" && host != "localhost" {
+        println!("Warning: this listener is not confined to loopback. The public tunnel does not require that.");
+    }
 
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
                 std::thread::spawn(move || handle(stream));
             }
-            Err(e) => eprintln!("hats serve: {e}"),
+            Err(problem) => eprintln!("hats serve: {problem}"),
         }
     }
     Ok(())

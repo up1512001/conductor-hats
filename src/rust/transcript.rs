@@ -1,63 +1,76 @@
-//! Reading a chat back out of Conductor's database.
+//! Reading the visible shape of a Conductor conversation.
 //!
-//! Two encodings live in one column, which is the first thing that bites. A
-//! `user` row's `content` is plain text. An `assistant` row's is Claude Code's
-//! SDK envelope as JSON, and running `json_extract` across both makes SQLite
-//! abort the whole query with "malformed JSON", so every extract is guarded.
-//!
-//! Of the envelopes, only some are worth showing. Measured on this machine:
-//! `system` 377k, `assistant` 136k, `user` 76k, `result` 4.4k. The bulk is tool
-//! traffic. The text of a reply is in `message.content[]`, and not reliably at
-//! index 0, because thinking and tool-use blocks share that array.
+//! Plain user rows and SDK JSON envelopes share one database column. Assistant
+//! text, thinking, tool calls and tool results all have different shapes, while
+//! system envelopes describe visible events such as compaction and retries. The
+//! parser keeps those distinctions so the phone can draw what Conductor draws
+//! instead of flattening the work into a misleading wall of prose.
 
 use crate::{id, places};
 
-/// Newest first, so a phone can show the end of a conversation without reading
-/// all of it. `sent_at` orders what was actually delivered; queued rows have
-/// none and sort last, which is where they belong.
-/// Emitted as JSON by SQLite rather than pipe-separated columns.
-///
-/// The obvious `select a, b, c` splits on `|`, and message text is full of
-/// pipes: tables, shell pipelines, code. The first version of this returned a
-/// tool-use envelope as though it were prose because the split landed inside
-/// the JSON. Let SQLite do the quoting.
-///
-/// Newest first so a phone can show the end of a conversation without reading
-/// all of it, then reversed for display.
-const MESSAGES: &str = "select json_group_array(json_object('role', role, 'kind',      case when json_valid(content) then coalesce(json_extract(content,'$.type'),'') else 'text' end,      'body', case when json_valid(content) then json_extract(content,'$.message.content') else content end,      'at', coalesce(sent_at, created_at))) from (select * from session_messages where session_id = ";
+/// Newest envelopes first for a bounded read, reversed before rendering.
+const MESSAGES: &str = "select json_group_array(json_object('id',id,'role',role,'kind', \
+     case when json_valid(content) then coalesce(json_extract(content,'$.type'),'') else 'text' end, \
+     'body',case when not json_valid(content) then content \
+       when json_extract(content,'$.type') in ('assistant','user') \
+         then json_extract(content,'$.message.content') else json(content) end, \
+     'at',coalesce(sent_at,created_at),'model',coalesce(model,''))) \
+   from (select * from session_messages where session_id = ";
 
-/// One entry in a conversation as it is drawn.
-///
-/// Conductor shows more than what was said: a tool call is a row of its own,
-/// collapsed to a verb and a detail, and thinking is a row too. Dropping those
-/// and keeping only prose loses the shape of the work, which is most of what a
-/// transcript is for.
 pub struct Line {
-    /// `say` for prose, `tool` for a call, `thinking` for reasoning.
+    pub id: String,
     pub kind: String,
     pub role: String,
     pub at: String,
-    /// The verb for a tool row: Bash, Read, Edit. Empty for prose.
     pub name: String,
     pub text: String,
+    pub detail: String,
+    pub failed: bool,
+    pub model: String,
 }
 
-fn say(role: &str, at: &str, text: String) -> Line {
+fn line(kind: &str, role: &str, at: &str, name: &str, text: String) -> Line {
     Line {
-        kind: "say".into(),
+        id: String::new(),
+        kind: kind.into(),
         role: role.into(),
         at: at.into(),
-        name: String::new(),
+        name: name.into(),
         text,
+        detail: String::new(),
+        failed: false,
+        model: String::new(),
     }
 }
 
-/// The one detail worth putting beside a tool's name.
-///
-/// Each tool carries a different shape of input and only one field of it is
-/// worth a row: the command for Bash, the path for a file tool. Anything else
-/// falls back to the first string, which is usually the interesting one.
-fn detail_of(input: Option<&serde_json::Value>) -> String {
+fn string(value: Option<&serde_json::Value>) -> String {
+    let Some(value) = value else {
+        return String::new();
+    };
+    if let Some(text) = value.as_str() {
+        return text.trim().to_string();
+    }
+    if let Some(list) = value.as_array() {
+        return list
+            .iter()
+            .map(|part| string(Some(part)))
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<String>>()
+            .join("\n");
+    }
+    if let Some(map) = value.as_object() {
+        for key in ["text", "content", "output", "stdout", "stderr", "message"] {
+            let found = string(map.get(key));
+            if !found.is_empty() {
+                return found;
+            }
+        }
+    }
+    serde_json::to_string(value).unwrap_or_default()
+}
+
+/// The compact detail Conductor places beside a tool verb.
+fn tool_detail(input: Option<&serde_json::Value>) -> String {
     let Some(input) = input else {
         return String::new();
     };
@@ -69,138 +82,212 @@ fn detail_of(input: Option<&serde_json::Value>) -> String {
         "query",
         "url",
         "prompt",
+        "description",
     ] {
         if let Some(found) = input.get(key).and_then(|v| v.as_str()) {
             return found.trim().to_string();
         }
     }
-    input
-        .as_object()
-        .and_then(|map| map.values().find_map(|v| v.as_str()))
-        .unwrap_or_default()
-        .trim()
-        .to_string()
+    string(Some(input))
 }
 
-/// Turns one assistant envelope into the rows it draws as.
-fn blocks_of(blocks: Option<&serde_json::Value>, at: &str, out: &mut Vec<Line>) {
+fn blocks_of(blocks: Option<&serde_json::Value>, role: &str, at: &str, out: &mut Vec<Line>) {
     let Some(list) = blocks.and_then(|b| b.as_array()) else {
         return;
     };
     for block in list {
         let kind = block.get("type").and_then(|t| t.as_str()).unwrap_or("");
-        match kind {
-            "text" => {
-                let text = block
-                    .get("text")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or_default()
-                    .trim();
-                if !text.is_empty() {
-                    out.push(say("assistant", at, text.to_string()));
-                }
+        let found = match kind {
+            "text" => line("say", role, at, "", string(block.get("text"))),
+            "thinking" => line(
+                "thinking",
+                "assistant",
+                at,
+                "Thinking",
+                string(block.get("thinking")),
+            ),
+            "tool_use" => {
+                let mut row = line(
+                    "tool",
+                    "assistant",
+                    at,
+                    block.get("name").and_then(|v| v.as_str()).unwrap_or("Tool"),
+                    tool_detail(block.get("input")),
+                );
+                row.id = string(block.get("id"));
+                row.detail = string(block.get("input"));
+                row
             }
-            "thinking" => {
-                let text = block
-                    .get("thinking")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or_default()
-                    .trim();
-                if !text.is_empty() {
-                    out.push(Line {
-                        kind: "thinking".into(),
-                        role: "assistant".into(),
-                        at: at.into(),
-                        name: "Thinking".into(),
-                        text: text.to_string(),
-                    });
-                }
+            "tool_result" => {
+                let mut row = line(
+                    "tool_result",
+                    "assistant",
+                    at,
+                    "Result",
+                    string(block.get("content")),
+                );
+                row.id = string(block.get("tool_use_id"));
+                row.failed = block
+                    .get("is_error")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false);
+                row
             }
-            "tool_use" => out.push(Line {
-                kind: "tool".into(),
-                role: "assistant".into(),
-                at: at.into(),
-                name: block
-                    .get("name")
-                    .and_then(|n| n.as_str())
-                    .unwrap_or("Tool")
-                    .to_string(),
-                text: detail_of(block.get("input")),
-            }),
-            _ => {}
+            _ => continue,
+        };
+        if !found.text.is_empty() || found.kind == "tool" {
+            out.push(found);
         }
     }
 }
 
-/// The readable part of one chat: what was said, not how it was carried out.
+fn metric(value: &serde_json::Value, at: &str) -> Option<Line> {
+    let failed = value
+        .get("is_error")
+        .and_then(|item| item.as_bool())
+        .unwrap_or(false);
+    let turns = value.get("num_turns").and_then(|item| item.as_u64());
+    let cost = value.get("total_cost_usd").and_then(|item| item.as_f64());
+    let mut parts = Vec::new();
+    if let Some(turns) = turns {
+        parts.push(format!("{turns} turn{}", if turns == 1 { "" } else { "s" }));
+    }
+    if let Some(cost) = cost {
+        parts.push(format!("${cost:.4}"));
+    }
+    if parts.is_empty() && !failed {
+        return None;
+    }
+    let mut row = line(
+        if failed { "error" } else { "result" },
+        "system",
+        at,
+        if failed { "Failed" } else { "Completed" },
+        parts.join(" · "),
+    );
+    row.failed = failed;
+    Some(row)
+}
+
+fn event(value: &serde_json::Value, at: &str) -> Option<Line> {
+    let kind = value
+        .get("type")
+        .and_then(|item| item.as_str())
+        .unwrap_or("");
+    if kind == "error" {
+        let mut row = line("error", "system", at, "Error", string(value.get("content")));
+        row.detail = string(value.get("errorInfo"));
+        row.failed = true;
+        return Some(row);
+    }
+    if kind == "result" {
+        return metric(value, at);
+    }
+    if kind == "codex_goal_updated" {
+        let goal = value.get("goal");
+        let name = goal
+            .and_then(|item| item.get("status"))
+            .and_then(|item| item.as_str())
+            .unwrap_or("updated");
+        return Some(line(
+            "event",
+            "system",
+            at,
+            "Goal",
+            format!("{name}: {}", string(goal)),
+        ));
+    }
+    let subtype = value
+        .get("subtype")
+        .and_then(|item| item.as_str())
+        .unwrap_or("");
+    let name = match subtype {
+        "compact_boundary" => "Context compacted",
+        "api_retry" => "Retrying",
+        "task_started" => "Task started",
+        "task_updated" => "Task updated",
+        "task_notification" => "Task finished",
+        "code_change_published" => "Changes published",
+        "model_refusal_fallback" => "Model fallback",
+        _ => return None,
+    };
+    let text = ["description", "content", "error", "task_type"]
+        .iter()
+        .map(|key| string(value.get(*key)))
+        .find(|text| !text.is_empty())
+        .unwrap_or_default();
+    Some(line("event", "system", at, name, text))
+}
+
 pub fn lines(session: &str, limit: usize) -> Vec<Line> {
     let Some(session) = id::session(session) else {
         return Vec::new();
     };
     let sql = format!(
         "{MESSAGES}'{session}' and cancelled_at is null \
-         order by coalesce(sent_at, created_at) desc limit {})",
-        limit.clamp(1, 200)
+         order by coalesce(sent_at,created_at) desc limit {})",
+        limit.clamp(1, 300)
     );
-
-    /* One answer per database, and they must not be concatenated: two JSON
-     * arrays glued together are not JSON. A chat lives in exactly one of them,
-     * so the first array with anything in it is the one. */
-    let answers = places::rows(&sql);
-    let parsed = answers
+    let parsed = places::rows(&sql)
         .iter()
         .filter_map(|row| serde_json::from_str::<serde_json::Value>(row).ok())
-        .find(|value| value.as_array().map(|a| !a.is_empty()).unwrap_or(false));
-    let Some(parsed) = parsed else {
-        return Vec::new();
-    };
-    let Some(list) = parsed.as_array() else {
+        .find(|value| {
+            value
+                .as_array()
+                .map(|list| !list.is_empty())
+                .unwrap_or(false)
+        });
+    let Some(list) = parsed.as_ref().and_then(|value| value.as_array()) else {
         return Vec::new();
     };
 
     let mut out = Vec::new();
-    /* Oldest first. The query returns newest-envelope-first so a phone can read
-     * the end of a long conversation without fetching all of it, but reversing
-     * the flat list afterwards also reverses the rows inside each envelope, and
-     * a tool call would land before the text that introduced it. */
     for row in list.iter().rev() {
-        let field = |name: &str| row.get(name).and_then(|v| v.as_str()).unwrap_or_default();
+        let field = |name: &str| row.get(name).and_then(|value| value.as_str()).unwrap_or("");
         let at = field("at");
-        /* `system` is Conductor's own bookkeeping and `user` inside an envelope
-         * is a tool result: neither is part of the conversation. */
         match field("kind") {
-            "text" => {
-                let text = field("body").trim();
-                if !text.is_empty() {
-                    out.push(say(field("role"), at, text.to_string()));
+            "text" => out.push(line("say", field("role"), at, "", string(row.get("body")))),
+            "assistant" | "user" => blocks_of(row.get("body"), field("kind"), at, &mut out),
+            _ => {
+                if let Some(mut found) = row.get("body").and_then(|body| event(body, at)) {
+                    found.id = field("id").to_string();
+                    found.model = field("model").to_string();
+                    out.push(found);
                 }
             }
-            "assistant" => blocks_of(row.get("body"), at, &mut out),
-            _ => continue,
         }
     }
+    out.retain(|row| !row.text.is_empty() || matches!(row.kind.as_str(), "tool" | "event"));
     out
 }
 
 #[derive(serde::Serialize)]
 struct Wire<'a> {
+    id: &'a str,
     kind: &'a str,
     role: &'a str,
     at: &'a str,
     name: &'a str,
     text: &'a str,
+    detail: &'a str,
+    failed: bool,
+    model: &'a str,
 }
 
 pub fn as_json(session: &str, limit: usize) -> String {
     let lines = lines(session, limit);
     let wire: Vec<Wire> = lines
         .iter()
-        .map(|l| Wire {
-            kind: &l.kind,
-            role: &l.role,
-            at: &l.at,
-            name: &l.name,
-            text: &l.text,
+        .map(|row| Wire {
+            id: &row.id,
+            kind: &row.kind,
+            role: &row.role,
+            at: &row.at,
+            name: &row.name,
+            text: &row.text,
+            detail: &row.detail,
+            failed: row.failed,
+            model: &row.model,
         })
         .collect();
     serde_json::to_string(&wire).unwrap_or_else(|_| "[]".into())

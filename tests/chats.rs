@@ -20,17 +20,22 @@ fn database(s: &Sandbox) -> String {
     let db = s.path("conductor.db");
     let live = s.path("ws-live").to_string_lossy().to_string();
     let gone = s.path("ws-archived").to_string_lossy().to_string();
+    let project = s.path("project").to_string_lossy().to_string();
     let sql = format!(
-        "create table workspaces (id text, directory_name text, workspace_path text, state text, active_session_id text);\n\
-         insert into workspaces values ('w1','ws-live','{live}','ready','s1');\n\
-         insert into workspaces values ('w2','ws-archived','{gone}','archived','s3');\n\
+        "create table repos (id text, name text, root_path text);\n\
+         insert into repos values ('r1','Project One','{project}');\n\
+         create table workspaces (id text, directory_name text, workspace_path text, state text, active_session_id text, repository_id text, created_at text);\n\
+         insert into workspaces values ('w1','ws-live','{live}','ready','s1','r1','2026-01-02');\n\
+         insert into workspaces values ('w2','ws-archived','{gone}','archived','s3','r1','2026-01-01');\n\
          create table sessions (id text, claude_session_id text, agent_type text, status text, \
              unread_count integer, title text, context_used_percent real, is_hidden integer, \
-             workspace_id text, updated_at text);\n\
-         insert into sessions values ('s1','s1','claude','working',2,'Live one',12.5,0,'w1','2026-08-27T10:00:00Z');\n\
-         insert into sessions values ('s2','s2','claude','idle',0,'Live two',3.0,0,'w1','2026-08-27T09:00:00Z');\n\
-         insert into sessions values ('s4','s4','claude','idle',0,'Hidden',0,1,'w1','2026-08-27T08:00:00Z');\n\
-         insert into sessions values ('s3','s3','claude','idle',0,'Archived',0,0,'w2','2026-08-27T07:00:00Z');\n"
+             workspace_id text, updated_at text, context_token_count integer, model text, \
+             permission_mode text, claude_effort_level text, codex_thinking_level text, \
+             agent_personality text, fast_mode integer, created_at text);\n\
+         insert into sessions values ('s1','s1','claude','working',2,'Live one',12.5,0,'w1','2026-08-27T10:00:00Z',1200,'claude-sonnet-4-6','default','high','','concise',1,'2026-08-27T10:00:00Z');\n\
+         insert into sessions values ('s2','s2','claude','idle',0,'Live two',3.0,0,'w1','2026-08-27T09:00:00Z',300,'claude-sonnet-4-6','plan','medium','','',0,'2026-08-27T09:00:00Z');\n\
+         insert into sessions values ('s4','s4','claude','idle',0,'Hidden',0,1,'w1','2026-08-27T08:00:00Z',0,'','','','','',0,'2026-08-27T08:00:00Z');\n\
+         insert into sessions values ('s3','s3','claude','idle',0,'Archived',0,0,'w2','2026-08-27T07:00:00Z',0,'','','','','',0,'2026-08-27T07:00:00Z');\n"
     );
     let out = std::process::Command::new("sqlite3")
         .arg(&db)
@@ -155,7 +160,11 @@ fn the_json_form_carries_the_fields_a_screen_needs() {
     let parsed: serde_json::Value = serde_json::from_str(&out).expect("valid JSON");
     let first = parsed[0].clone();
     for field in [
+        "project",
+        "project_path",
+        "repository_id",
         "workspace",
+        "workspace_id",
         "path",
         "session",
         "agent",
@@ -163,10 +172,41 @@ fn the_json_form_carries_the_fields_a_screen_needs() {
         "unread",
         "title",
         "context",
+        "context_tokens",
+        "model",
+        "permission",
+        "effort",
+        "personality",
+        "fast",
+        "updated_at",
+        "pending",
         "on",
         "next",
     ] {
         assert!(!first[field].is_null(), "{field} is missing from the JSON");
     }
+    assert_eq!(first["project"], "Project One");
+    assert_eq!(first["repository_id"], "r1");
+    assert_eq!(first["workspace_id"], "w1");
     assert_eq!(parsed.as_array().map(|a| a.len()), Some(2), "wrong count");
+}
+
+/// Conductor lists the newest workspace first and keeps chats in the order they
+/// were started. Ordering by last activity reshuffled the list under the reader
+/// every time an agent wrote a line.
+#[test]
+fn chats_are_listed_in_conductors_own_order() {
+    if !sqlite() {
+        eprintln!("skipped: sqlite3 is not installed");
+        return;
+    }
+    let s = Sandbox::new();
+    let db = database(&s);
+    let out = listing(&s, &db, &["--json"]);
+    let first = out.find("Live two").expect("the oldest chat");
+    let second = out.find("Live one").expect("the newest chat");
+    assert!(
+        first < second,
+        "chats are not in the order they were started:\n{out}"
+    );
 }

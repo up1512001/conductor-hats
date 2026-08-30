@@ -169,14 +169,23 @@ const SHARED: [&str; 7] = [
 ];
 
 pub fn add(name: &str, agent: &str) -> Result<(), String> {
+    prepare_profile(name, agent, true)?;
+    login(name, agent)
+}
+
+pub(crate) fn prepare_profile(name: &str, agent: &str, announce: bool) -> Result<PathBuf, String> {
     profile::valid_name(name)?;
     store::ensure_root()?;
     let dir = paths::profile_dir(agent, name);
     if dir.is_dir() {
-        println!("Profile '{name}' already exists at {}", dir.display());
+        if announce {
+            println!("Profile '{name}' already exists at {}", dir.display());
+        }
     } else {
         std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-        println!("Created {}", dir.display());
+        if announce {
+            println!("Created {}", dir.display());
+        }
     }
     if agent == "claude" {
         let source = paths::home().join(".claude");
@@ -186,12 +195,12 @@ pub fn add(name: &str, agent: &str) -> Result<(), String> {
             if !from.exists() || to.exists() {
                 continue;
             }
-            if std::os::unix::fs::symlink(&from, &to).is_ok() {
+            if std::os::unix::fs::symlink(&from, &to).is_ok() && announce {
                 println!("  linked {item} -> {}", from.display());
             }
         }
     }
-    login(name, agent)
+    Ok(dir)
 }
 
 pub fn login(name: &str, agent: &str) -> Result<(), String> {

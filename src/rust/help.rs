@@ -28,7 +28,9 @@ Reporting
   which [path] [agent]               the same, with every layer that fed in
   chats [--mask] [--json]            every open chat and the account it is on
   transcript <session> [--limit N]   what was said in one chat, as JSON
-  serve [--port N] [--host H]        read-only screen for a phone, loopback by default
+  serve [--origin URL] [--port N]    live Conductor screen for a phone
+  serve --pair [--origin URL]        make a one-use, ten-minute pairing link
+  serve --revoke [--origin URL]      sign every phone out and make a new link
   json [path]                        machine-readable, for the panel
   workspaces                         every workspace Conductor knows, name and path
   repos                              every repository, the same

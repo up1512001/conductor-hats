@@ -15,7 +15,6 @@ use std::process::Command;
 
 const WORKSPACES: &str = "select workspace_path from workspaces \
      where workspace_path is not null and state != 'archived'";
-
 const REPOS: &str = "select root_path from repos where root_path is not null";
 
 /// The chat Conductor has open in a workspace, named the way the router will see
@@ -41,7 +40,7 @@ fn is_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 36 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
-fn databases() -> Vec<PathBuf> {
+pub(crate) fn databases() -> Vec<PathBuf> {
     if let Some(one) = std::env::var_os("CONDUCTOR_DB") {
         let path = PathBuf::from(one);
         return if path.is_file() {
@@ -95,7 +94,7 @@ fn ask(db: &Path, sql: &str, mode: &str) -> Option<Vec<String>> {
 /// So a refusal is retried as `immutable=1`, which reads the file without the
 /// shared-memory index. It is only reached when there is no live index to share,
 /// and a possibly stale answer beats an empty one that reads as fact.
-fn query(db: &Path, sql: &str) -> Vec<String> {
+pub(crate) fn query(db: &Path, sql: &str) -> Vec<String> {
     if let Some(rows) = ask(db, sql, "mode=ro") {
         return rows;
     }
@@ -116,6 +115,73 @@ fn quoted(text: &str) -> String {
 /// through `quoted` before it reaches here.
 pub fn rows(sql: &str) -> Vec<String> {
     databases().iter().flat_map(|db| query(db, sql)).collect()
+}
+
+pub fn revision() -> String {
+    databases()
+        .into_iter()
+        .flat_map(|db| [db.clone(), db.with_extension("db-wal")])
+        .filter_map(|path| std::fs::metadata(path).ok())
+        .map(|metadata| {
+            let changed = metadata
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|age| age.as_nanos())
+                .unwrap_or(0);
+            format!("{}@{changed}", metadata.len())
+        })
+        .collect::<Vec<_>>()
+        .join(":")
+}
+
+/// Runs a query only in the one Conductor database that owns this workspace.
+///
+/// Multiple Conductor copies can be open at once, while the hats queue is
+/// shared between them. An absent or ambiguous owner therefore returns no rows:
+/// choosing either database would let one app navigate to the other's ids.
+pub fn rows_in_workspace(workspace: &str, sql: &str) -> Vec<String> {
+    if !is_id(workspace) {
+        return Vec::new();
+    }
+    let probe = format!(
+        "select 1 from workspaces where id = {} limit 1",
+        quoted(workspace)
+    );
+    let mut owners = databases()
+        .into_iter()
+        .filter(|db| !query(db, &probe).is_empty());
+    let Some(owner) = owners.next() else {
+        return Vec::new();
+    };
+    if owners.next().is_some() {
+        return Vec::new();
+    }
+    query(&owner, sql)
+}
+
+/// How many delivered user messages with this exact text already exist.
+///
+/// A remote queue item records this before it is handed to Conductor. Seeing the
+/// count rise afterwards is the acknowledgement: it closes the crash window
+/// between pressing Conductor's own send button and deleting the queue file,
+/// without writing a marker into the user's message or into Conductor's database.
+pub fn user_message_count(session: &str, message: &str) -> usize {
+    if !is_id(session) || message.contains('\0') {
+        return 0;
+    }
+    let sql = format!(
+        "select count(*) from session_messages where session_id = {} \
+         and role = 'user' and content = {} and sent_at is not null \
+         and cancelled_at is null",
+        quoted(session),
+        quoted(message)
+    );
+    databases()
+        .iter()
+        .flat_map(|db| query(db, &sql))
+        .filter_map(|row| row.parse::<usize>().ok())
+        .sum()
 }
 
 /// Every workspace Conductor currently knows, resolved.

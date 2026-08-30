@@ -14,6 +14,11 @@ impl Run {
         format!("{}{}", self.stdout, self.stderr)
     }
 
+    pub fn json(&self) -> serde_json::Value {
+        serde_json::from_str(self.stdout.trim())
+            .unwrap_or_else(|error| panic!("expected JSON, got {error}:\n{}", self.out()))
+    }
+
     pub fn ok(&self) -> &Self {
         assert_eq!(
             self.status,
