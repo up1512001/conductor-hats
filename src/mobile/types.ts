@@ -26,6 +26,7 @@ export interface Chat {
 }
 
 export interface TranscriptLine {
+  id: string;
   kind: string;
   role: string;
   at: string;
@@ -33,6 +34,7 @@ export interface TranscriptLine {
   text: string;
   detail: string;
   failed: boolean;
+  model: string;
 }
 
 export interface OutboxItem {

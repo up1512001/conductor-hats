@@ -213,6 +213,12 @@ The page is an application shell: top bar, one scrolling content pane, and the
 composer as a real footer. Overlaying or guessing space for the composer caused
 the last message to be covered, especially after run controls were added.
 
+Thinking is a compact row with Conductor's brain metaphor and a truncated muted
+preview. Consecutive tool calls and results collapse into one activity row with
+semantic terminal, file, search, web, edit, and agent icons; expanding it shows
+the individual details. Text glyphs are not used as pretend icons, and open
+activity remains open across live snapshot replacement.
+
 The client preserves these UX rules:
 
 - project → workspace → chat hierarchy matches Conductor's mental model

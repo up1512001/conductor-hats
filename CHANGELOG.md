@@ -70,6 +70,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Thinking and tool activity now read like Conductor.** Thinking uses a brain
+  icon with a quiet inline preview, while consecutive tool calls and results
+  collapse into a count with semantic terminal, file, search, web, edit and
+  agent icons. Expansion preserves full details without filling the transcript
+  with ASCII glyph rows.
+
 - **Model changes now use Conductor's own session-scoped picker handler.** The
   phone invokes the mounted picker callback that Conductor uses itself and keeps
   exact visible-menu selection as fallback. Database acknowledgement still

@@ -2,6 +2,7 @@
 
 import type { Account, ActiveChat, Chat, MobileSnapshot, Project, TranscriptLine } from "./types.js";
 import { chevron, markdown, esc, when } from "./markup.js";
+import { activityCluster, activityLine } from "./activity.js";
 
 function status(value: string): string {
   if (value === "working") return "Working";
@@ -79,15 +80,6 @@ export function projectView(project: Project, creatingWorkspace = ""): string {
     ${groups}`;
 }
 
-function tool(line: TranscriptLine): string {
-  const body = line.detail || line.text;
-  const summary = line.kind === "tool_result" ? (line.text.split("\n")[0] || "Result") : line.text;
-  const glyph = line.failed ? "!" : line.kind === "thinking" ? "✦" : line.kind === "tool_result" ? "↳" : "›";
-  return `<details class="tool ${line.kind === "thinking" ? "thinking" : ""} ${line.failed ? "failed" : ""}">
-    <summary><span class="tool-icon">${glyph}</span><span class="tool-name">${esc(line.name)}</span><span class="tool-detail">${esc(summary)}</span></summary>
-    ${body ? `<pre class="tool-body">${esc(body)}</pre>` : ""}</details>`;
-}
-
 function transcriptLine(line: TranscriptLine): string {
   if (line.kind === "say") {
     const me = line.role === "user";
@@ -95,8 +87,27 @@ function transcriptLine(line: TranscriptLine): string {
       <div class="who"><time>${esc(when(line.at))}</time></div>
       <div class="md">${markdown(line.text)}</div></article>`;
   }
-  if (["tool", "tool_result", "thinking"].includes(line.kind)) return tool(line);
+  if (line.kind === "thinking") return activityLine(line);
   return `<div class="event ${line.failed ? "error" : ""}"><b>${esc(line.name)}</b><span>${esc(line.text)}</span></div>`;
+}
+
+function transcript(lines: TranscriptLine[]): string {
+  const out: string[] = [];
+  for (let at = 0; at < lines.length;) {
+    const line = lines[at] as TranscriptLine;
+    if (line.kind !== "tool" && line.kind !== "tool_result") {
+      out.push(transcriptLine(line));
+      at += 1;
+      continue;
+    }
+    const group: TranscriptLine[] = [];
+    while (at < lines.length && ["tool", "tool_result"].includes(lines[at]?.kind || "")) {
+      group.push(lines[at] as TranscriptLine);
+      at += 1;
+    }
+    out.push(group.length === 1 ? activityLine(group[0] as TranscriptLine) : activityCluster(group));
+  }
+  return out.join("");
 }
 
 /** What a queued reply is actually doing, in words rather than a spinner. */
@@ -116,7 +127,7 @@ export function chatView(
   const subscribed = active?.session === chat.session;
   const current = subscribed ? active : { transcript: [], outbox: [] };
   const band = Math.min(10, Math.max(0, Math.round((chat.context || 0) / 10)));
-  const lines = (current.transcript || []).map(transcriptLine).join("");
+  const lines = transcript(current.transcript || []);
   const queued = (current.outbox || []).map((item) => `<article class="turn me waiting">
     <div class="who"><time>${esc(queueState(item.state))}</time></div>
     <div class="md">${markdown(item.message)}</div></article>`).join("");

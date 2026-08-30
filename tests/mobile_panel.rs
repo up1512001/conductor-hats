@@ -152,6 +152,33 @@ fn reported_header_and_toolbar_spacing_is_explicit() {
 }
 
 #[test]
+fn thinking_and_tool_activity_match_conductors_compact_rows() {
+    let activity = source("src/mobile/activity.ts");
+    let render = source("src/mobile/render.ts");
+    let styles = source("src/mobile/styles.css");
+    must(
+        &activity,
+        &[
+            "brain:",
+            "terminal:",
+            "search:",
+            "globe:",
+            "agent:",
+            "activityCluster",
+            "tool call",
+            "activity-icons",
+        ],
+    );
+    must(&render, &["activityLine(line)", "activityCluster(group)"]);
+    must(
+        &styles,
+        &[".activity-preview", ".activity-list", ".activity-chevron"],
+    );
+    assert!(!activity.contains("✦"));
+    assert!(!activity.contains("↳"));
+}
+
+#[test]
 fn the_qr_is_local_high_contrast_and_does_not_print_the_secret() {
     let qr = source("src/panel/qr.ts");
     let mobile = source("src/panel/views/mobile.ts");
