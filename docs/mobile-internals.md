@@ -161,6 +161,14 @@ Conductor's live catalog does not contain it; hats carries no fallback model
 inventory of its own. Repeating an unchanged publication does not rewrite the
 record or wake every connected phone.
 
+That live publication also carries session-title overrides. Conductor can paint
+a generated title in its sidebar while the read-only `sessions.title` column is
+still `New Chat`; treating the column as the final presentation value makes the
+Mac and phone disagree even though both are internally consistent. Session
+objects in the mounted component tree supply the current title, and visible
+sidebar routes are the final authority for the rows actually on screen. The
+server applies those overrides only to matching session IDs.
+
 Thinking values remain provider capabilities rather than model inventory.
 Claude exposes Low, Medium, High, Extra high (`xhigh`) and Max; Codex also
 supports None and Ultra. Wire values stay unchanged so the visible Conductor

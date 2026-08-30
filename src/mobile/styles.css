@@ -222,6 +222,8 @@ main { flex: 1 1 auto; min-height: 0; width: 100%; max-width: 720px; margin: 0 a
 }
 .menu-item.on { color: var(--glow); }
 .menu-item:active { background: var(--hover); }
+.menu-section + .menu-section { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--line); }
+.menu-label { padding: 5px 10px 3px; color: var(--muted); font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 
 .info { padding: 18px 0; }
 .info dl { margin: 8px 0 0; }

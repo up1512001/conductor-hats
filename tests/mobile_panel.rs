@@ -113,7 +113,8 @@ fn model_and_thinking_choices_match_conductor() {
         &catalog,
         &[
             "visibleBuiltInModelIds",
-            "conductorModels()",
+            "conductorCatalog()",
+            "visibleTitles(titles)",
             "remote catalog ",
         ],
     );
@@ -123,8 +124,12 @@ fn model_and_thinking_choices_match_conductor() {
             "[\"low\", \"medium\", \"high\", \"xhigh\", \"max\"]",
             "Extra high",
             "modelLabel(value)",
+            "models?.[agent]",
+            "Claude Code",
+            "Codex",
         ],
     );
+    must(&state, &["apply_titles", "catalog.titles"]);
     assert!(!state.contains("gpt-5.2-codex"));
     assert!(!state.contains("claude-opus-4-8-v1"));
 }

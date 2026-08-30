@@ -203,6 +203,12 @@ function optionLabel(setting: string, value: string): string {
   return value;
 }
 
+function menuItem(setting: string, value: string, current: string): string {
+  return `<button type="button" class="menu-item ${value === current ? "on" : ""}"
+    data-setting="${esc(setting)}" data-value="${esc(value)}"
+    data-current="${esc(current)}">${esc(optionLabel(setting, value))}</button>`;
+}
+
 /** The values one control offers, as a menu anchored to its button. */
 export function controlMenu(
   chat: Chat,
@@ -213,7 +219,6 @@ export function controlMenu(
   const profiles = (accounts?.[chat.agent] || []).filter((item) => item.signed_in);
   const lists: Record<string, string[]> = {
     account: Array.from(new Set([chat.next, ...profiles.map((item) => item.name)].filter(Boolean))),
-    model: models?.[chat.agent] || [],
     effort: EFFORTS[chat.agent] || [],
     fast: ["off", "on"],
     permission: ["default", "plan", "acceptEdits", "bypassPermissions"],
@@ -226,12 +231,18 @@ export function controlMenu(
     permission: chat.permission || "default",
   };
   const current = now[setting] || "";
+  if (setting === "model") {
+    const known = ["claude", "codex"].flatMap((agent) => models?.[agent] || []);
+    return `<div class="menu model-menu">${["claude", "codex"].map((agent) => {
+      const values = [...(models?.[agent] || [])];
+      if (agent === chat.agent && current && !known.includes(current)) values.push(current);
+      const label = agent === "claude" ? "Claude Code" : "Codex";
+      return `<section class="menu-section"><div class="menu-label">${label}</div>
+        ${values.map((value) => menuItem(setting, value, current)).join("")}</section>`;
+    }).join("")}</div>`;
+  }
   const values = Array.from(new Set([...(lists[setting] || []), current].filter(Boolean)));
-  return `<div class="menu">${values.map((value) =>
-    `<button type="button" class="menu-item ${value === current ? "on" : ""}"
-      data-setting="${esc(setting)}" data-value="${esc(value)}"
-      data-current="${esc(current)}">${esc(optionLabel(setting, value))}</button>`
-  ).join("")}</div>`;
+  return `<div class="menu">${values.map((value) => menuItem(setting, value, current)).join("")}</div>`;
 }
 
 export function settingsView(snapshot: MobileSnapshot): string {

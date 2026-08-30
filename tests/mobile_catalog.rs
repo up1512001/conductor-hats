@@ -39,7 +39,7 @@ fn conductor_catalog_is_private_ordered_and_idempotent() {
     let s = Sandbox::new();
     let db = database(&s, "conductor.db");
     selected(&db);
-    let catalog = r#"{"models":{"claude":["opus-5-1m","fable-5","opus-5-1m"],"codex":["gpt-5.6-sol","gpt-5.6-terra"]}}"#;
+    let catalog = r#"{"models":{"claude":["opus-5-1m","fable-5","opus-5-1m"],"codex":["gpt-5.6-sol","gpt-5.6-terra"]},"titles":{"12345678-abcd":"Conductor build overview"}}"#;
     let first = s
         .hats_env(
             &["remote", "catalog", "workspace-a", catalog],
@@ -56,6 +56,10 @@ fn conductor_catalog_is_private_ordered_and_idempotent() {
     assert_eq!(
         body["catalog"]["models"]["claude"],
         serde_json::json!(["opus-5-1m", "fable-5"])
+    );
+    assert_eq!(
+        body["catalog"]["titles"]["12345678-abcd"],
+        "Conductor build overview"
     );
     assert_eq!(
         std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
@@ -90,6 +94,19 @@ fn invalid_or_unscoped_catalogs_fail_closed() {
         &[("CONDUCTOR_DB", &db.to_string_lossy())],
     );
     assert_ne!(invalid.status, 0, "an unknown provider was stored");
+    let incomplete = s.hats_env(
+        &[
+            "remote",
+            "catalog",
+            "workspace-a",
+            r#"{"models":{"claude":["opus-5-1m"]}}"#,
+        ],
+        &[("CONDUCTOR_DB", &db.to_string_lossy())],
+    );
+    assert_ne!(
+        incomplete.status, 0,
+        "a partial provider catalog was stored"
+    );
 
     let unscoped = s.hats(&[
         "remote",

@@ -69,8 +69,10 @@ fn accounts() -> BTreeMap<String, Vec<Account>> {
         .collect()
 }
 
-fn models(value: &serde_json::Value) -> BTreeMap<String, Vec<String>> {
-    let mut found = mobile_catalog::current().models;
+fn models(
+    value: &serde_json::Value,
+    mut found: BTreeMap<String, Vec<String>>,
+) -> BTreeMap<String, Vec<String>> {
     for chat in value.as_array().into_iter().flatten() {
         let agent = chat.get("agent").and_then(|v| v.as_str()).unwrap_or("");
         let model = chat.get("model").and_then(|v| v.as_str()).unwrap_or("");
@@ -85,9 +87,23 @@ fn models(value: &serde_json::Value) -> BTreeMap<String, Vec<String>> {
     found
 }
 
+fn apply_titles(value: &mut serde_json::Value, titles: &BTreeMap<String, String>) {
+    for chat in value.as_array_mut().into_iter().flatten() {
+        let session = chat
+            .get("session")
+            .and_then(|item| item.as_str())
+            .unwrap_or("");
+        if let Some(title) = titles.get(session) {
+            chat["title"] = serde_json::Value::String(title.clone());
+        }
+    }
+}
+
 pub fn snapshot(selected: Option<&str>) -> Result<String, String> {
-    let chats: serde_json::Value =
+    let mut chats: serde_json::Value =
         serde_json::from_str(&chats::json_string()?).map_err(|e| format!("chat snapshot: {e}"))?;
+    let catalog = mobile_catalog::current();
+    apply_titles(&mut chats, &catalog.titles);
     let active = selected.and_then(|raw| {
         let route = conductor_session::route(raw)?;
         let transcript = serde_json::from_str(&transcript::as_json(&route.session, 180)).ok()?;
@@ -108,7 +124,7 @@ pub fn snapshot(selected: Option<&str>) -> Result<String, String> {
         source: crate::source::active()
             .map(|source| source.label().to_string())
             .unwrap_or_else(|| "Conductor".into()),
-        models: models(&chats),
+        models: models(&chats, catalog.models),
         accounts: accounts(),
         chats,
         active,

@@ -70,6 +70,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Mobile now uses Conductor's live chat titles and complete model picker.** A
+  generated sidebar title can lead the persisted `sessions.title` value, so the
+  panel publishes the live session title and the phone applies it by exact
+  session ID. The model menu shows both Claude Code and Codex sections instead
+  of filtering an already-complete catalog down to the current provider.
+
 - **Mobile model and thinking choices now match Conductor.** The model menu
   reads the ordered IDs that Conductor's own provider APIs supply to its mounted
   model picker instead of shipping a stale hats catalog. The publication is

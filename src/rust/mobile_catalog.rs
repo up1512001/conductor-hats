@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
-use crate::{auth, lock, paths, source};
+use crate::{auth, id, lock, paths, source};
 
 const AGENTS: [&str; 2] = ["claude", "codex"];
 const MAX_CATALOG: usize = 32 * 1024;
@@ -14,6 +14,8 @@ const MAX_VALUE: usize = 120;
 #[derive(Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Catalog {
     pub models: BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub titles: BTreeMap<String, String>,
 }
 
 #[derive(Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -26,8 +28,8 @@ fn path() -> PathBuf {
     paths::accounts_root().join("serve-catalog")
 }
 
-fn safe(value: &str) -> bool {
-    !value.is_empty() && value.len() <= MAX_VALUE && !value.chars().any(char::is_control)
+fn safe(value: &str, limit: usize) -> bool {
+    !value.is_empty() && value.len() <= limit && !value.chars().any(char::is_control)
 }
 
 fn cleaned(raw: &str) -> Result<Catalog, String> {
@@ -51,7 +53,7 @@ fn cleaned(raw: &str) -> Result<Catalog, String> {
             .get(agent)
             .into_iter()
             .flatten()
-            .filter(|value| safe(value) && seen.insert((*value).clone()))
+            .filter(|value| safe(value, MAX_VALUE) && seen.insert((*value).clone()))
             .take(MAX_MODELS)
             .cloned()
             .collect::<Vec<_>>();
@@ -62,7 +64,15 @@ fn cleaned(raw: &str) -> Result<Catalog, String> {
     if models.is_empty() {
         return Err("the Conductor model catalog is empty".into());
     }
-    Ok(Catalog { models })
+    if AGENTS.iter().any(|agent| !models.contains_key(*agent)) {
+        return Err("the Conductor model catalog is incomplete".into());
+    }
+    let titles = incoming
+        .titles
+        .into_iter()
+        .filter(|(session, title)| id::session(session).is_some() && safe(title, 240))
+        .collect();
+    Ok(Catalog { models, titles })
 }
 
 pub fn publish(owner: &source::Source, raw: &str) -> Result<bool, String> {
