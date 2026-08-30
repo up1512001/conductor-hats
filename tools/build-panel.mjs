@@ -1,7 +1,7 @@
 /**
- * Builds src/panel into the two scripts `hats patch` injects into Conductor:
+ * Builds the TypeScript browser clients carried by hats:
  * dist/account-ui.js, the panel, and dist/boot-guard.js, which has to run
- * before Conductor's own modules.
+ * before Conductor's own modules, plus dist/mobile.js for the phone.
  *
  *   node tools/build-panel.mjs           build
  *   node tools/build-panel.mjs --check   fail unless the build is reproducible
@@ -22,6 +22,7 @@ const ROOT = path.resolve(import.meta.dirname, "..");
 const TARGETS = [
   { entry: "src/panel/index.ts", out: "dist/account-ui.js", what: "the account panel" },
   { entry: "src/panel/guard.ts", out: "dist/boot-guard.js", what: "the boot guard" },
+  { entry: "src/mobile/app.ts", out: "dist/mobile.js", what: "the mobile client" },
 ];
 
 /** Resolves `import css from "./styles.scss"` to the compiled CSS as a string. */
@@ -92,7 +93,7 @@ if (args.has("--watch")) {
     });
     await ctx.watch();
   }
-  console.log("watching src/panel");
+  console.log("watching browser TypeScript");
 } else if (args.has("--check")) {
   /**
    * Two builds of the same source must produce identical bytes, and none may

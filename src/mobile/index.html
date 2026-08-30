@@ -2,158 +2,39 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#141110">
 <meta name="color-scheme" content="dark">
 <title>Conductor</title>
-<style>
-  :root{
-    --bg:#000; --panel:#131315; --card:#1b1b1e; --line:#242428;
-    --fg:#f2f2f4; --dim:#8b8b93; --faint:#5f5f68;
-    --accent:#c96442; --live:#7ec98f; --work:#e0b341;
-    --radius:14px;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--fg)}
-  body{font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-       padding-bottom:env(safe-area-inset-bottom)}
-  button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
-
-  .bar{position:sticky;top:0;z-index:5;background:var(--bg);display:grid;
-       grid-template-columns:44px 1fr 44px;align-items:center;
-       padding:calc(env(safe-area-inset-top) + 10px) 8px 10px;border-bottom:1px solid var(--line)}
-  .bar h1{grid-column:2;text-align:center;font-size:17px;font-weight:650;margin:0;
-          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .back{font-size:22px;line-height:1;color:var(--fg);justify-self:start;padding:0 12px}
-  .who{justify-self:end;width:30px;height:30px;border-radius:50%;background:var(--card);
-       display:grid;place-items:center;font-size:13px;color:var(--dim);border:1px solid var(--line)}
-
-  main{padding:0 14px 24px}
-
-  /* chat list */
-  .item{display:block;width:100%;text-align:left;padding:13px 2px;border-bottom:1px solid var(--line)}
-  .line1{display:flex;align-items:baseline;gap:8px}
-  .ws{font-weight:650;font-size:15px}
-  .sub{color:var(--dim);font-size:13px;margin-top:2px;overflow:hidden;
-       text-overflow:ellipsis;white-space:nowrap}
-  .dot{width:6px;height:6px;border-radius:50%;background:var(--faint);flex:0 0 auto}
-  .dot.working{background:var(--live)}
-  .pill{margin-left:auto;font-size:11px;letter-spacing:.04em;text-transform:uppercase;
-        color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:2px 8px}
-  .pill.acct{color:var(--accent);border-color:#3a2a24}
-  .unread{background:var(--accent);color:#fff;border:0}
-
-  /* transcript */
-  .head{padding:14px 2px 10px}
-  .head h2{margin:0;font-size:17px;font-weight:650}
-  .meta{color:var(--dim);font-size:13px;margin-top:3px}
-  .meta .live{color:var(--live)}
-  .row{display:flex;align-items:center;gap:9px;padding:9px 2px;color:var(--dim);font-size:14px}
-  .row b{color:var(--fg);font-weight:600;flex:0 0 auto}
-  .row .d{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;
-          font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
-  .row .chev{color:var(--faint);flex:0 0 auto}
-  .glyph{width:17px;text-align:center;flex:0 0 auto;color:var(--faint)}
-  .say{background:var(--card);border-radius:var(--radius);padding:13px 15px;margin:10px 0}
-  .say .label{font-size:11px;letter-spacing:.09em;color:var(--faint);margin-bottom:6px}
-  .say.me{background:var(--panel);border:1px solid var(--line)}
-  .say p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
-
-  .composer{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 28%);
-            padding:14px 0 calc(env(safe-area-inset-bottom) + 10px)}
-  .composer div{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-                padding:14px 15px;color:var(--faint);font-size:15px}
-  .note{color:var(--dim);padding:26px 2px;font-size:14px}
-</style>
-
-<div class="bar"><button class="back" id="back" hidden>&lsaquo;</button><h1 id="title">Chats</h1><span class="who" id="who"></span></div>
-<main id="view"><p class="note">Loading…</p></main>
-
-<script>
-const view = document.getElementById("view");
-const title = document.getElementById("title");
-const back = document.getElementById("back");
-const who = document.getElementById("who");
-let open = null;
-
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
-  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
-const GLYPH = { Bash: "&gt;_", Read: "&#9744;", Edit: "&#9998;", Write: "&#9998;",
-                Thinking: "&#10022;", Grep: "&#9906;", Glob: "&#9906;" };
-
-async function get(path) {
-  const r = await fetch(path, { cache: "no-store" });
-  if (!r.ok) throw new Error((await r.text()) || r.status);
-  return r.json();
-}
-
-function list(chats) {
-  who.textContent = "";
-  view.innerHTML = chats.length ? chats.map((c) => `
-    <button class="item" data-s="${esc(c.session)}" data-w="${esc(c.workspace)}">
-      <div class="line1">
-        <span class="dot ${c.status === "working" ? "working" : ""}"></span>
-        <span class="ws">${esc(c.workspace)}</span>
-        ${c.unread ? `<span class="pill unread">${c.unread}</span>` : ""}
-        <span class="pill acct">${esc(c.on || c.next || "none")}</span>
-      </div>
-      <div class="sub">${esc(c.title)}</div>
-    </button>`).join("") : '<p class="note">Nothing open.</p>';
-  for (const el of view.querySelectorAll(".item")) {
-    el.onclick = () => enter(el.dataset.s, el.dataset.w);
-  }
-}
-
-function draw(chat, lines) {
-  const rows = lines.map((m) => {
-    if (m.kind === "say") {
-      const mine = m.role === "user";
-      return `<div class="say ${mine ? "me" : ""}">
-        <div class="label">${mine ? "YOU" : "CONDUCTOR"}</div><p>${esc(m.text)}</p></div>`;
-    }
-    const glyph = GLYPH[m.name] || "&#8226;";
-    return `<div class="row"><span class="glyph">${glyph}</span>
-      <b>${esc(m.name)}</b><span class="d">${esc(m.text)}</span><span class="chev">&rsaquo;</span></div>`;
-  }).join("");
-
-  view.innerHTML = `
-    <div class="head">
-      <h2>${esc(chat.title || "Untitled")}</h2>
-      <div class="meta">${esc(chat.status || "idle")} &middot; ${esc(chat.on || chat.next || "no account")}
-        ${chat.status === "working" ? '&middot; <span class="live">Live</span>' : ""}</div>
+<link rel="icon" href="/logo.png">
+<link rel="apple-touch-icon" href="/logo.png">
+<link rel="stylesheet" href="/mobile.css">
+<body>
+  <header class="bar">
+    <button class="icon back is-hidden" id="back" aria-label="Back" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="bar-title">
+      <h1 id="title">Projects</h1>
+      <span id="connection">Connecting</span>
     </div>
-    ${rows || '<p class="note">Nothing said yet.</p>'}
-    <div class="composer"><div>Reply to ${esc(chat.title || "this chat")}&hellip;</div></div>`;
-  window.scrollTo(0, document.body.scrollHeight);
-}
-
-async function enter(session, workspace) {
-  open = { session, workspace };
-  title.textContent = workspace;
-  back.hidden = false;
-  who.textContent = (workspace[0] || "?").toUpperCase();
-  try {
-    const [chats, lines] = await Promise.all([
-      get("/api/chats"),
-      get("/api/chat?limit=80&session=" + encodeURIComponent(session)),
-    ]);
-    draw(chats.find((c) => c.session === session) || { title: workspace }, lines);
-  } catch (e) {
-    view.innerHTML = `<p class="note">${esc(e.message)}</p>`;
-  }
-}
-
-async function home() {
-  open = null;
-  title.textContent = "Chats";
-  back.hidden = true;
-  try { list(await get("/api/chats")); }
-  catch (e) { view.innerHTML = `<p class="note">${esc(e.message)}</p>`; }
-}
-
-back.onclick = home;
-const refresh = () => (open ? enter(open.session, open.workspace) : home());
-refresh();
-new EventSource("/api/events").onmessage = (e) => {
-  if (!JSON.parse(e.data).tick) refresh();
-};
-</script>
+    <button class="icon settings" id="settings" aria-label="Connection">
+      <img src="/logo.png" alt="" width="20" height="20">
+    </button>
+  </header>
+  <div class="notice" id="notice" role="status" hidden></div>
+  <main id="view" aria-live="polite"><p class="empty">Connecting to your Mac</p></main>
+  <form class="composer" id="composer" hidden>
+    <div class="composer-field">
+      <textarea id="message" rows="1" maxlength="65536" placeholder="Message this chat" aria-label="Message"></textarea>
+      <div class="composer-foot">
+        <div id="composer-tools"></div>
+        <button id="send" type="submit" aria-label="Send">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+      </div>
+    </div>
+    <span id="send-state">Live on your Mac</span>
+  </form>
+  <script src="/mobile.js" defer></script>
+</body>
+</html>

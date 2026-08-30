@@ -1,4 +1,4 @@
-//! Copies the built panel and boot guard into OUT_DIR for `include_str!`.
+//! Copies the built browser clients into OUT_DIR for `include_str!`.
 //!
 //! Node is needed to build the panel, but only by whoever builds a release: the
 //! binary carries the compiled result. Missing input is a hard error, since a
@@ -11,7 +11,7 @@ fn main() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
 
     println!("cargo:rerun-if-changed=build.rs");
-    for name in ["account-ui.js", "boot-guard.js"] {
+    for name in ["account-ui.js", "boot-guard.js", "mobile.js"] {
         let built = root.join("dist").join(name);
         println!("cargo:rerun-if-changed=dist/{name}");
         match std::fs::read(&built) {
