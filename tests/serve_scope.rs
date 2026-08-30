@@ -235,7 +235,9 @@ fn queue_commands_are_confined_to_the_paired_conductor_copy() {
         cli.contains("mobile_scope::adopt()?"),
         "queue commands never adopt the binding"
     );
-    for command in ["enqueue", "take", "purge", "claim", "confirm", "next"] {
+    for command in [
+        "catalog", "enqueue", "take", "purge", "claim", "confirm", "next",
+    ] {
         assert!(
             cli.contains(&format!("\"{command}\",")),
             "{command} is not confined to the bound copy"

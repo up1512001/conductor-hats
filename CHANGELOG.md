@@ -70,6 +70,13 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Mobile model and thinking choices now match Conductor.** The model menu
+  reads the ordered IDs that Conductor's own provider APIs supply to its mounted
+  model picker instead of shipping a stale hats catalog. The publication is
+  confined to the paired Conductor database and stored owner-only. Claude now
+  exposes all five thinking levels, including **Extra high**, and model IDs are
+  presented with Conductor-style names.
+
 - **Reconnects restore the active chat subscription and failed actions stay
   actionable.** A reconnected socket resubscribes to the chat or new-chat
   request that was open. Rejected messages return to the composer by request

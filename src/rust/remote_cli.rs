@@ -1,8 +1,8 @@
 //! The private CLI transport between the injected panel and the remote queue.
 
 use crate::{
-    auth, conductor_session, mobile_scope, mobile_service, origin, remote, remote_control,
-    remote_create, remote_scan, source,
+    auth, conductor_session, mobile_catalog, mobile_scope, mobile_service, origin, remote,
+    remote_control, remote_create, remote_scan, source,
 };
 
 fn pair(workspace: &str, revoking: bool) -> Result<(), String> {
@@ -22,7 +22,8 @@ fn pair(workspace: &str, revoking: bool) -> Result<(), String> {
 ///
 /// The pairing commands are deliberately absent: they decide which copy to bind
 /// and have to be able to reach one that is not the bound one.
-const CONFINED: [&str; 11] = [
+const CONFINED: [&str; 12] = [
+    "catalog",
     "enqueue",
     "take",
     "purge",
@@ -45,6 +46,16 @@ pub fn run(rest: &[String]) -> Result<(), String> {
         mobile_scope::adopt()?;
     }
     match command {
+        "catalog" => {
+            let workspace = rest.get(1).map(String::as_str).unwrap_or("");
+            let owner = source::for_workspace(workspace)?;
+            let changed = mobile_catalog::publish(
+                &owner,
+                rest.get(2).map(String::as_str).unwrap_or(""),
+            )?;
+            println!("{{\"changed\":{changed}}}");
+            Ok(())
+        }
         "enqueue" => {
             let session = rest.get(1).map(String::as_str).unwrap_or("");
             let message = rest.get(2).map(String::as_str).unwrap_or("");
@@ -231,6 +242,6 @@ pub fn run(rest: &[String]) -> Result<(), String> {
             println!("{}", serde_json::to_string(&service).map_err(|e| format!("{e}"))?);
             Ok(())
         }
-        _ => Err("usage: hats remote <take|purge|claim|confirm|release|pending|next|mobile-status|mobile-origin|mobile-pair|mobile-revoke|mobile-stop> ...".into()),
+        _ => Err("usage: hats remote <catalog|take|purge|claim|confirm|release|pending|next|mobile-status|mobile-origin|mobile-pair|mobile-revoke|mobile-stop> ...".into()),
     }
 }

@@ -11,7 +11,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::{lock, mobile_scope, paths, source};
+use crate::{lock, mobile_catalog, mobile_scope, paths, source};
 
 pub const COOKIE: &str = "__Host-hats_session";
 const PAIR_TTL: Duration = Duration::from_secs(10 * 60);
@@ -190,6 +190,7 @@ pub fn invalidate_all() -> Result<(), String> {
         let _guard = lock::Lock::acquire(&pair_path)?;
         let _ = std::fs::remove_file(&pair_path);
     }
+    mobile_catalog::clear();
     mobile_scope::clear();
     Ok(())
 }

@@ -105,6 +105,31 @@ fn model_account_and_thinking_controls_live_in_the_chat_composer() {
 }
 
 #[test]
+fn model_and_thinking_choices_match_conductor() {
+    let catalog = source("src/panel/model_catalog.ts");
+    let state = source("src/rust/mobile_state.rs");
+    let render = source("src/mobile/render.ts");
+    must(
+        &catalog,
+        &[
+            "visibleBuiltInModelIds",
+            "conductorModels()",
+            "remote catalog ",
+        ],
+    );
+    must(
+        &render,
+        &[
+            "[\"low\", \"medium\", \"high\", \"xhigh\", \"max\"]",
+            "Extra high",
+            "modelLabel(value)",
+        ],
+    );
+    assert!(!state.contains("gpt-5.2-codex"));
+    assert!(!state.contains("claude-opus-4-8-v1"));
+}
+
+#[test]
 fn the_qr_is_local_high_contrast_and_does_not_print_the_secret() {
     let qr = source("src/panel/qr.ts");
     let mobile = source("src/panel/views/mobile.ts");

@@ -4,6 +4,7 @@ import { acct, message, q } from "../cli.js";
 import { el, note } from "../dom.js";
 import { dialog } from "../dialog.js";
 import { icon } from "../icons.js";
+import { publishModelCatalog } from "../model_catalog.js";
 import { qrCode } from "../qr.js";
 import { fromToolbar } from "../route.js";
 import { panel } from "../store.js";
@@ -183,6 +184,7 @@ function ready(host: HTMLElement, origin: string, service: ServiceStatus): void 
     mobileCommand("mobile-pair")
       .then((raw) => {
         const result = JSON.parse(raw) as PairingResult;
+        publishModelCatalog(true);
         refreshMobileTrigger(true);
         if (active(host)) pairingView(host, result.pairing, result.service);
       })
@@ -245,6 +247,7 @@ function pairingView(host: HTMLElement, pairing: Pairing, service: ServiceStatus
           .then((raw) => {
             const result = JSON.parse(raw) as PairingResult;
             done();
+            publishModelCatalog(true);
             refreshMobileTrigger(true);
             if (active(host)) pairingView(host, result.pairing, result.service);
           })

@@ -102,7 +102,8 @@ use an end-to-end VPN while preserving stable HTTPS and WebSockets.
 
 One authenticated WebSocket carries full snapshots and commands in both
 directions. A snapshot includes the chat hierarchy, active transcript, accounts,
-models, queue receipts, new-chat receipts, and a source label.
+Conductor's current model catalog, queue receipts, new-chat receipts, and a
+source label.
 
 The client treats the socket as replaceable:
 
@@ -147,6 +148,24 @@ the draft.
 Account, model, thinking, permission, and fast mode are next-message controls and
 belong beside the composer. The account selector must remain directly reachable;
 having an action in the protocol without a rendered control is not a feature.
+
+The model picker has one owner: Conductor. Its provider APIs already determine
+which built-in model IDs are visible and in what order, then pass that result to
+the mounted picker as `visibleBuiltInModelIds`. The injected panel reads that
+live React value without opening the menu and publishes it with the visible
+workspace ID through a confined `hats remote catalog` command. That workspace
+must resolve inside the paired database, and the private record also names the
+exact Conductor database that supplied it, so another installed app copy cannot
+replace or reuse its choices. Mobile appends a chat's current model only when
+Conductor's live catalog does not contain it; hats carries no fallback model
+inventory of its own. Repeating an unchanged publication does not rewrite the
+record or wake every connected phone.
+
+Thinking values remain provider capabilities rather than model inventory.
+Claude exposes Low, Medium, High, Extra high (`xhigh`) and Max; Codex also
+supports None and Ultra. Wire values stay unchanged so the visible Conductor
+control receives the exact value selected on the phone, while the phone uses
+the same human-facing “Extra high” label as the Mac.
 
 Settings have durable leases and failure receipts. Before retrying a click, the
 panel checks Conductor's database state. This prevents a slow successful toggle

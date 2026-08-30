@@ -1,10 +1,10 @@
 //! One coherent mobile snapshot and the settings hats can apply safely.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use crate::{
-    chats, conductor_session, mask, paths, places, profile, remote, remote_control, remote_create,
-    session, transcript,
+    chats, conductor_session, mask, mobile_catalog, paths, places, profile, remote, remote_control,
+    remote_create, session, transcript,
 };
 
 const PROBE: &str = "select (select max(rowid) from session_messages) || ':' || \
@@ -39,12 +39,13 @@ struct Snapshot {
 
 pub fn stamp() -> String {
     format!(
-        "{}:{}:{}:{}:{}",
+        "{}:{}:{}:{}:{}:{}",
         places::revision(),
         places::rows(PROBE).first().cloned().unwrap_or_default(),
         remote::stamp(),
         remote_control::stamp(),
-        remote_create::stamp()
+        remote_create::stamp(),
+        mobile_catalog::stamp()
     )
 }
 
@@ -69,44 +70,19 @@ fn accounts() -> BTreeMap<String, Vec<Account>> {
 }
 
 fn models(value: &serde_json::Value) -> BTreeMap<String, Vec<String>> {
-    let mut found: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    found.insert(
-        "claude".into(),
-        ["claude-opus-4-8-v1", "claude-sonnet-4-6"]
-            .into_iter()
-            .map(str::to_string)
-            .collect(),
-    );
-    found.insert(
-        "codex".into(),
-        [
-            "gpt-5.2-codex",
-            "gpt-5.3-codex",
-            "gpt-5.3-codex-spark",
-            "gpt-5.4",
-            "gpt-5.5",
-            "gpt-5.6-luna",
-            "gpt-5.6-sol",
-            "gpt-5.6-terra",
-        ]
-        .into_iter()
-        .map(str::to_string)
-        .collect(),
-    );
+    let mut found = mobile_catalog::current().models;
     for chat in value.as_array().into_iter().flatten() {
         let agent = chat.get("agent").and_then(|v| v.as_str()).unwrap_or("");
         let model = chat.get("model").and_then(|v| v.as_str()).unwrap_or("");
-        if !agent.is_empty() && !model.is_empty() {
-            found
-                .entry(agent.to_string())
-                .or_default()
-                .insert(model.to_string());
+        if agent.is_empty() || model.is_empty() {
+            continue;
+        }
+        let models = found.entry(agent.to_string()).or_default();
+        if !models.iter().any(|value| value == model) {
+            models.push(model.to_string());
         }
     }
     found
-        .into_iter()
-        .map(|(agent, values)| (agent, values.into_iter().collect()))
-        .collect()
 }
 
 pub fn snapshot(selected: Option<&str>) -> Result<String, String> {

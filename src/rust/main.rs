@@ -19,6 +19,7 @@ mod lock;
 mod macho;
 mod manage;
 mod mask;
+mod mobile_catalog;
 mod mobile_page;
 mod mobile_scope;
 mod mobile_service;

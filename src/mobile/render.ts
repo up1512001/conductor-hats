@@ -160,11 +160,47 @@ export function composerControls(chat: Chat | null, active: ActiveChat | null): 
   const button = (setting: string, label: string): string =>
     `<button type="button" class="tool-btn ${pending ? "busy" : ""}" data-control="${esc(setting)}"
       aria-label="${esc(setting)}">${GLYPH[setting] || ""}${label ? `<span>${esc(label)}</span>` : ""}</button>`;
+  const model = held("model", chat.model);
+  const effort = held("effort", chat.effort);
   return button("account", chat.next || chat.on || "Account")
-    + button("model", held("model", chat.model) || "Model")
-    + button("effort", held("effort", chat.effort) || "Thinking")
+    + button("model", model ? modelLabel(model) : "Model")
+    + button("effort", effort ? optionLabel("effort", effort) : "Thinking")
     + button("fast", held("fast", chat.fast ? "on" : "off") === "on" ? "Fast" : "")
     + button("permission", held("permission", chat.permission || "default") === "default" ? "" : held("permission", chat.permission || "default"));
+}
+
+const EFFORTS: Record<string, string[]> = {
+  claude: ["low", "medium", "high", "xhigh", "max"],
+  codex: ["none", "low", "medium", "high", "xhigh", "max", "ultra"],
+};
+
+function title(value: string): string {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
+function modelLabel(value: string): string {
+  const aliases: Record<string, string> = {
+    opus: "Opus 4.8",
+    "opus-1m": "Opus 4.8 1M",
+    sonnet: "Sonnet 4.6",
+    haiku: "Haiku 4.5",
+    "opus-5-1m": "Opus 5",
+  };
+  const model = value.replace(/^claude-/, "").replace(/^gpt-/, "");
+  if (aliases[model]) return aliases[model];
+  const million = model.match(/^([a-z]+)-(\d+)-1m$/i);
+  if (million) return `${title(million[1] || "")} ${million[2]} 1M`;
+  const version = model.match(/^([a-z]+)-(\d+)-(\d+)(-1m)?$/i);
+  if (version) {
+    return `${title(version[1] || "")} ${version[2]}.${version[3]}${version[4] ? " 1M" : ""}`;
+  }
+  return model.split("-").filter(Boolean).map((part) => title(part)).join(" ");
+}
+
+function optionLabel(setting: string, value: string): string {
+  if (setting === "model") return modelLabel(value);
+  if (setting === "effort") return value === "xhigh" ? "Extra high" : title(value);
+  return value;
 }
 
 /** The values one control offers, as a menu anchored to its button. */
@@ -178,9 +214,7 @@ export function controlMenu(
   const lists: Record<string, string[]> = {
     account: Array.from(new Set([chat.next, ...profiles.map((item) => item.name)].filter(Boolean))),
     model: models?.[chat.agent] || [],
-    effort: chat.agent === "codex"
-      ? ["low", "medium", "high", "xhigh"]
-      : ["low", "medium", "high", "max"],
+    effort: EFFORTS[chat.agent] || [],
     fast: ["off", "on"],
     permission: ["default", "plan", "acceptEdits", "bypassPermissions"],
   };
@@ -196,7 +230,7 @@ export function controlMenu(
   return `<div class="menu">${values.map((value) =>
     `<button type="button" class="menu-item ${value === current ? "on" : ""}"
       data-setting="${esc(setting)}" data-value="${esc(value)}"
-      data-current="${esc(current)}">${esc(value)}</button>`
+      data-current="${esc(current)}">${esc(optionLabel(setting, value))}</button>`
   ).join("")}</div>`;
 }
 

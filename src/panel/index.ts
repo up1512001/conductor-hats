@@ -12,6 +12,7 @@
 import { log } from "./cli.js";
 import { invalidate, loadState } from "./state.js";
 import { fromToolbar } from "./route.js";
+import { startModelCatalogSync } from "./model_catalog.js";
 import { startRemoteDelivery } from "./remote.js";
 import { onRefreshTriggers, panel, redraw } from "./store.js";
 import {
@@ -89,6 +90,7 @@ function tick(): void {
 function boot(): void {
   onRefreshTriggers(refreshTriggers);
   tick();
+  startModelCatalogSync();
   startRemoteDelivery();
 
   let pending: ReturnType<typeof setTimeout> | null = null;
