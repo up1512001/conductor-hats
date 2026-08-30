@@ -100,3 +100,16 @@ pub fn created_since(session: &str, marker: u64) -> Option<String> {
         .into_iter()
         .find(|value| safe(value).is_some())
 }
+
+pub fn created_model_since(session: &str, marker: u64, model: &str) -> Option<String> {
+    let route = route(session)?;
+    let sql = format!(
+        "select id, coalesce(model,'') from sessions where workspace_id='{}' \
+         and rowid>{marker} order by rowid desc",
+        route.workspace_id
+    );
+    places::rows(&sql).into_iter().find_map(|row| {
+        let (session, found) = row.split_once('|')?;
+        (safe(session).is_some() && found == model).then(|| session.to_string())
+    })
+}

@@ -55,6 +55,7 @@ export interface ActiveChat {
     setting: string;
     value: string;
     state: string;
+    result: string;
     error: string;
   }>;
   creates: Array<{

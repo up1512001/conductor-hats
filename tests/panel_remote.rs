@@ -66,16 +66,23 @@ fn remote_delivery_opens_the_exact_project_workspace_and_chat() {
 
 #[test]
 fn remote_run_settings_use_conductors_visible_controls() {
+    let body = controls();
     must(
-        &controls(),
+        &body,
         &[
             "controlScope()",
             "button.click()",
             "choice.click()",
+            "exactChoice",
+            "expectedChoice",
             "remote control-",
             "remote control-check",
         ],
         "remote run settings",
+    );
+    assert!(
+        !body.contains("matchesChoice"),
+        "model choices must not use fuzzy substring matching"
     );
 }
 

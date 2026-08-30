@@ -4,7 +4,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::{auth, conductor_session, id, lock, paths, remote_scan};
+use crate::{auth, conductor_session, id, lock, paths, remote_control_result, remote_scan};
+
+pub use crate::remote_control_result::applied;
 
 const LEASE: Duration = Duration::from_secs(60);
 
@@ -28,6 +30,10 @@ pub struct Control {
     pub attempts: u32,
     #[serde(default)]
     pub done: bool,
+    #[serde(default)]
+    pub marker: u64,
+    #[serde(default)]
+    pub result: String,
     #[serde(default)]
     pub error: String,
 }
@@ -115,15 +121,8 @@ fn write(path: &Path, control: &Control) -> Result<(), String> {
     Ok(())
 }
 
-fn valid(setting: &str, value: &str) -> bool {
-    matches!(setting, "model" | "effort" | "permission" | "fast")
-        && !value.trim().is_empty()
-        && value.len() <= 100
-        && !value.contains(['\0', '\n', '\r'])
-}
-
 pub fn enqueue(session: &str, setting: &str, value: &str, before: &str) -> Result<Control, String> {
-    if !valid(setting, value) {
+    if !remote_control_result::valid(setting, value) {
         return Err("invalid run setting".into());
     }
     let dir = directory(session)?;
@@ -146,6 +145,8 @@ pub fn enqueue(session: &str, setting: &str, value: &str, before: &str) -> Resul
         lease_until: 0,
         attempts: 0,
         done: false,
+        marker: conductor_session::workspace_marker(session).unwrap_or(0),
+        result: String::new(),
         error: String::new(),
     };
     write(&dir.join(format!("{}.json", control.id)), &control)?;
@@ -191,7 +192,17 @@ pub fn finish(control: &Control, completed: bool) -> Result<(), String> {
         return Err("that control lease is no longer active".into());
     }
     if completed {
-        std::fs::remove_file(file).map_err(|e| format!("completing control: {e}"))
+        let result = remote_control_result::applied_session(&current)
+            .ok_or("Conductor has not recorded the run setting yet")?;
+        if result == current.session {
+            std::fs::remove_file(file).map_err(|e| format!("completing control: {e}"))
+        } else {
+            current.lease.clear();
+            current.lease_until = 0;
+            current.done = true;
+            current.result = result;
+            write(&file, &current)
+        }
     } else {
         current.lease.clear();
         current.lease_until = 0;
@@ -204,17 +215,6 @@ pub fn finish(control: &Control, completed: bool) -> Result<(), String> {
             );
         }
         write(&file, &current)
-    }
-}
-
-pub fn applied(control: &Control) -> bool {
-    let Some(current) = conductor_session::setting(&control.session, &control.setting) else {
-        return false;
-    };
-    match control.setting.as_str() {
-        "fast" => (current == "1") == (control.value == "on"),
-        "model" | "effort" | "permission" => current == control.value,
-        _ => false,
     }
 }
 
@@ -267,7 +267,8 @@ pub fn pending_json(session: &str) -> Result<serde_json::Value, String> {
                     "value": item.value,
                     "id": item.id,
                     "error": item.error,
-                    "state": if item.done { "failed" } else if item.lease_until > now() { "applying" } else { "waiting" },
+                    "result": item.result,
+                    "state": if item.done && item.error.is_empty() { "done" } else if item.done { "failed" } else if item.lease_until > now() { "applying" } else { "waiting" },
                 })
             })
             .collect(),

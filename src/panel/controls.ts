@@ -37,10 +37,33 @@ function words(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function matchesChoice(label: string, value: string): boolean {
-  const have = words(label);
-  const want = words(value);
-  return have === want || (have.length > 3 && want.includes(have)) || (want.length > 3 && have.includes(want));
+function modelWords(value: string): string {
+  const aliases: Record<string, string> = {
+    opus: "opus 4 8",
+    "opus-1m": "opus 4 8 1m",
+    sonnet: "sonnet 4 6",
+    haiku: "haiku 4 5",
+    "opus-5-1m": "opus 5",
+  };
+  const clean = value.replace(/^claude-/, "").replace(/^gpt-/, "");
+  return aliases[clean] || words(clean);
+}
+
+function expectedChoice(item: Control): string {
+  if (item.setting === "model") return modelWords(item.value);
+  const labels: Record<string, string> = {
+    xhigh: "extra high",
+    acceptEdits: "accept edits",
+    bypassPermissions: "bypass permissions",
+  };
+  return labels[item.value] || words(item.value);
+}
+
+function exactChoice(label: string, item: Control): boolean {
+  const normalized = words(label).replace(/ new$/, "");
+  const have = item.setting === "model" ? normalized.replace(/^gpt /, "") : normalized;
+  const want = expectedChoice(item);
+  return have === want || new RegExp("^" + want.replace(/ /g, "\\s+") + " [1-9]$").test(have);
 }
 
 function controlScope(): HTMLElement | null {
@@ -62,18 +85,21 @@ function opener(scope: HTMLElement, item: Control): HTMLElement | null {
   };
   const nodes = Array.from(scope.querySelectorAll<HTMLElement>("button,[role=button]"))
     .filter((node) => visible(node) && !node.matches('[data-testid="composer-send-button"]'));
-  return nodes.find((node) => {
-    const hint = [
-      node.getAttribute("aria-label"),
-      node.getAttribute("title"),
-      node.getAttribute("data-tooltip"),
-      node.textContent,
-    ].filter(Boolean).join(" ");
-    return names[item.setting].test(hint) || (item.setting === "model" && matchesChoice(hint, item.before));
-  }) || null;
+  const currentModel = modelWords(item.before);
+  const hint = (node: HTMLElement): string => [
+    node.getAttribute("aria-label"),
+    node.getAttribute("title"),
+    node.getAttribute("data-tooltip"),
+    node.textContent,
+  ].filter(Boolean).join(" ");
+  if (item.setting === "model" && currentModel) {
+    const current = nodes.find((node) => words(hint(node)).includes(currentModel));
+    if (current) return current;
+  }
+  return nodes.find((node) => names[item.setting].test(hint(node))) || null;
 }
 
-function waitChoice(value: string, timeout: number): Promise<HTMLElement | null> {
+function waitChoice(item: Control, timeout: number): Promise<HTMLElement | null> {
   const started = Date.now();
   return new Promise((resolve) => {
     const check = (): void => {
@@ -88,7 +114,7 @@ function waitChoice(value: string, timeout: number): Promise<HTMLElement | null>
         Array.from(root.querySelectorAll<HTMLElement>("button,[role=option],[role=menuitem]"))
       );
       const nodes = direct.concat(nested);
-      const choice = nodes.find((node) => visible(node) && matchesChoice(node.textContent || "", value));
+      const choice = nodes.find((node) => visible(node) && exactChoice(node.textContent || "", item));
       if (choice) resolve(choice);
       else if (Date.now() - started >= timeout) resolve(null);
       else setTimeout(check, 40);
@@ -107,7 +133,7 @@ export async function applyControl(item: Control): Promise<boolean> {
   if (!button) return false;
   button.click();
   if (item.setting !== "fast") {
-    const choice = await waitChoice(item.value, 1800);
+    const choice = await waitChoice(item, 1800);
     if (!choice) {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       return false;

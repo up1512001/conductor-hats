@@ -35,6 +35,7 @@ mod profile;
 mod remote;
 mod remote_cli;
 mod remote_control;
+mod remote_control_result;
 mod remote_create;
 mod remote_scan;
 mod repatch;

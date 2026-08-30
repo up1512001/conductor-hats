@@ -227,3 +227,17 @@ fn new_chat_reconnect_and_send_failures_have_recoverable_state() {
         &["\"request\": request", "accepted-new-chat", "control-ack"],
     );
 }
+
+#[test]
+fn cross_provider_models_follow_conductors_new_chat() {
+    let body = source("src/mobile/control.ts");
+    must(
+        &body,
+        &[
+            "item.state === \"done\"",
+            "control-ack",
+            "Model opened in a new chat on your Mac",
+            "return moved.result",
+        ],
+    );
+}

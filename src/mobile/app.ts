@@ -2,6 +2,7 @@
 
 import { createTransport } from "./socket.js";
 import { createChatManager } from "./create.js";
+import { receiveControl } from "./control.js";
 import { echoManager } from "./echo.js";
 import { hold, restore, type Held } from "./place.js";
 import { noticeFor } from "./notice.js";
@@ -220,10 +221,10 @@ const transport = createTransport({
       openChat(created);
       return;
     }
-    const failed = value.active?.controls?.find((item) => item.state === "failed");
-    if (failed && value.active) {
-      transport.send({ type: "control-ack", session: value.active.session, id: failed.id });
-      showNotice(failed.error || "Conductor could not apply that run setting", true);
+    const moved = receiveControl(value, (command) => transport.send(command), showNotice);
+    if (moved) {
+      openChat(moved);
+      return;
     }
     echoes.receive(value);
     sendState.textContent = value.active?.outbox?.length

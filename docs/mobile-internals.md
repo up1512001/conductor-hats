@@ -180,6 +180,14 @@ panel checks Conductor's database state. This prevents a slow successful toggle
 from being toggled back on retry. After four failed attempts, the phone receives
 an explicit error until it acknowledges the receipt or it expires.
 
+Picker choices are matched to Conductor's human label exactly after normalizing
+the wire ID. Substring matching is unsafe: `sonnet-4-6` matches both “Sonnet
+4.6” and “Sonnet 4.6 1M”, so DOM order can silently click the wrong model and
+make every database acknowledgement fail. A cross-provider choice follows
+Conductor's own behavior: it opens a new chat, hats identifies the new session
+by its model and pre-click workspace marker, and the phone moves to that chat
+after acknowledging the durable result.
+
 New-chat requests use the same principles:
 
 - record the workspace and the newest session marker before acting

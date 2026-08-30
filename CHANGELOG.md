@@ -76,6 +76,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   session ID. The model menu shows both Claude Code and Codex sections instead
   of filtering an already-complete catalog down to the current provider.
 
+- **Mobile model changes now select and acknowledge the exact model.** Picker
+  matching no longer confuses “Sonnet 4.6” with “Sonnet 4.6 1M”, and raw IDs
+  such as `opus-5-1m` resolve to their visible Conductor label. Selecting a
+  model from another provider follows Conductor into the new chat and moves the
+  phone there after database readback identifies it.
+
 - **Mobile model and thinking choices now match Conductor.** The model menu
   reads the ordered IDs that Conductor's own provider APIs supply to its mounted
   model picker instead of shipping a stale hats catalog. The publication is
