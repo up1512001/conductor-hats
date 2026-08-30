@@ -10,6 +10,10 @@ fn controls() -> String {
     std::fs::read_to_string(common::repo().join("src/panel/controls.ts")).unwrap()
 }
 
+fn picker() -> String {
+    std::fs::read_to_string(common::repo().join("src/panel/picker.ts")).unwrap()
+}
+
 fn must(body: &str, needles: &[&str], feature: &str) {
     for needle in needles {
         assert!(body.contains(needle), "{feature} is missing {needle:?}");
@@ -89,16 +93,60 @@ fn remote_run_settings_use_conductors_visible_controls() {
 #[test]
 fn remote_models_use_conductors_session_scoped_picker_handler_first() {
     must(
-        &controls(),
+        &picker(),
         &[
             "rootFiber()",
             "visibleBuiltInModelIds",
-            "hasSession(node, item.session)",
-            "typeof props?.onSelect === \"function\"",
+            "hasSession(node, session)",
+            "typeof props?.onSelect !== \"function\"",
+        ],
+        "Conductor model picker handler",
+    );
+    must(
+        &controls(),
+        &[
             "handler(item.value, { focusComposer: false })",
             "Change agent (",
         ],
         "Conductor model picker handler",
+    );
+}
+
+/// Conductor's composer control for effort is a bar meter bound to
+/// `chat.toggleThinking`: pressing it advances one level rather than opening a
+/// list. Driving it applied whichever level came next, the check never saw the
+/// one that was asked for, and the phone reported the setting refused after two
+/// attempts. Effort goes through the picker's own apply function instead, and
+/// falls back to the picker's Effort submenu, never to that button.
+#[test]
+fn remote_effort_never_presses_conductors_cycling_thinking_control() {
+    must(
+        &picker(),
+        &[
+            "onApplyConfiguration",
+            "getRowConfiguration",
+            "thinkingLevel: value",
+            "export async function applyEffort",
+        ],
+        "Conductor effort apply handler",
+    );
+    let controls = controls();
+    must(
+        &controls,
+        &[
+            "applyEffort(item.session, item.value)",
+            "effortThroughMenu(item)",
+        ],
+        "effort application order",
+    );
+    let opener = controls
+        .split("function opener(")
+        .nth(1)
+        .expect("the composer control opener");
+    let body = opener.split("\n}").next().unwrap_or_default();
+    assert!(
+        !body.contains("effort"),
+        "the composer effort control is reachable again:\n{body}"
     );
 }
 
