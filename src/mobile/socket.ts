@@ -1,4 +1,4 @@
-/** Reconnecting same-origin WebSocket transport with no refresh polling. */
+/** Pairing, then a reconnecting same-origin socket with no refresh polling. */
 
 import type { MobileCommand, MobileSnapshot } from "./types.js";
 
@@ -80,4 +80,24 @@ export function createTransport(handlers: Handlers): {
   window.addEventListener("online", connect);
 
   return { connect, send, close() { closed = true; socket?.close(); } };
+}
+
+/**
+ * Spends the one-use token a pairing link carries, before anything connects.
+ *
+ * The token is taken out of the address bar first so a screenshot, a shared tab
+ * or the back button cannot replay it.
+ */
+export async function pairFromLink(): Promise<void> {
+  const token = new URLSearchParams(location.hash.slice(1)).get("token");
+  if (!token) return;
+  history.replaceState(null, "", location.pathname + location.search);
+  const response = await fetch("/api/pair", {
+    method: "POST",
+    headers: { "X-Hats-Token": token },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("This pairing link expired or was already used. Create a fresh code on the Mac.");
+  }
 }

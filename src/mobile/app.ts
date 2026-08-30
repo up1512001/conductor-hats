@@ -1,6 +1,6 @@
 /** Mobile navigation and actions over one live WebSocket state. */
 
-import { createTransport } from "./socket.js";
+import { createTransport, pairFromLink } from "./socket.js";
 import { createChatManager } from "./create.js";
 import { receiveControl } from "./control.js";
 import { echoManager } from "./echo.js";
@@ -191,14 +191,6 @@ function goBack(): void {
   render();
 }
 
-async function pair(): Promise<void> {
-  const token = new URLSearchParams(location.hash.slice(1)).get("token");
-  if (!token) return;
-  history.replaceState(null, "", location.pathname + location.search);
-  const response = await fetch("/api/pair", { method: "POST", headers: { "X-Hats-Token": token }, cache: "no-store" });
-  if (!response.ok) throw new Error("This pairing link expired or was already used. Create a fresh code on the Mac.");
-}
-
 const creation = createChatManager(
   (command) => transport.send(command),
   showNotice
@@ -289,7 +281,7 @@ message.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) composer.requestSubmit();
 });
 
-pair().then(() => transport.connect()).catch((error: unknown) => {
+pairFromLink().then(() => transport.connect()).catch((error: unknown) => {
   connection.textContent = "Not paired";
   const note = document.createElement("p");
   note.className = "empty";
