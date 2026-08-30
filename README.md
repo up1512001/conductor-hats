@@ -113,6 +113,27 @@ hats repatch
 Check any of it with `hats doctor`, which reports what every layer
 resolves to.
 
+**7. Use Conductor from a phone.** `hats serve` mirrors projects, workspaces,
+chats, transcripts, tools, live status and run settings in a mobile layout.
+One authenticated WebSocket keeps both screens current. Replies typed on the
+phone are durably queued, open their exact chat on the Mac when safe, and are
+submitted through Conductor's own composer; replies made on the Mac stream back
+to the phone. New chats are created through Conductor's own action and open on
+the phone only after its database reports the exact new session. A fresh 64-hex path plus a one-use pairing
+secret protects the browser,
+and a named outbound HTTPS tunnel makes it reachable away from Wi-Fi without
+opening a router port. See [docs/mobile.md](docs/mobile.md) for setup and the
+security model.
+
+Pairing has its own phone button beside the account control in the toolbar.
+Enter the stable HTTPS tunnel address once,
+create a pairing code, and scan the high-contrast QR with the phone. Each QR
+gets its own random path under that address. The same
+view copies the link, shows its ten-minute expiry and connected-phone status,
+changes the address, revokes browsers, and stops access behind confirmations. Creating the code also
+starts the protected loopback service automatically; opening the view alone is
+still read-only.
+
 Prefer to skip the patching entirely? `/account` in any Conductor chat works on an
 unpatched install, and `hats use work` works from a terminal. You lose
 the toolbar button, not the feature.
@@ -157,6 +178,8 @@ attaches.
 | [docs/how-it-works.md](docs/how-it-works.md) | how credentials are namespaced, the router, precedence |
 | [docs/account-panel.md](docs/account-panel.md) | the panel: layout, masking, signing in and out |
 | [docs/panel-internals.md](docs/panel-internals.md) | how the panel attaches, and the update path |
+| [docs/mobile.md](docs/mobile.md) | private, bidirectional access from a phone over the public internet |
+| [docs/mobile-internals.md](docs/mobile-internals.md) | mobile architecture, security invariants and implementation learnings |
 | [docs/patching-conductor.md](docs/patching-conductor.md) | what the app bundle allows, with the evidence |
 | [docs/dev-conductor.md](docs/dev-conductor.md) | building a Conductor copy that is safe to modify |
 | [docs/blank-window.md](docs/blank-window.md) | the copy launches and paints nothing: cause, guard, how to diagnose the next one |

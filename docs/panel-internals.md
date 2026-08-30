@@ -13,12 +13,13 @@ src/panel/styles.scss   pulls the partials together
 src/panel/compat.ts     the boot guard, built separately
 dist/account-ui.js      the panel, generated and gitignored
 dist/boot-guard.js      the boot guard, same
+dist/mobile.js          the typed phone client, same
 tools/build-panel.mjs   esbuild plus a sass plugin
 ```
 
 ```sh
 pnpm install
-pnpm build      # dist/account-ui.js and dist/boot-guard.js
+pnpm build      # all three generated browser bundles
 pnpm watch      # rebuild on change
 pnpm verify     # fail unless two builds produce identical bytes
 pnpm typecheck

@@ -10,23 +10,41 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **`hats serve`, a read-only screen for a phone.** Every chat Conductor has
-  open, which account each is on, and what was said in any of them. Loopback by
-  default; the way out is a tunnel that connects outward and authenticates at the
-  edge, which is `cloudflared` plus a Cloudflare Access policy. See
-  [docs/mobile.md](docs/mobile.md).
+- **`hats serve`, bidirectional Conductor access from a phone.** The mobile UI
+  mirrors Conductor's open chats, transcripts, tools, status, model, context and
+  account in a project → workspace → chat hierarchy, then follows laptop changes
+  over one authenticated WebSocket. A phone reply
+  enters a private, durable hats queue; the injected panel submits it through
+  Conductor's real composer, navigating the Mac to its exact project, workspace
+  and session when needed, and acknowledges it only after Conductor's database
+  records the user message. Laptop drafts are never replaced and no private
+  Conductor table is written. Mobile run settings include next account, model,
+  reasoning, permission and fast mode; Conductor's visible controls apply them.
+  A workspace can create a new chat through Conductor's own action; the phone
+  opens it only after database readback identifies the exact new session.
 
-  Read-only on purpose. Nothing here changes an account, sends a message, or
-  writes to Conductor, and a `POST` is refused before it is parsed. That is what
-  makes it safe to leave running while the authentication story is a tunnel and a
-  policy rather than code this repository had to invent.
+  The browser pairs through a short-lived, one-use secret carried in a URL
+  fragment, exchanged for a separate secure session cookie and removable with
+  `hats serve --revoke`. Requests and bodies are bounded, protected routes
+  authenticate independently, and the page uses a self-only content policy.
+  Loopback remains the default; a named outbound HTTPS tunnel supplies a stable
+  public hostname without a router port. See [docs/mobile.md](docs/mobile.md).
 
-  Written on `std::net` with no new dependencies. hats has three, and the reason
-  is a binary that needs no C toolchain; an async runtime and a web framework
-  would have been two hundred more for GET and an event stream. Server-Sent
-  Events rather than websockets, because a browser cannot set headers on a
-  websocket handshake, so a token has to go in the URL or be exchanged for a
-  ticket first. An event stream is a GET.
+  Pairing has a separate phone control in Conductor's toolbar. Its T3 Code-inspired share
+  view stores the public HTTPS address once, creates the one-use link on demand,
+  assigns every QR a fresh 64-hex path, renders a local high-contrast QR, masks
+  the path and token in visible text, shows the ten-minute expiry, copies the
+  link, and confirms before revoking phones. Opening the view remains read-only;
+  pressing **Create pairing code** idempotently starts the protected loopback
+  listener, reports listening or connected-phone status beside the public
+  address, can stop and revoke the connection, and keeps the
+  spawned process and pairing secret out of Conductor's shell output.
+
+  The server stays on `std::net`; a small pure-Rust WebSocket protocol provides
+  snapshot plus live-tail synchronization through the named tunnel. The secure
+  same-origin cookie authenticates its upgrade, so no credential appears in the
+  socket URL. The mobile source is strict TypeScript and is typechecked and
+  bundled with the injected panel.
 
 - **`hats transcript <session>`**, one chat as JSON, drawn the way Conductor
   draws it: prose, and the tool calls between it. A `Bash` or `Read` is a row of
@@ -49,6 +67,90 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
   `--json` prints the same list as an array. Archived workspaces and hidden
   chats are left out of both forms.
+
+### Fixed
+
+- **Reconnects restore the active chat subscription and failed actions stay
+  actionable.** A reconnected socket resubscribes to the chat or new-chat
+  request that was open. Rejected messages return to the composer by request
+  ID, including duplicate text, and run settings that Conductor refuses become
+  visible failure receipts instead of silently disappearing. Setting and
+  new-chat retries check database state before another click, preventing a slow
+  success from being toggled back or duplicated.
+
+- **The account selector is reachable from the mobile composer.** Its data and
+  action path already existed, but no account button rendered beside model,
+  thinking, fast mode and permission, leaving the feature inaccessible.
+
+- **Mobile scope now fails closed.** Queue commands and the public listener
+  refuse to run unless `CONDUCTOR_DB` names one readable database or Mobile
+  access has recorded one paired Conductor copy. A missing or stale binding can
+  no longer fall back to reading every installed copy.
+
+- **A terminal `hats serve` shows one Conductor copy, not all of them.** The
+  pairing already belonged to the app whose panel created it, and the panel
+  started its listener with that app's database selected. A listener started by
+  hand from a terminal had no such selection and read every Conductor copy on
+  the machine at once, so the phone listed the release app's projects while the
+  panel that delivers replies sat in the dev app, and the screen carried
+  whichever name it guessed. `hats serve` now adopts the recorded binding before
+  its first query and prints which copy it is showing; with no pairing yet, it
+  refuses to start rather than exposing all copies.
+
+- **Model and thinking moved off the chat lists and into the composer.** They
+  are settings the next message is sent with, so repeating them on every row and
+  again in the chat header cost three lines of small type per chat and buried
+  the title. The rows carry status, agent and account; the composer carries the
+  controls, and the header no longer repeats what sits directly under it.
+
+- **The phone client is versioned, so a rebuild cannot be served stale.** The
+  page asked for `/mobile.css` and `/mobile.js` at fixed addresses. Responses
+  are `no-store`, which is a privacy rule rather than a freshness one, and a
+  browser that already parsed a script at an address is entitled to keep it.
+  Both references now carry a fingerprint of the bytes behind them, so a new
+  build is a new URL and there is nothing at that address to go stale.
+
+- **A phone message reaches Conductor about a second sooner.** The socket was
+  never the delay; the panel's delivery loop was. It woke every 750 ms, so most
+  of the wait was the loop not having looked yet, and it then polled for
+  Conductor's confirmation every 500 ms after the message had already landed.
+  The two claim commands became one `hats remote take`, which also decides in
+  Rust that a queued run setting is handed over before any message, so halving
+  the interval twice did not double the idle shell traffic. Confirmation now
+  polls tightly at first, and a delivery is followed immediately by the next
+  one rather than waiting for the interval, so a burst drains at the speed
+  Conductor accepts it.
+
+- **The phone composer no longer covers the last message.** It floated over the
+  thread on a reserved strip whose height was guessed, and the guess was wrong
+  once the run settings row existed. Made sticky, it was then pulled up over the
+  transcript whenever the reader was not at the very end. The page is now an app
+  shell: bar, one scrolling pane, composer as a real footer. Nothing overlaps and
+  nothing is measured.
+
+- **Run setting choices read as a scale again.** The current value was moved to
+  the front of every list, so thinking offered `max, low, medium, high`. Lists
+  keep their declared order and an unrecognised running value is appended.
+  `max` joins the Claude thinking levels, which Conductor already sets and the
+  list did not offer.
+
+- **Less noise in the phone's lists.** A workspace holding one chat no longer
+  prints "1 chat" under its own name, rows and headers are tighter, and a
+  `default` agent personality is not shown as a badge.
+
+- **A phone snapshot no longer throws away where the reader was.** Each update
+  replaces the whole transcript, which scrolled the reader to the newest line
+  mid-sentence and closed any tool row they had opened. Position and open rows
+  are now carried across the replacement, a chat still opens at its end, and the
+  space reserved under the last message is measured from the composer rather
+  than assumed, so the taller composer no longer covers it.
+
+- **In-panel account sign-in works again.** The Rust CLI port had dropped the
+  private `login-start`, `login-code`, `login-status` and `login-cancel`
+  commands that the panel still called. They now run the provider login behind
+  an owner-only FIFO, capture the approval URL, accept the code without shell
+  interpolation, report the resulting account, expire after five minutes and
+  only cancel the process recorded for that exact provider and profile.
 
 ## 0.5.0
 

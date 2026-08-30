@@ -34,6 +34,9 @@ sessions [clear]                 show or reset per-session pins
 json [path] [session]            machine-readable, for the panel
 debug [on|off|status|read|clear] record what the panel resolved
 doctor                           check the setup end to end
+serve [--origin URL] [--port N]  live Conductor screen for a phone
+serve --pair [--origin URL]      make a one-use, ten-minute pairing link
+serve --revoke [--origin URL]    sign every paired browser out
 ```
 
 `bind` is the blunt one and it is worth knowing why. A binding is a single
