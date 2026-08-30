@@ -199,7 +199,7 @@ async function deliver(): Promise<boolean> {
     if (taken.control) {
       if (await applyControl(taken.control)) return true;
       await controlCommand("release", taken.control);
-      blockedUntil = Date.now() + 5000;
+      blockedUntil = Date.now() + 600;
       return false;
     }
     if (taken.create) {

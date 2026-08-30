@@ -94,7 +94,7 @@ fn a_refused_run_setting_becomes_a_visible_failure_receipt() {
         &["control-enqueue", "s1", "model", "gpt-5.6-sol", "gpt-5.5"],
     ))
     .unwrap();
-    for _ in 0..4 {
+    for _ in 0..2 {
         let claim: serde_json::Value =
             serde_json::from_str(&remote(&s, &db, &["control-claim", "s1"])).unwrap();
         remote(
@@ -114,7 +114,7 @@ fn a_refused_run_setting_becomes_a_visible_failure_receipt() {
     assert!(receipt["error"]
         .as_str()
         .unwrap_or_default()
-        .contains("four attempts"));
+        .contains("2 attempts"));
     remote(
         &s,
         &db,

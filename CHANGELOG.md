@@ -70,6 +70,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Model changes now use Conductor's own session-scoped picker handler.** The
+  phone invokes the mounted picker callback that Conductor uses itself and keeps
+  exact visible-menu selection as fallback. Database acknowledgement still
+  decides success, while two short attempts replace the long retry chain that
+  held a queued message on “Waiting for Conductor.”
+
 - **Fresh mobile chats use the title Conductor presents.** Conductor can keep
   `New Chat` in the session row while its sidebar presents a workspace name or
   branch. The mobile snapshot now derives that same readable workspace label

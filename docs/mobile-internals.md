@@ -175,10 +175,19 @@ supports None and Ultra. Wire values stay unchanged so the visible Conductor
 control receives the exact value selected on the phone, while the phone uses
 the same human-facing “Extra high” label as the Mac.
 
+Model changes call the exact mounted picker `onSelect` handler whose enclosing
+component belongs to the selected session. This is Conductor's own model
+mutation path, including its cross-provider new-chat behavior. Opening the
+visible picker and choosing its exact menu item remains a compatibility
+fallback; neither path writes Conductor's database, and both require database
+readback before the setting is acknowledged.
+
 Settings have durable leases and failure receipts. Before retrying a click, the
 panel checks Conductor's database state. This prevents a slow successful toggle
-from being toggled back on retry. After four failed attempts, the phone receives
-an explicit error until it acknowledges the receipt or it expires.
+from being toggled back on retry. After two failed attempts, the phone receives
+an explicit error until it acknowledges the receipt or it expires. A short
+retry pause prevents a refused setting from holding the queued message behind
+it for tens of seconds.
 
 Picker choices are matched to Conductor's human label exactly after normalizing
 the wire ID. Substring matching is unsafe: `sonnet-4-6` matches both “Sonnet

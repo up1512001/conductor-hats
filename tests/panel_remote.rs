@@ -86,6 +86,22 @@ fn remote_run_settings_use_conductors_visible_controls() {
     );
 }
 
+#[test]
+fn remote_models_use_conductors_session_scoped_picker_handler_first() {
+    must(
+        &controls(),
+        &[
+            "rootFiber()",
+            "visibleBuiltInModelIds",
+            "hasSession(node, item.session)",
+            "typeof props?.onSelect === \"function\"",
+            "handler(item.value, { focusComposer: false })",
+            "Change agent (",
+        ],
+        "Conductor model picker handler",
+    );
+}
+
 /// A queued model change has to reach Conductor before the message sent with it.
 ///
 /// The panel used to make that true by calling two commands in order, which only

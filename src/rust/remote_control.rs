@@ -14,7 +14,7 @@ const LEASE: Duration = Duration::from_secs(60);
 const EXPIRY: Duration = Duration::from_secs(15 * 60);
 
 /// How many times the panel may fail to apply one setting before it is dropped.
-const ATTEMPTS: u32 = 4;
+const ATTEMPTS: u32 = 2;
 
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct Control {
@@ -210,7 +210,7 @@ pub fn finish(control: &Control, completed: bool) -> Result<(), String> {
         if current.attempts >= ATTEMPTS {
             current.done = true;
             current.error = format!(
-                "Conductor did not apply {}={} after four attempts",
+                "Conductor did not apply {}={} after {ATTEMPTS} attempts",
                 current.setting, current.value
             );
         }

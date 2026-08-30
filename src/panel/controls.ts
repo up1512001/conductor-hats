@@ -1,13 +1,15 @@
 /**
  * Applies a phone run setting through Conductor's own visible controls.
  *
- * Nothing writes Conductor's database. The panel finds the real control beside
- * the composer, opens it, picks the value by its label, then asks hats whether
- * the change actually landed. A control that cannot be found, or a value that
- * does not take, is released rather than reported as applied.
+ * Nothing writes Conductor's database. Models go through the mounted picker's
+ * own handler; other settings, and compatibility fallback, use the real control
+ * beside the composer. Hats then checks whether the change actually landed. A
+ * control that cannot be found, or a value that does not take, is released
+ * rather than reported as applied.
  */
 
 import { acct, log, q } from "./cli.js";
+import { NODES, rootFiber, type Fiber } from "./fiber.js";
 
 export interface Control {
   id: string;
@@ -35,6 +37,70 @@ function visible(node: HTMLElement): boolean {
 
 function words(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
+}
+
+function hasSession(node: Fiber, session: string): boolean {
+  for (let here: Fiber | null | undefined = node, hops = 0; here && hops < 60;
+    here = here.return, hops += 1) {
+    const props = here.memoizedProps;
+    const params = record(props?.params);
+    const current = record(props?.session);
+    const candidates = [
+      props?.sessionId,
+      props?.selectedSessionId,
+      props?.viewSessionId,
+      props?.targetSessionId,
+      params?.sessionId,
+      current?.id,
+    ];
+    if (candidates.includes(session)) return true;
+  }
+  return false;
+}
+
+function modelHandler(item: Control): ((...args: unknown[]) => unknown) | null {
+  const start = rootFiber();
+  if (!start) return null;
+  const stack: Fiber[] = [start];
+  let seen = 0;
+  let current: ((...args: unknown[]) => unknown) | null = null;
+  let ambiguous = false;
+  while (stack.length && seen < NODES) {
+    const node = stack.pop() as Fiber;
+    seen += 1;
+    const props = node.memoizedProps;
+    const visible = record(props?.visibleBuiltInModelIds);
+    const includes = visible && Object.values(visible).some((models) =>
+      Array.isArray(models) && models.includes(item.value)
+    );
+    if (includes && typeof props?.onSelect === "function") {
+      const handler = props.onSelect as (...args: unknown[]) => unknown;
+      if (hasSession(node, item.session)) return handler;
+      if (props.selectedModel === item.before) {
+        ambiguous ||= current !== null && current !== handler;
+        current = handler;
+      }
+    }
+    if (node.child) stack.push(node.child);
+    if (node.sibling) stack.push(node.sibling);
+  }
+  return ambiguous ? null : current;
+}
+
+async function selectModel(item: Control): Promise<boolean> {
+  const handler = modelHandler(item);
+  if (!handler) return false;
+  try {
+    await handler(item.value, { focusComposer: false });
+    return true;
+  } catch (error) {
+    log("Conductor model handler failed", error);
+    return false;
+  }
 }
 
 function modelWords(value: string): string {
@@ -93,6 +159,10 @@ function opener(scope: HTMLElement, item: Control): HTMLElement | null {
     node.textContent,
   ].filter(Boolean).join(" ");
   if (item.setting === "model" && currentModel) {
+    const agent = nodes.find((node) =>
+      (node.getAttribute("aria-label") || "").startsWith("Change agent (")
+    );
+    if (agent) return agent;
     const current = nodes.find((node) => words(hint(node)).includes(currentModel));
     if (current) return current;
   }
@@ -128,19 +198,23 @@ export async function applyControl(item: Control): Promise<boolean> {
     await controlCommand("complete", item);
     return true;
   }
-  const scope = controlScope();
-  const button = scope && opener(scope, item);
-  if (!button) return false;
-  button.click();
-  if (item.setting !== "fast") {
-    const choice = await waitChoice(item, 1800);
-    if (!choice) {
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-      return false;
+  let invoked = item.setting === "model" && await selectModel(item);
+  if (!invoked) {
+    const scope = controlScope();
+    const button = scope && opener(scope, item);
+    if (!button) return false;
+    button.click();
+    invoked = true;
+    if (item.setting !== "fast") {
+      const choice = await waitChoice(item, 1800);
+      if (!choice) {
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        return false;
+      }
+      choice.click();
     }
-    choice.click();
   }
-  for (let attempt = 0; attempt < 24; attempt += 1) {
+  for (let attempt = 0; invoked && attempt < 20; attempt += 1) {
     if (await applied(item)) {
       await controlCommand("complete", item);
       log("remote run setting applied", item.setting, item.session);
