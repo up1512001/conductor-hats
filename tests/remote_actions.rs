@@ -173,3 +173,66 @@ fn a_cross_agent_model_opens_and_reports_conductors_new_chat() {
     );
     assert!(!file.exists());
 }
+
+/// Conductor keeps a Claude effort column and a Codex thinking column on every
+/// chat and only writes the one its agent owns, so the other holds whatever it
+/// held last. Reading the first non-empty of the two checked a Codex chat
+/// against its stale Claude value: the level the phone asked for was applied on
+/// the Mac, the check never saw it, and the phone reported "Conductor did not
+/// apply effort=max after 2 attempts".
+fn effort_database(s: &Sandbox) -> String {
+    let path = s.path("effort.db");
+    let sql = "create table session_messages (id text, session_id text, role text, \
+         content text, created_at text, sent_at text, cancelled_at text); \
+         create table workspaces (id text, repository_id text); \
+         insert into workspaces values ('w1','r1'); \
+         create table sessions (id text, claude_session_id text, agent_type text, \
+             workspace_id text, model text, claude_effort_level text, codex_thinking_level text); \
+         insert into sessions values ('s1','router-s1','codex','w1','gpt-5.6-sol','high','max'); \
+         insert into sessions values ('s2','router-s2','claude','w1','opus-5-1m','xhigh','max');";
+    let out = std::process::Command::new("sqlite3")
+        .arg(&path)
+        .arg(sql)
+        .output()
+        .expect("building the effort fixture");
+    assert!(out.status.success(), "sqlite3 refused the fixture");
+    path.to_string_lossy().to_string()
+}
+
+fn checked(s: &Sandbox, db: &str, session: &str, value: &str) -> bool {
+    let made = remote(s, db, &["control-enqueue", session, "effort", value, ""]);
+    assert!(!made.trim().is_empty(), "the setting was not queued");
+    let claim: serde_json::Value =
+        serde_json::from_str(&remote(s, db, &["control-claim", session])).unwrap();
+    let raw = serde_json::to_string(&claim).unwrap();
+    let seen: serde_json::Value =
+        serde_json::from_str(&remote(s, db, &["control-check", &raw])).unwrap();
+    remote(s, db, &["control-release", &raw]);
+    seen["applied"] == true
+}
+
+#[test]
+fn effort_is_checked_against_the_column_its_own_agent_writes() {
+    if !sqlite() {
+        eprintln!("skipped: sqlite3 is not installed");
+        return;
+    }
+    let s = Sandbox::new();
+    let db = effort_database(&s);
+    assert!(
+        checked(&s, &db, "s1", "max"),
+        "a codex chat is not read from its thinking level"
+    );
+    assert!(
+        !checked(&s, &db, "s1", "high"),
+        "a codex chat is still read from a stale Claude effort level"
+    );
+    assert!(
+        checked(&s, &db, "s2", "xhigh"),
+        "a claude chat is not read from its effort level"
+    );
+    assert!(
+        !checked(&s, &db, "s2", "max"),
+        "a claude chat is read from the Codex thinking level"
+    );
+}

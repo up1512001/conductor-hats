@@ -68,11 +68,20 @@ pub fn first_in_workspace(workspace: &str, sessions: &[String]) -> Option<Route>
         .find_map(|session| found.get(session).cloned())
 }
 
+/// Conductor keeps one effort column per agent and only ever writes the one the
+/// chat's agent owns, so the other keeps whatever it held when the chat last ran
+/// on that agent. Reading the first non-empty of the two therefore reports a
+/// codex chat's stale Claude effort as its thinking level: the value the phone
+/// asked for is applied, the check never sees it, and the setting is reported as
+/// refused after two attempts. The agent picks the column.
+const EFFORT: &str = "case when coalesce(agent_type,'claude')='codex' \
+     then coalesce(codex_thinking_level,'') else coalesce(claude_effort_level,'') end";
+
 pub fn setting(session: &str, setting: &str) -> Option<String> {
     let session = safe(session)?;
     let expression = match setting {
         "model" => "coalesce(model,'')",
-        "effort" => "coalesce(nullif(claude_effort_level,''),codex_thinking_level,'')",
+        "effort" => EFFORT,
         "permission" => "coalesce(permission_mode,'')",
         "fast" => "coalesce(fast_mode,0)",
         _ => return None,

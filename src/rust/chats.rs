@@ -63,7 +63,9 @@ const CHATS_DETAIL: &str = "select w.directory_name, w.workspace_path, s.id, \
      replace(coalesce(nullif(s.title,''),'Untitled'), '|', ' '), \
      coalesce(s.context_used_percent,0), coalesce(s.context_token_count,0), \
      coalesce(s.model,''), coalesce(s.permission_mode,''), \
-     coalesce(nullif(s.claude_effort_level,''),s.codex_thinking_level,''), \
+     case when coalesce(s.agent_type,'claude')='codex' \
+       then coalesce(s.codex_thinking_level,'') \
+       else coalesce(s.claude_effort_level,'') end, \
      coalesce(s.agent_personality,''), coalesce(s.fast_mode,0), coalesce(s.updated_at,''), \
      w.id, coalesce(w.repository_id,''), coalesce(r.name,''), coalesce(r.root_path,''), \
      replace(coalesce(nullif(w.workspace_name,''),nullif(w.branch,''),w.directory_name),'|',' ') \
