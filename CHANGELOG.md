@@ -70,6 +70,39 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Thinking level applies from a phone.** Conductor's composer control for
+  effort is a bar meter bound to `chat.toggleThinking`, so a press advances one
+  level rather than opening a list. The panel was pressing it, which applied
+  whichever level came next, and the phone reported "Conductor did not apply
+  effort=high after 2 attempts" while the level on the Mac moved on its own. The
+  setting now goes through the picker's own apply function, the same one a click
+  on the Mac reaches, and falls back to the picker's Effort submenu. The panel
+  never presses that button again, and a test holds it out of reach.
+
+- **A Codex chat is checked against its own thinking level.** Conductor keeps a
+  Claude effort column and a Codex thinking column on every chat and writes only
+  the one its agent owns, so the other keeps whatever it last held. Reading the
+  first non-empty of the two compared a Codex chat with a stale Claude value:
+  the level applied on the Mac, the check never saw it, and the phone called the
+  setting refused. Both the check and the chat list now pick the column by
+  agent.
+
+- **The phone offers the levels the model actually has.** Effort is per model,
+  not per agent: Sonnet 4.6 has no extra-high, Opus carries Ultracode above Max,
+  Haiku has no effort at all, and gpt-5.6 calls its lowest level Light. The menu
+  now mirrors Conductor's own registry, the control disappears on a model with
+  no levels, and the button draws Conductor's meter, filled to the level in
+  force.
+
+- **Tool rows use Conductor's own icons.** The transcript drew a hand-made set
+  that answered a shape rather than a tool: one padlock, one wrench, a brain
+  nothing else used. Every mark is now the lucide node Conductor draws, matched
+  by the same tool names it matches, so a terminal, a file, a search and an edit
+  read the same on both screens. A call and the result that answered it share
+  one row, as they do on the Mac, a read is named by what came back, a change to
+  a file carries what it added and removed, and the provider's own mark sits on
+  the model control.
+
 - **Thinking and tool activity now read like Conductor.** Thinking uses a brain
   icon with a quiet inline preview, while consecutive tool calls and results
   collapse into a count with semantic terminal, file, search, web, edit and
