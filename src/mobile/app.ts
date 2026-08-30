@@ -7,7 +7,8 @@ import { echoManager } from "./echo.js";
 import { hold, restore, type Held } from "./place.js";
 import { noticeFor } from "./notice.js";
 import { groupProjects } from "./projects.js";
-import { chatView, composerControls, controlMenu, projectView, projectsView, settingsView } from "./render.js";
+import { composerControls, controlMenu } from "./composer.js";
+import { chatView, projectView, projectsView, settingsView } from "./render.js";
 import type { Chat, MobileSnapshot } from "./types.js";
 
 const view = document.getElementById("view") as HTMLElement;

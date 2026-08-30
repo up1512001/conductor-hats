@@ -87,10 +87,10 @@ fn the_open_conductor_app_owns_the_pairing_and_phone_screen() {
 fn model_account_and_thinking_controls_live_in_the_chat_composer() {
     let page = source("src/mobile/index.html");
     let app = source("src/mobile/app.ts");
-    let render = source("src/mobile/render.ts");
+    let composer = source("src/mobile/composer.ts");
     must(&page, &["id=\"composer-tools\""]);
     must(
-        &render,
+        &composer,
         &[
             "composerControls",
             "controlMenu",
@@ -101,14 +101,15 @@ fn model_account_and_thinking_controls_live_in_the_chat_composer() {
         ],
     );
     must(&app, &["openControl", "chooseControl", "updateSend()"]);
-    assert!(!render.contains("run-settings"));
+    assert!(!composer.contains("run-settings"));
 }
 
 #[test]
 fn model_and_thinking_choices_match_conductor() {
     let catalog = source("src/panel/model_catalog.ts");
     let state = source("src/rust/mobile_state.rs");
-    let render = source("src/mobile/render.ts");
+    let composer = source("src/mobile/composer.ts");
+    let effort = source("src/mobile/effort.ts");
     must(
         &catalog,
         &[
@@ -119,14 +120,24 @@ fn model_and_thinking_choices_match_conductor() {
         ],
     );
     must(
-        &render,
+        &composer,
         &[
-            "[\"low\", \"medium\", \"high\", \"xhigh\", \"max\"]",
-            "Extra high",
             "modelLabel(value)",
             "models?.[agent]",
             "Claude Code",
             "Codex",
+        ],
+    );
+    must(
+        &effort,
+        &[
+            "\"opus-5-1m\": TO_ULTRACODE",
+            "\"sonnet-4-6\": TO_MAX",
+            "\"haiku-4-5\": []",
+            "\"gpt-5.6-sol\": NONE_TO_ULTRA",
+            "Extra high",
+            "Ultracode",
+            "Light",
         ],
     );
     must(&state, &["apply_titles", "catalog.titles"]);

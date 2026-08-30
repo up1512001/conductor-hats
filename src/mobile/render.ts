@@ -1,6 +1,6 @@
 /** Conductor's own list, chat and composer surfaces, drawn for a phone. */
 
-import type { Account, ActiveChat, Chat, MobileSnapshot, Project, TranscriptLine } from "./types.js";
+import type { ActiveChat, Chat, MobileSnapshot, Project, TranscriptLine } from "./types.js";
 import { chevron, markdown, esc, when } from "./markup.js";
 import { activityCluster, activityLine } from "./activity.js";
 
@@ -144,116 +144,6 @@ export function chatView(
     <div class="gauge"><span>Context</span><span class="gauge-track"><span class="g${band}"></span></span>
       <span>${Math.round(chat.context || 0)}%${chat.context_tokens ? ` · ${Math.round(chat.context_tokens / 1000)}k` : ""}</span></div></section>
     <section class="thread">${lines + queued + local || `<p class="empty">${subscribed ? "No messages yet." : "Loading conversation…"}</p>`}</section>`;
-}
-
-const GLYPH: Record<string, string> = {
-  account: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-4 3-6 7-6s6.3 2 7 6"/></svg>',
-  model: '<svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M6 6l12 12M18 6L6 18"/></svg>',
-  effort: '<svg viewBox="0 0 24 24"><path d="M6 20V10M12 20V4M18 20v-6"/></svg>',
-  fast: '<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
-  permission: '<svg viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.4 8.3-8 9-4.6-.7-8-4-8-9V7z"/></svg>',
-};
-
-/**
- * Conductor's own composer row: the run settings sit under the message, each as
- * an icon and its current value, and open in place.
- *
- * They belong here rather than on a chat row or behind a sheet, because they are
- * what the next message is sent with. This is the arrangement Conductor uses on
- * the Mac, so the phone reads the same way round.
- */
-export function composerControls(chat: Chat | null, active: ActiveChat | null): string {
-  if (!chat) return "";
-  const pending = active?.session === chat.session && !!active.controls?.length;
-  const held = (setting: string, fallback: string): string =>
-    (active?.session === chat.session ? active.controls || [] : [])
-      .find((item) => item.setting === setting)?.value || fallback;
-  const button = (setting: string, label: string): string =>
-    `<button type="button" class="tool-btn ${pending ? "busy" : ""}" data-control="${esc(setting)}"
-      aria-label="${esc(setting)}">${GLYPH[setting] || ""}${label ? `<span>${esc(label)}</span>` : ""}</button>`;
-  const model = held("model", chat.model);
-  const effort = held("effort", chat.effort);
-  return button("account", chat.next || chat.on || "Account")
-    + button("model", model ? modelLabel(model) : "Model")
-    + button("effort", effort ? optionLabel("effort", effort) : "Thinking")
-    + button("fast", held("fast", chat.fast ? "on" : "off") === "on" ? "Fast" : "")
-    + button("permission", held("permission", chat.permission || "default") === "default" ? "" : held("permission", chat.permission || "default"));
-}
-
-const EFFORTS: Record<string, string[]> = {
-  claude: ["low", "medium", "high", "xhigh", "max"],
-  codex: ["none", "low", "medium", "high", "xhigh", "max", "ultra"],
-};
-
-function title(value: string): string {
-  return value.slice(0, 1).toUpperCase() + value.slice(1);
-}
-
-function modelLabel(value: string): string {
-  const aliases: Record<string, string> = {
-    opus: "Opus 4.8",
-    "opus-1m": "Opus 4.8 1M",
-    sonnet: "Sonnet 4.6",
-    haiku: "Haiku 4.5",
-    "opus-5-1m": "Opus 5",
-  };
-  const model = value.replace(/^claude-/, "").replace(/^gpt-/, "");
-  if (aliases[model]) return aliases[model];
-  const million = model.match(/^([a-z]+)-(\d+)-1m$/i);
-  if (million) return `${title(million[1] || "")} ${million[2]} 1M`;
-  const version = model.match(/^([a-z]+)-(\d+)-(\d+)(-1m)?$/i);
-  if (version) {
-    return `${title(version[1] || "")} ${version[2]}.${version[3]}${version[4] ? " 1M" : ""}`;
-  }
-  return model.split("-").filter(Boolean).map((part) => title(part)).join(" ");
-}
-
-function optionLabel(setting: string, value: string): string {
-  if (setting === "model") return modelLabel(value);
-  if (setting === "effort") return value === "xhigh" ? "Extra high" : title(value);
-  return value;
-}
-
-function menuItem(setting: string, value: string, current: string): string {
-  return `<button type="button" class="menu-item ${value === current ? "on" : ""}"
-    data-setting="${esc(setting)}" data-value="${esc(value)}"
-    data-current="${esc(current)}">${esc(optionLabel(setting, value))}</button>`;
-}
-
-/** The values one control offers, as a menu anchored to its button. */
-export function controlMenu(
-  chat: Chat,
-  setting: string,
-  accounts: Record<string, Account[]>,
-  models: Record<string, string[]>
-): string {
-  const profiles = (accounts?.[chat.agent] || []).filter((item) => item.signed_in);
-  const lists: Record<string, string[]> = {
-    account: Array.from(new Set([chat.next, ...profiles.map((item) => item.name)].filter(Boolean))),
-    effort: EFFORTS[chat.agent] || [],
-    fast: ["off", "on"],
-    permission: ["default", "plan", "acceptEdits", "bypassPermissions"],
-  };
-  const now: Record<string, string> = {
-    account: chat.next || chat.on,
-    model: chat.model,
-    effort: chat.effort,
-    fast: chat.fast ? "on" : "off",
-    permission: chat.permission || "default",
-  };
-  const current = now[setting] || "";
-  if (setting === "model") {
-    const known = ["claude", "codex"].flatMap((agent) => models?.[agent] || []);
-    return `<div class="menu model-menu">${["claude", "codex"].map((agent) => {
-      const values = [...(models?.[agent] || [])];
-      if (agent === chat.agent && current && !known.includes(current)) values.push(current);
-      const label = agent === "claude" ? "Claude Code" : "Codex";
-      return `<section class="menu-section"><div class="menu-label">${label}</div>
-        ${values.map((value) => menuItem(setting, value, current)).join("")}</section>`;
-    }).join("")}</div>`;
-  }
-  const values = Array.from(new Set([...(lists[setting] || []), current].filter(Boolean)));
-  return `<div class="menu">${values.map((value) => menuItem(setting, value, current)).join("")}</div>`;
 }
 
 export function settingsView(snapshot: MobileSnapshot): string {

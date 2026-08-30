@@ -204,6 +204,9 @@ main { flex: 1 1 auto; min-height: 0; width: 100%; max-width: 720px; margin: 0 a
   white-space: nowrap;
 }
 .tool-btn svg { width: 14px; height: 14px; }
+/** Conductor's effort meter and provider marks are filled, not stroked. */
+.tool-btn .meter { width: auto; height: 12px; fill: currentColor; stroke: none; }
+.tool-btn .mark-svg { fill: currentColor; stroke: none; }
 .tool-btn span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tool-btn:active, .tool-btn.open { background: var(--card); color: var(--fg); }
 .tool-btn.busy { opacity: .5; }
