@@ -117,3 +117,26 @@ fn invalid_or_unscoped_catalogs_fail_closed() {
     assert_ne!(unscoped.status, 0, "an unpaired app published models");
     assert!(unscoped.out().contains("mobile access is not paired"));
 }
+
+#[test]
+fn placeholder_session_titles_are_not_published() {
+    if !sqlite() {
+        eprintln!("skipped: sqlite3 is not installed");
+        return;
+    }
+    let s = Sandbox::new();
+    let db = database(&s, "conductor.db");
+    selected(&db);
+    let catalog = r#"{"models":{"claude":["opus-5-1m"],"codex":["gpt-5.6-sol"]},"titles":{"12345678-abcd":"New Chat","87654321-abcd":"Real title"}}"#;
+    s.hats_env(
+        &["remote", "catalog", "workspace-a", catalog],
+        &[("CONDUCTOR_DB", &db.to_string_lossy())],
+    )
+    .ok();
+
+    let body: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(s.accounts().join("serve-catalog")).unwrap())
+            .unwrap();
+    assert!(body["catalog"]["titles"]["12345678-abcd"].is_null());
+    assert_eq!(body["catalog"]["titles"]["87654321-abcd"], "Real title");
+}

@@ -41,8 +41,9 @@ function rememberTitle(titles: Titles, id: unknown, title: unknown, force = fals
   const value = title.trim();
   if (!value || value.length > 240) return;
   const placeholder = /^(new chat|untitled)$/i.test(value);
+  if (placeholder) return;
   const existing = titles[id] || "";
-  if (force || !existing || /^(new chat|untitled)$/i.test(existing) || !placeholder && value.length > existing.length) {
+  if (force || !existing || value.length > existing.length) {
     titles[id] = value;
   }
 }

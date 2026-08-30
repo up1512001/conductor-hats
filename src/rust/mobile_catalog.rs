@@ -32,6 +32,10 @@ fn safe(value: &str, limit: usize) -> bool {
     !value.is_empty() && value.len() <= limit && !value.chars().any(char::is_control)
 }
 
+fn real_title(value: &str) -> bool {
+    !value.eq_ignore_ascii_case("new chat") && !value.eq_ignore_ascii_case("untitled")
+}
+
 fn cleaned(raw: &str) -> Result<Catalog, String> {
     if raw.len() > MAX_CATALOG {
         return Err("the Conductor model catalog is too large".into());
@@ -70,7 +74,9 @@ fn cleaned(raw: &str) -> Result<Catalog, String> {
     let titles = incoming
         .titles
         .into_iter()
-        .filter(|(session, title)| id::session(session).is_some() && safe(title, 240))
+        .filter(|(session, title)| {
+            id::session(session).is_some() && safe(title, 240) && real_title(title.trim())
+        })
         .collect();
     Ok(Catalog { models, titles })
 }

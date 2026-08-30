@@ -24,9 +24,9 @@ fn database(s: &Sandbox) -> String {
     let sql = format!(
         "create table repos (id text, name text, root_path text);\n\
          insert into repos values ('r1','Project One','{project}');\n\
-         create table workspaces (id text, directory_name text, workspace_path text, state text, active_session_id text, repository_id text, created_at text);\n\
-         insert into workspaces values ('w1','ws-live','{live}','ready','s1','r1','2026-01-02');\n\
-         insert into workspaces values ('w2','ws-archived','{gone}','archived','s3','r1','2026-01-01');\n\
+         create table workspaces (id text, directory_name text, workspace_path text, state text, active_session_id text, repository_id text, created_at text, workspace_name text, branch text);\n\
+         insert into workspaces values ('w1','ws-live','{live}','ready','s1','r1','2026-01-02','','feat/ws-live');\n\
+         insert into workspaces values ('w2','ws-archived','{gone}','archived','s3','r1','2026-01-01','','feat/ws-archived');\n\
          create table sessions (id text, claude_session_id text, agent_type text, status text, \
              unread_count integer, title text, context_used_percent real, is_hidden integer, \
              workspace_id text, updated_at text, context_token_count integer, model text, \

@@ -65,7 +65,8 @@ const CHATS_DETAIL: &str = "select w.directory_name, w.workspace_path, s.id, \
      coalesce(s.model,''), coalesce(s.permission_mode,''), \
      coalesce(nullif(s.claude_effort_level,''),s.codex_thinking_level,''), \
      coalesce(s.agent_personality,''), coalesce(s.fast_mode,0), coalesce(s.updated_at,''), \
-     w.id, coalesce(w.repository_id,''), coalesce(r.name,''), coalesce(r.root_path,'') \
+     w.id, coalesce(w.repository_id,''), coalesce(r.name,''), coalesce(r.root_path,''), \
+     replace(coalesce(nullif(w.workspace_name,''),nullif(w.branch,''),w.directory_name),'|',' ') \
    from sessions s join workspaces w on w.id = s.workspace_id \
    left join repos r on r.id = w.repository_id \
    where w.state != 'archived' and coalesce(s.is_hidden,0) = 0 \
@@ -131,6 +132,7 @@ fn parse(line: &str) -> Option<Chat> {
     };
     let on = session::started(&agent, &router_id).unwrap_or_default();
     let next = session::pinned(&agent, &router_id).unwrap_or_default();
+    let title = presentation_title(f[7], f.get(20).unwrap_or(&""));
     Some(Chat {
         project,
         project_path,
@@ -142,7 +144,7 @@ fn parse(line: &str) -> Option<Chat> {
         agent,
         status: f[5].to_string(),
         unread: f[6].parse().unwrap_or(0),
-        title: f[7].to_string(),
+        title,
         context: f[8].parse().unwrap_or(0.0),
         context_tokens: f.get(9).and_then(|v| v.parse().ok()).unwrap_or(0),
         model: f.get(10).unwrap_or(&"").to_string(),
@@ -154,6 +156,24 @@ fn parse(line: &str) -> Option<Chat> {
         on,
         next,
     })
+}
+
+fn presentation_title(session: &str, workspace: &str) -> String {
+    if !session.trim().is_empty()
+        && !session.eq_ignore_ascii_case("new chat")
+        && !session.eq_ignore_ascii_case("untitled")
+    {
+        return session.to_string();
+    }
+    let label = workspace.rsplit('/').next().unwrap_or(workspace).trim();
+    if label.is_empty() {
+        return session.to_string();
+    }
+    let mut words = label.replace(['-', '_'], " ");
+    if let Some(first) = words.get_mut(0..1) {
+        first.make_ascii_uppercase();
+    }
+    words
 }
 
 /// A chat with no pin follows its workspace, so the workspace's answer is what
@@ -248,4 +268,29 @@ pub fn json_string() -> Result<String, String> {
         })
         .collect();
     serde_json::to_string(&wire).map_err(|e| format!("{e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::presentation_title;
+
+    #[test]
+    fn placeholder_titles_follow_conductors_workspace_label() {
+        assert_eq!(
+            presentation_title("New Chat", "feat/which-model-am-i"),
+            "Which model am i"
+        );
+        assert_eq!(
+            presentation_title("Untitled", "named_workspace"),
+            "Named workspace"
+        );
+    }
+
+    #[test]
+    fn generated_chat_titles_win_over_workspace_labels() {
+        assert_eq!(
+            presentation_title("Fix model picker", "feat/which-model-am-i"),
+            "Fix model picker"
+        );
+    }
 }

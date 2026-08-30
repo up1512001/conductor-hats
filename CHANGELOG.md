@@ -70,6 +70,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Fresh mobile chats use the title Conductor presents.** Conductor can keep
+  `New Chat` in the session row while its sidebar presents a workspace name or
+  branch. The mobile snapshot now derives that same readable workspace label
+  until Conductor generates a real chat title, and stale placeholder catalog
+  entries can no longer replace it.
+
 - **Mobile now uses Conductor's live chat titles and complete model picker.** A
   generated sidebar title can lead the persisted `sessions.title` value, so the
   panel publishes the live session title and the phone applies it by exact

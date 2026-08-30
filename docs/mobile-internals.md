@@ -161,13 +161,13 @@ Conductor's live catalog does not contain it; hats carries no fallback model
 inventory of its own. Repeating an unchanged publication does not rewrite the
 record or wake every connected phone.
 
-That live publication also carries session-title overrides. Conductor can paint
-a generated title in its sidebar while the read-only `sessions.title` column is
-still `New Chat`; treating the column as the final presentation value makes the
-Mac and phone disagree even though both are internally consistent. Session
-objects in the mounted component tree supply the current title, and visible
-sidebar routes are the final authority for the rows actually on screen. The
-server applies those overrides only to matching session IDs.
+That live publication also carries non-placeholder session-title overrides.
+Conductor can keep `New Chat` in the read-only session row while its sidebar
+already presents the workspace's custom name or branch. The snapshot keeps a
+real generated session title, otherwise it derives the readable workspace label
+Conductor presents. Session objects in the mounted component tree may supply a
+newer real title, but placeholder catalog entries are ignored so they cannot
+replace the workspace presentation value.
 
 Thinking values remain provider capabilities rather than model inventory.
 Claude exposes Low, Medium, High, Extra high (`xhigh`) and Max; Codex also

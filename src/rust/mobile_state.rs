@@ -93,7 +93,11 @@ fn apply_titles(value: &mut serde_json::Value, titles: &BTreeMap<String, String>
             .get("session")
             .and_then(|item| item.as_str())
             .unwrap_or("");
-        if let Some(title) = titles.get(session) {
+        if let Some(title) = titles
+            .get(session)
+            .filter(|value| !value.eq_ignore_ascii_case("new chat"))
+            .filter(|value| !value.eq_ignore_ascii_case("untitled"))
+        {
             chat["title"] = serde_json::Value::String(title.clone());
         }
     }
