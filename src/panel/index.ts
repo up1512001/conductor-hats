@@ -12,8 +12,15 @@
 import { log } from "./cli.js";
 import { invalidate, loadState } from "./state.js";
 import { fromToolbar } from "./route.js";
+import { startRemoteDelivery } from "./remote.js";
 import { onRefreshTriggers, panel, redraw } from "./store.js";
-import { composerChip, refreshTriggers, toolbarButton } from "./triggers.js";
+import {
+  composerChip,
+  mobileButton,
+  refreshMobileTrigger,
+  refreshTriggers,
+  toolbarButton,
+} from "./triggers.js";
 import styles from "./styles.scss";
 
 const VERSION = "0.5.0";
@@ -71,6 +78,7 @@ function tick(): void {
   try {
     injectStyles();
     toolbarButton();
+    mobileButton();
     composerChip();
     chatChanged();
   } catch (e) {
@@ -81,6 +89,7 @@ function tick(): void {
 function boot(): void {
   onRefreshTriggers(refreshTriggers);
   tick();
+  startRemoteDelivery();
 
   let pending: ReturnType<typeof setTimeout> | null = null;
   new MutationObserver(() => {
@@ -107,6 +116,7 @@ function boot(): void {
     loadState()
       .then(refreshTriggers)
       .catch(() => {});
+    refreshMobileTrigger();
   }, 8000);
   log("ready");
 }

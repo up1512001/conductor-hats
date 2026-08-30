@@ -13,6 +13,7 @@ import {
 } from "./store.js";
 import { errorView, loadingView, rootView } from "./views/root.js";
 import { providerView } from "./views/provider.js";
+import { mobileView } from "./views/mobile.js";
 
 export function closePanel(): void {
   closeDialog();
@@ -35,7 +36,11 @@ function onDocDown(e: MouseEvent): void {
 
 function onDocKey(e: KeyboardEvent): void {
   if (e.key !== "Escape" || !panel || openDialog()) return;
-  if (panel.view.level === "provider") {
+  if (panel.anchor.id === "cma-mobile-btn") {
+    closePanel();
+    return;
+  }
+  if (panel.view.level !== "root") {
     panel.view = { level: "root" };
     render();
     return;
@@ -47,7 +52,8 @@ export function render(): void {
   if (!panel) return;
   const host = panel.el;
   host.replaceChildren();
-  if (panel.error) errorView(host, panel.error);
+  if (panel.view.level === "mobile") mobileView(host);
+  else if (panel.error) errorView(host, panel.error);
   else if (!panel.state) loadingView(host);
   else if (panel.view.level === "provider" && panel.view.agent) {
     providerView(panel.state, host, panel.view.agent);
@@ -76,9 +82,18 @@ export function togglePanel(anchor: HTMLElement): void {
   node.setAttribute("role", "menu");
   seal(node);
   mountFor(anchor).appendChild(node);
-  setPanel({ el: node, anchor, state: null, error: null, view: { level: "root" } });
+  const mobile = anchor.id === "cma-mobile-btn";
+  setPanel({
+    el: node,
+    anchor,
+    state: null,
+    error: null,
+    view: { level: mobile ? "mobile" : "root" },
+  });
   render();
   listen();
+
+  if (mobile) return;
 
   loadState(false, anchor.id === "cma-chip" ? "repository" : "workspace")
     .then((state) => {

@@ -155,7 +155,7 @@ fn display_names_are_capitalised_without_touching_the_cli() {
 /// The wireframe is a drill-down: providers first, then that provider's accounts
 /// with a sign-out each and one "Add new account" at the foot.
 #[test]
-fn the_panel_is_a_two_level_drill_down() {
+fn account_selection_is_a_provider_drill_down() {
     must(
         &source(),
         &[

@@ -51,8 +51,6 @@ export function rootView(state: PanelState, host: HTMLElement): void {
   host.appendChild(label(scopeText(state)));
   for (const p of state.providers) host.appendChild(providerCard(p));
 
-  host.appendChild(el("div", "cma-sep"));
-
   const toggle = el("button", "cma-card");
   toggle.type = "button";
   const main = el("div", "cma-grow");

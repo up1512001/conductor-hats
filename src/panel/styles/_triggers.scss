@@ -7,6 +7,34 @@
   @include trigger;
 }
 
+.cma-mobile-btn {
+  @include trigger;
+  position: relative;
+  min-width: 28px;
+  padding-right: 7px;
+  padding-left: 7px;
+
+  .cma-mobile-indicator {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    width: 6px;
+    height: 6px;
+    border: 1px solid var(--background);
+    border-radius: 50%;
+    background: $muted;
+  }
+
+  &.is-listening .cma-mobile-indicator {
+    background: #fbbf24;
+  }
+
+  &.is-connected .cma-mobile-indicator {
+    background: #22c55e;
+    box-shadow: 0 0 0 2px rgb(34 197 94 / 0.12);
+  }
+}
+
 /* The agent's mark in the toolbar, ahead of the account name. Sized to the text
  * beside it and inheriting its colour, so it reads as one control. */
 .cma-btn .cma-mark {

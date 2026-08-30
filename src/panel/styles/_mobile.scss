@@ -1,0 +1,160 @@
+/** Mobile pairing follows T3 Code's compact share panel in Conductor tokens. */
+
+@use "tokens" as *;
+
+.cma-mobile-intro {
+  padding-top: 0;
+}
+
+.cma-mobile-address {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: $radius-inner;
+
+  .cma-sub {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+}
+
+.cma-mobile-service {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 $radius-inner $radius-inner;
+
+  .cma-sub {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+}
+
+.cma-mobile-address:has(+ .cma-mobile-service) {
+  border-radius: $radius-inner $radius-inner 0 0;
+}
+
+.cma-service-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: $muted;
+
+  &.is-running {
+    background: #22c55e;
+    box-shadow: 0 0 0 3px rgb(34 197 94 / 0.12);
+  }
+}
+
+.cma-mobile-primary {
+  width: 100%;
+  margin-top: 7px;
+}
+
+.cma-mobile-secondary,
+.cma-mobile-danger {
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: $radius-tight;
+  background: transparent;
+  color: $muted;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+}
+
+.cma-mobile-danger {
+  color: $danger;
+
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in srgb, $danger 11%, transparent);
+    color: $danger;
+  }
+}
+
+.cma-qr-wrap {
+  display: flex;
+  justify-content: center;
+  width: fit-content;
+  margin: 10px auto 7px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
+
+  svg {
+    width: 168px;
+    height: 168px;
+  }
+}
+
+.cma-pair-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: $muted;
+  font-size: 11px;
+}
+
+.cma-pair-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fbbf24;
+}
+
+.cma-pair-expiry::before {
+  margin-right: 6px;
+  content: "·";
+}
+
+.cma-pair-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 5px 6px 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: $radius-tight;
+  background: var(--muted);
+
+  code {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: $muted;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  button {
+    flex: none;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--foreground);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--accent);
+    }
+  }
+}

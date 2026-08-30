@@ -21,6 +21,8 @@ const PATHS: Record<string, string[]> = {
   signin: ["M6.8 3.5h5v9h-5", "M8.6 8H2.2", "M4.4 5.9 2.2 8l2.2 2.1"],
   tick: ["M3.5 8.6 6.4 11.5 12.5 5"],
   plus: ["M8 3.5v9", "M3.5 8h9"],
+  phone: ["M5.2 2.2h5.6v11.6H5.2z", "M7.2 11.7h1.6"],
+  link: ["M6.5 10.5 5 12a2.1 2.1 0 0 1-3-3l2-2a2.1 2.1 0 0 1 3 0", "M9.5 5.5 11 4a2.1 2.1 0 0 1 3 3l-2 2a2.1 2.1 0 0 1-3 0", "M5.8 10.2l4.4-4.4"],
   claude: [CLAUDE_MARK],
   codex: [CODEX_MARK],
 };
