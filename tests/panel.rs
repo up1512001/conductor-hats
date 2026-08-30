@@ -139,6 +139,7 @@ fn the_built_panel_carries_the_behaviour() {
         "__conductorHats",
         ".cma-panel{position:fixed",
         "logout ",
+        "login-code ${profile} ${agent}",
         "pointerdown",
         "m4.7144",
         "M22.2819",

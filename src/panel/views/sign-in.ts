@@ -111,7 +111,7 @@ export function signInForm(agent: string, opts: SignInOptions): void {
       const code = codeField.value.trim();
       if (!code) return;
       status.textContent = "Checking…";
-      acct(`login-code ${profile} ${q(code)}`)
+      acct(`login-code ${profile} ${agent} ${q(code)}`)
         .then(() => poll(profile, 0))
         .catch((err) => fail(message(err)));
     });
