@@ -169,11 +169,29 @@ Conductor presents. Session objects in the mounted component tree may supply a
 newer real title, but placeholder catalog entries are ignored so they cannot
 replace the workspace presentation value.
 
-Thinking values remain provider capabilities rather than model inventory.
-Claude exposes Low, Medium, High, Extra high (`xhigh`) and Max; Codex also
-supports None and Ultra. Wire values stay unchanged so the visible Conductor
-control receives the exact value selected on the phone, while the phone uses
-the same human-facing “Extra high” label as the Mac.
+Thinking values are a capability of the model, not of the provider. Sonnet 4.6
+stops at Max with no Extra high, Opus carries Ultracode above Max, Haiku has no
+effort control at all, and gpt-5.6 calls its lowest level Light. The phone
+mirrors Conductor's own registry per model, hides the control on a model with no
+levels, and draws Conductor's meter filled to the level in force. Offering one
+list per agent showed levels Conductor would never accept. Wire values stay
+unchanged so the Mac receives exactly what was chosen on the phone.
+
+Effort does not go through the control beside the composer. That control is a
+bar meter bound to `chat.toggleThinking`: a press advances one level rather than
+opening a list, so pressing it applied whatever came next, the check never saw
+the level that was asked for, and the phone reported the setting refused after
+two attempts while the level on the Mac moved on its own. Effort calls the
+picker's own `onApplyConfiguration` with the configuration the chat is already
+holding and only the level changed, which is the function a click on the Mac
+reaches. The picker's Effort submenu is the compatibility fallback. A test keeps
+the composer control out of the opener.
+
+Conductor keeps a Claude effort column and a Codex thinking column on every chat
+and writes only the one its agent owns, so the other holds whatever it last
+held. Both the applied check and the chat list pick the column by the chat's
+agent; reading the first non-empty of the two compared a Codex chat with a stale
+Claude value and made every acknowledgement fail.
 
 Model changes call the exact mounted picker `onSelect` handler whose enclosing
 component belongs to the selected session. This is Conductor's own model
@@ -213,11 +231,19 @@ The page is an application shell: top bar, one scrolling content pane, and the
 composer as a real footer. Overlaying or guessing space for the composer caused
 the last message to be covered, especially after run controls were added.
 
-Thinking is a compact row with Conductor's brain metaphor and a truncated muted
-preview. Consecutive tool calls and results collapse into one activity row with
-semantic terminal, file, search, web, edit, and agent icons; expanding it shows
-the individual details. Text glyphs are not used as pretend icons, and open
-activity remains open across live snapshot replacement.
+A tool call and the result that answered it share one row, as they do on the
+Mac, with the tool's own mark, what it was pointed at, and for a change to a
+file what it added and removed. A read is named by what came back. Consecutive
+rows collapse behind a count and the marks of the tools they used; expanding
+shows the input and the output. Thinking is a row of the same shape.
+
+The marks are Conductor's, not an interpretation of them: the lucide nodes it
+draws, matched by the same tool names it matches, copied out of its frontend and
+documented in `src/mobile/icons.ts` with the command that extracts them again.
+A hand-made set answered the shape of a tool rather than the tool, which is how
+the phone ended up showing a padlock where the Mac showed a terminal. Text
+glyphs are not used as pretend icons, and open activity remains open across live
+snapshot replacement.
 
 The client preserves these UX rules:
 
