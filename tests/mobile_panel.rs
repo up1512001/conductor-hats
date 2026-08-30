@@ -130,6 +130,23 @@ fn model_and_thinking_choices_match_conductor() {
 }
 
 #[test]
+fn reported_header_and_toolbar_spacing_is_explicit() {
+    let mobile = source("src/mobile/styles.css");
+    let head = mobile
+        .lines()
+        .find(|line| line.starts_with(".head {"))
+        .expect("the mobile header rule");
+    assert!(
+        !head.contains("border-bottom"),
+        "the header divider returned"
+    );
+    must(
+        &source("src/panel/styles/_triggers.scss"),
+        &["margin-right: 4px", "#cma-toolbar-btn", "margin-right: 8px"],
+    );
+}
+
+#[test]
 fn the_qr_is_local_high_contrast_and_does_not_print_the_secret() {
     let qr = source("src/panel/qr.ts");
     let mobile = source("src/panel/views/mobile.ts");

@@ -11,6 +11,7 @@
   @include trigger;
   position: relative;
   min-width: 28px;
+  margin-right: 4px;
   padding-right: 7px;
   padding-left: 7px;
 
@@ -33,6 +34,10 @@
     background: #22c55e;
     box-shadow: 0 0 0 2px rgb(34 197 94 / 0.12);
   }
+}
+
+#cma-toolbar-btn {
+  margin-right: 8px;
 }
 
 /* The agent's mark in the toolbar, ahead of the account name. Sized to the text

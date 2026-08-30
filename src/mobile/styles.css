@@ -109,7 +109,7 @@ main { flex: 1 1 auto; min-height: 0; width: 100%; max-width: 720px; margin: 0 a
 .count.unread { background: var(--glow); color: #1a1512; font-weight: 600; }
 .count.pending { color: var(--amber); }
 
-.head { padding: 16px 2px 14px; border-bottom: 1px solid var(--line); }
+.head { padding: 16px 2px 14px; }
 .head-top { display: flex; gap: 11px; align-items: center; }
 .head h2 { margin: 0; font-size: 19px; font-weight: 610; letter-spacing: -.015em; }
 .head p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }

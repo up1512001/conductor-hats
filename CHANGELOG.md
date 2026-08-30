@@ -77,6 +77,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   exposes all five thinking levels, including **Extra high**, and model IDs are
   presented with Conductor-style names.
 
+- **The reported header divider and crowded toolbar cluster are fixed.** The
+  mobile chat header's stray bottom rule is gone, and the injected phone,
+  account and Open in controls have deliberate spacing instead of running
+  together.
+
 - **Reconnects restore the active chat subscription and failed actions stay
   actionable.** A reconnected socket resubscribes to the chat or new-chat
   request that was open. Rejected messages return to the composer by request
