@@ -143,7 +143,7 @@ dependencies = [
 
 [[package]]
 name = "hats"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "brotli",
  "flate2",
