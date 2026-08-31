@@ -70,6 +70,20 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The phone stops re-downloading everything.** The socket computed one stamp
+  over all state and resent the whole snapshot when any part of it moved. That
+  stamp included `places::revision()`, which covers the write-ahead log, so an
+  agent streaming in an unrelated workspace pushed the chat list and the open
+  transcript down the tunnel about three times a second: 257 KB a time,
+  measured, uncompressed. Each section carries its own stamp now and only what
+  moved is sent, the database probe is one query for both sections instead of
+  one per tick, and it is skipped entirely while the revision is unchanged, so
+  an idle phone costs no query at all. Snapshots above 4 KB are gzipped, one
+  direction only: nothing a client sends is ever decompressed. Measured on a
+  real 167-line transcript, a streaming update went from 257 KB to 53 KB, an
+  unrelated workspace from 257 KB to 18 KB, and write-ahead-log churn that
+  changed nothing visible from 257 KB to nothing at all.
+
 - **A repository binding now outranks the account chosen at creation time.** The
   creation choice is one global value that is never cleared, so a choice made
   for one repository was still being spent days later on the first workspace

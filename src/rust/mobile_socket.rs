@@ -14,8 +14,32 @@ fn header<'a>(request: &'a http::Request, name: &str) -> &'a str {
     request.headers.get(name).map(String::as_str).unwrap_or("")
 }
 
+/// Below this a frame is not worth compressing, and small control replies stay
+/// readable text on the wire.
+const PACK_OVER: usize = 4 * 1024;
+
+/// Snapshots are JSON and compress about five times over, measured on a real
+/// transcript: 263 KB of chat list and transcript became 54 KB. That matters on
+/// a phone at the far end of a tunnel far more than it costs to gzip here.
+///
+/// One direction only. Nothing the phone sends is ever decompressed, so no
+/// client can hand the Mac a small frame that expands into an enormous one.
+fn packed(value: &str) -> Option<Vec<u8>> {
+    use std::io::Write;
+    if value.len() < PACK_OVER {
+        return None;
+    }
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    encoder.write_all(value.as_bytes()).ok()?;
+    encoder.finish().ok()
+}
+
 fn send(socket: &mut WebSocket<TcpStream>, value: &str) -> bool {
-    socket.send(Message::Text(value.to_string().into())).is_ok()
+    let message = match packed(value) {
+        Some(packed) => Message::Binary(packed.into()),
+        None => Message::Text(value.to_string().into()),
+    };
+    socket.send(message).is_ok()
 }
 
 fn reply(
@@ -257,3 +281,7 @@ pub fn open(mut stream: TcpStream, request: &http::Request, credential: String) 
         }
     }
 }
+
+#[cfg(test)]
+#[path = "mobile_socket_tests.rs"]
+mod tests;

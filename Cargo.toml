@@ -15,6 +15,7 @@ path = "src/rust/main.rs"
 [dependencies]
 # Pure Rust, so the binary needs no C toolchain and cross-compiles cleanly.
 brotli = "8.0"
+flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 tungstenite = { version = "0.28", default-features = false, features = ["handshake"] }

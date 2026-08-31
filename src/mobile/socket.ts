@@ -2,6 +2,16 @@
 
 import type { MobileCommand, MobileSnapshot } from "./types.js";
 
+/**
+ * A snapshot large enough to be worth compressing arrives gzipped, because the
+ * chat list and an open transcript are JSON and shrink about five times over.
+ * Small frames stay text, so nothing here has to guess.
+ */
+async function unpack(body: ArrayBuffer): Promise<string> {
+  const stream = new Blob([body]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Response(stream).text();
+}
+
 const EMPTY: MobileSnapshot = {
   source: "",
   chats: [],
@@ -68,6 +78,7 @@ export function createTransport(handlers: Handlers): {
     closed = false;
     handlers.state(retry ? "Reconnecting" : "Connecting", false);
     socket = new WebSocket(address());
+    socket.binaryType = "arraybuffer";
     socket.addEventListener("open", () => {
       /* The Mac tracks what it has sent per connection, so a reconnect starts
        * from nothing on both ends. Keeping the old sections would leave the
@@ -77,8 +88,19 @@ export function createTransport(handlers: Handlers): {
       handlers.state("Live", true);
     });
     socket.addEventListener("message", (event) => {
+      const data: unknown = event.data;
+      if (data instanceof ArrayBuffer) {
+        unpack(data).then(deliver).catch(() =>
+          handlers.event({ type: "error", value: "The Mac sent an update this phone could not read" })
+        );
+        return;
+      }
+      deliver(String(data));
+    });
+
+    function deliver(body: string): void {
       try {
-        const value = JSON.parse(String(event.data)) as {
+        const value = JSON.parse(body) as {
           type?: string;
           value?: unknown;
           request?: string;
@@ -95,7 +117,7 @@ export function createTransport(handlers: Handlers): {
       } catch (_) {
         handlers.event({ type: "error", value: "The Mac sent an invalid update" });
       }
-    });
+    }
     socket.addEventListener("close", schedule);
     socket.addEventListener("error", () => socket?.close());
   }
