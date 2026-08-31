@@ -3,12 +3,9 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    chats, conductor_session, mask, mobile_catalog, paths, places, profile, remote, remote_control,
+    chats, conductor_session, mask, mobile_catalog, paths, profile, remote, remote_control,
     remote_create, session, transcript,
 };
-
-const PROBE: &str = "select (select max(rowid) from session_messages) || ':' || \
-     (select count(*) from sessions where status is not null and status != 'idle')";
 
 #[derive(serde::Serialize)]
 struct Account {
@@ -26,27 +23,36 @@ struct Active {
     creates: serde_json::Value,
 }
 
+/// Which sections the socket has decided are stale. Anything left out of the
+/// message is unchanged, and the phone keeps what it already holds.
+#[derive(Clone, Copy)]
+pub struct Want {
+    pub chats: bool,
+    pub active: bool,
+    pub accounts: bool,
+}
+
+impl Want {
+    pub fn any(&self) -> bool {
+        self.chats || self.active || self.accounts
+    }
+}
+
 #[derive(serde::Serialize)]
 struct Snapshot {
     r#type: &'static str,
     stamp: String,
-    chats: serde_json::Value,
-    active: Option<Active>,
-    accounts: BTreeMap<String, Vec<Account>>,
-    models: BTreeMap<String, Vec<String>>,
     source: String,
-}
-
-pub fn stamp() -> String {
-    format!(
-        "{}:{}:{}:{}:{}:{}",
-        places::revision(),
-        places::rows(PROBE).first().cloned().unwrap_or_default(),
-        remote::stamp(),
-        remote_control::stamp(),
-        remote_create::stamp(),
-        mobile_catalog::stamp()
-    )
+    /// Absent rather than null when unchanged. `active` is null when no chat is
+    /// open, so the two cases have to stay distinguishable on the wire.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chats: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    active: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    accounts: Option<BTreeMap<String, Vec<Account>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    models: Option<BTreeMap<String, Vec<String>>>,
 }
 
 fn accounts() -> BTreeMap<String, Vec<Account>> {
@@ -103,35 +109,50 @@ fn apply_titles(value: &mut serde_json::Value, titles: &BTreeMap<String, String>
     }
 }
 
-pub fn snapshot(selected: Option<&str>) -> Result<String, String> {
-    let mut chats: serde_json::Value =
-        serde_json::from_str(&chats::json_string()?).map_err(|e| format!("chat snapshot: {e}"))?;
+/// One message carrying only the sections the socket found stale.
+///
+/// Nothing here decides what is stale; that is `mobile_stamp`. Reading a section
+/// costs a query and a file walk, so a section the phone already has is not read
+/// at all, not read and then discarded.
+pub fn snapshot(selected: Option<&str>, want: Want, stamp: String) -> Result<String, String> {
     let catalog = mobile_catalog::current();
-    apply_titles(&mut chats, &catalog.titles);
-    let active = selected.and_then(|raw| {
-        let route = conductor_session::route(raw)?;
-        let transcript = serde_json::from_str(&transcript::as_json(&route.session, 180)).ok()?;
-        let outbox = serde_json::from_str(&remote::pending_json(&route.session).ok()?).ok()?;
-        let controls = remote_control::pending_json(&route.session).ok()?;
-        let creates = remote_create::pending_json(&route.session);
-        Some(Active {
-            session: route.session,
-            transcript,
-            outbox,
-            controls,
-            creates,
-        })
+    let mut listed = None;
+    let mut models_for = None;
+    if want.chats {
+        let mut chats: serde_json::Value = serde_json::from_str(&chats::json_string()?)
+            .map_err(|e| format!("chat snapshot: {e}"))?;
+        apply_titles(&mut chats, &catalog.titles);
+        models_for = Some(models(&chats, catalog.models));
+        listed = Some(chats);
+    }
+    let active = want.active.then(|| {
+        let found = selected.and_then(|raw| {
+            let route = conductor_session::route(raw)?;
+            let transcript =
+                serde_json::from_str(&transcript::as_json(&route.session, 180)).ok()?;
+            let outbox = serde_json::from_str(&remote::pending_json(&route.session).ok()?).ok()?;
+            let controls = remote_control::pending_json(&route.session).ok()?;
+            let creates = remote_create::pending_json(&route.session);
+            Some(Active {
+                session: route.session,
+                transcript,
+                outbox,
+                controls,
+                creates,
+            })
+        });
+        serde_json::to_value(found).unwrap_or(serde_json::Value::Null)
     });
     serde_json::to_string(&Snapshot {
         r#type: "snapshot",
-        stamp: stamp(),
+        stamp,
         source: crate::source::active()
             .map(|source| source.label().to_string())
             .unwrap_or_else(|| "Conductor".into()),
-        models: models(&chats, catalog.models),
-        accounts: accounts(),
-        chats,
+        chats: listed,
         active,
+        accounts: want.accounts.then(accounts),
+        models: models_for,
     })
     .map_err(|e| format!("mobile snapshot: {e}"))
 }
@@ -140,3 +161,7 @@ pub fn choose_account(chat: &str, name: &str) -> Result<(), String> {
     let route = conductor_session::route(chat).ok_or("that chat is no longer open")?;
     session::pin(name, &route.agent, &route.router_session)
 }
+
+#[cfg(test)]
+#[path = "mobile_state_tests.rs"]
+mod tests;

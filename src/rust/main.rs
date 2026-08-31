@@ -24,6 +24,7 @@ mod mobile_page;
 mod mobile_scope;
 mod mobile_service;
 mod mobile_socket;
+mod mobile_stamp;
 mod mobile_state;
 mod origin;
 mod panel_login;

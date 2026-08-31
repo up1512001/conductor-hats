@@ -2,6 +2,34 @@
 
 import type { MobileCommand, MobileSnapshot } from "./types.js";
 
+const EMPTY: MobileSnapshot = {
+  source: "",
+  chats: [],
+  accounts: {},
+  models: {},
+  active: null,
+};
+
+/**
+ * Rebuilds a whole snapshot from the sections the Mac decided were stale.
+ *
+ * The Mac sends only what moved. Sending everything meant an agent streaming in
+ * an unrelated workspace pushed the chat list and the open transcript down the
+ * tunnel several times a second. A section that is absent is unchanged, which is
+ * why `active` is tested for presence rather than truth: it is legitimately null
+ * when no chat is open, and that is different from "you already have it".
+ */
+function merged(held: MobileSnapshot | null, update: Partial<MobileSnapshot>): MobileSnapshot {
+  const base = held || EMPTY;
+  return {
+    source: update.source ?? base.source,
+    chats: update.chats ?? base.chats,
+    accounts: update.accounts ?? base.accounts,
+    models: update.models ?? base.models,
+    active: "active" in update ? update.active ?? null : base.active,
+  };
+}
+
 interface Handlers {
   state(label: string, live: boolean): void;
   snapshot(value: MobileSnapshot): void;
@@ -14,6 +42,7 @@ export function createTransport(handlers: Handlers): {
   close(): void;
 } {
   let socket: WebSocket | null = null;
+  let held: MobileSnapshot | null = null;
   let retry = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let closed = false;
@@ -40,6 +69,10 @@ export function createTransport(handlers: Handlers): {
     handlers.state(retry ? "Reconnecting" : "Connecting", false);
     socket = new WebSocket(address());
     socket.addEventListener("open", () => {
+      /* The Mac tracks what it has sent per connection, so a reconnect starts
+       * from nothing on both ends. Keeping the old sections would leave the
+       * phone showing a chat list the new connection never confirmed. */
+      held = null;
       retry = 0;
       handlers.state("Live", true);
     });
@@ -50,7 +83,10 @@ export function createTransport(handlers: Handlers): {
           value?: unknown;
           request?: string;
         };
-        if (value.type === "snapshot") handlers.snapshot(value as MobileSnapshot);
+        if (value.type === "snapshot") {
+          held = merged(held, value as Partial<MobileSnapshot>);
+          handlers.snapshot(held);
+        }
         else handlers.event({
           type: value.type || "error",
           value: value.value,

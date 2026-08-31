@@ -6,7 +6,8 @@ use std::time::{Duration, Instant};
 use tungstenite::protocol::{Message, Role, WebSocket, WebSocketConfig};
 
 use crate::{
-    auth, http, mobile_service, mobile_state, origin, remote, remote_control, remote_create,
+    auth, http, mobile_service, mobile_stamp, mobile_state, origin, remote, remote_control,
+    remote_create,
 };
 
 fn header<'a>(request: &'a http::Request, name: &str) -> &'a str {
@@ -211,7 +212,7 @@ pub fn open(mut stream: TcpStream, request: &http::Request, credential: String) 
         .max_frame_size(Some(128 * 1024));
     let mut socket = WebSocket::from_raw_socket(stream, Role::Server, Some(config));
     let mut selected = None;
-    let mut last = String::new();
+    let mut sections = mobile_stamp::Sections::default();
     let mut force = true;
     let mut heartbeat = Instant::now();
     loop {
@@ -223,15 +224,23 @@ pub fn open(mut stream: TcpStream, request: &http::Request, credential: String) 
             let _ = socket.close(None);
             return;
         }
-        let stamp = mobile_state::stamp();
-        if force || stamp != last {
-            let snapshot = mobile_state::snapshot(selected.as_deref()).unwrap_or_else(|problem| {
-                serde_json::json!({ "type": "error", "value": problem }).to_string()
-            });
+        let next = mobile_stamp::read(selected.as_deref(), &sections);
+        let want = mobile_state::Want {
+            chats: force || next.chats != sections.chats,
+            active: force || next.active != sections.active,
+            accounts: force || next.accounts != sections.accounts,
+        };
+        if want.any() {
+            let stamp = format!("{}|{}|{}", next.chats, next.active, next.accounts);
+            let snapshot = mobile_state::snapshot(selected.as_deref(), want, stamp).unwrap_or_else(
+                |problem| serde_json::json!({ "type": "error", "value": problem }).to_string(),
+            );
             if !send(&mut socket, &snapshot) {
                 return;
             }
-            last = stamp;
+            /* Only after it is on the wire. A section recorded as delivered and
+             * then dropped is a section the phone never sees again. */
+            sections = next;
             force = false;
         }
         match read_command(&mut socket, &mut selected) {
