@@ -6,6 +6,17 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- **The relaunch hint after `repatch --no-launch` named two of the six variables
+  it scrubs.** Following the short form from a routed shell leaves
+  `CLAUDE_CONFIG_DIR` set, and the launched copy then pins every chat to one
+  account whatever its routes and bindings say, which reads as a routing bug and
+  is not one. The hint is built from the same list the relaunch path uses, and a
+  test fails if the two drift again.
+
 ## 0.6.0
 
 ### Added

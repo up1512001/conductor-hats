@@ -159,3 +159,40 @@ fn repatch_refuses_to_rebuild_the_real_application_onto_itself() {
         .failed()
         .says("refusing");
 }
+
+/// The hint printed after `--no-launch` has to name every variable the relaunch
+/// path scrubs.
+///
+/// It named two while `LEAKED` held six. Following the short form from a routed
+/// shell leaves `CLAUDE_CONFIG_DIR` set, and the launched copy then pins every
+/// chat to one account regardless of its routes and bindings, which looks like
+/// a routing bug and is not one.
+#[test]
+fn the_no_launch_hint_scrubs_everything_the_relaunch_does() {
+    let body = std::fs::read_to_string(common::repo().join("src/rust/repatch.rs")).unwrap();
+    let leaked = body
+        .split("const LEAKED: [&str; 6] = [")
+        .nth(1)
+        .and_then(|rest| rest.split("];").next())
+        .expect("the leaked list");
+    let names: Vec<&str> = leaked
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix('"'))
+        .filter_map(|line| line.split('"').next())
+        .collect();
+    assert_eq!(names.len(), 6, "the leaked list changed shape: {names:?}");
+    assert!(
+        body.contains("fn scrubbed_launch("),
+        "the hint is written out again instead of derived from LEAKED"
+    );
+    for name in names {
+        assert!(
+            body.contains(&format!("\"{name}\"")),
+            "{name} is scrubbed but cannot reach the hint"
+        );
+    }
+    assert!(
+        !body.contains("env -u CONDUCTOR_ACCOUNTS_ROUTING -u CONDUCTOR_ACCOUNTS_DEPTH open"),
+        "the hand-written two-variable hint came back"
+    );
+}
