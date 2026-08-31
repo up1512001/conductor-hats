@@ -43,8 +43,8 @@ and nowhere else: a chat row carries status, agent and account, because a model
 is a setting the next message is sent with rather than a fact about the row.
 Account changes are pinned for the next agent start; the other changes travel
 through Conductor's visible controls before the queued message is submitted. A
-setting that Conductor refuses four times becomes an explicit failure on the
-phone instead of disappearing.
+setting that Conductor refuses twice becomes an explicit failure on the phone
+instead of disappearing, naming the setting and the value it could not apply.
 
 ## Security model
 
