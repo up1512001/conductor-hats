@@ -55,7 +55,49 @@ items, so **it starts signed out**. Open it and sign in before going further.
 Re-apply the patch after every Conductor release, and after every `pnpm build`
 that changes `src/panel/`.
 
-## 2. Create the tunnel
+## 2. Put the domain on Cloudflare
+
+The hostname has to be on a Cloudflare zone, because the tunnel creates the DNS
+record for it. Free plan is enough.
+
+In the Cloudflare dashboard, **Add a site**, enter your domain, pick Free, and
+change your registrar's nameservers to the two Cloudflare gives you. Wait for
+the zone to go **Active**. Skip this if the domain is already there.
+
+## 3. Create the tunnel
+
+Two ways. Pick one, not both.
+
+### Option A: from the dashboard, recommended
+
+Easier, and the tunnel's routing lives in Cloudflare rather than in a file you
+have to keep.
+
+1. Zero Trust dashboard → **Networks** → **Tunnels** → **Create a tunnel**
+2. Choose **Cloudflared**, name it `conductor`, **Save**
+3. Under **Install and run a connector**, choose **macOS**. It shows a command
+   containing a long token. Do not paste it yet, see the note below
+4. Open the **Public Hostname** tab → **Add a public hostname**
+   - Subdomain `conductor`, Domain `example.com`
+   - Type **HTTP**, URL `127.0.0.1:8787`
+5. **Save**
+
+Now run the connector. The dashboard offers
+`sudo cloudflared service install <token>`, which installs a **root launchd
+daemon that stays up permanently**. That works, but hats cannot start or stop a
+root daemon, so the tunnel is then always running whether or not mobile access
+is on. To keep it under your own control, run it as yourself instead:
+
+```sh
+cloudflared tunnel run --token <the-token-from-the-dashboard>
+```
+
+Treat that token as a credential: it grants the ability to serve your hostname.
+
+### Option B: from the terminal
+
+Routing lives in a local config file. Useful if you would rather not manage it
+in a browser.
 
 ```sh
 brew install cloudflared
@@ -64,7 +106,8 @@ cloudflared tunnel create conductor
 cloudflared tunnel route dns conductor conductor.example.com
 ```
 
-Write `~/.cloudflared/config.yml`:
+`create` prints a tunnel UUID and writes a credentials JSON next to it. Put both
+in `~/.cloudflared/config.yml`:
 
 ```yaml
 tunnel: 00000000-0000-0000-0000-000000000000
@@ -75,25 +118,30 @@ ingress:
   - service: http_status:404
 ```
 
-Run it:
-
 ```sh
 cloudflared tunnel run conductor
 ```
 
-That is a foreground process. `cloudflared service install` will keep it up
-across reboots, but note it installs a **root** launchd daemon, which hats
-cannot start or stop. If you want the tunnel to exist only while mobile access
-is on, keep it as a user process you start yourself.
+### Either way
 
-## 3. Put Access in front of it, if you can
+Use a **named** tunnel, which is what both options above create. A Quick Tunnel
+(`cloudflared tunnel --url ...`) gets a random hostname every run, and the
+browser cookie and the QR entry point are pinned to a stable origin.
+
+The tunnel forwards **every path** on the hostname to the same loopback
+listener, so a new pairing code never needs a new DNS record or ingress rule.
+
+While the tunnel is up and hats is not listening, the hostname answers `502`.
+That is the expected idle state, not a fault.
+
+## 4. Put Access in front of it, if you can
 
 In Cloudflare Zero Trust, create a self-hosted Access application for the same
 hostname and allow only your own identity. hats authenticates every request on
 its own, so this is defence in depth rather than the lock itself, but it means
 an unauthenticated request never reaches your Mac at all.
 
-## 4. Save the address and pair
+## 5. Save the address and pair
 
 In the patched Conductor copy, open a workspace, then the phone button beside
 the account control in the toolbar.
@@ -114,7 +162,7 @@ The equivalent from a terminal, once a copy has been paired at least once:
 hats serve --pair --origin https://conductor.example.com
 ```
 
-## 5. Check it actually works
+## 6. Check it actually works
 
 From the Mac, with a bogus token, so nothing real is spent:
 
