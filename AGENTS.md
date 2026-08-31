@@ -23,6 +23,7 @@ for an unpatched install rather than the feature. Three ways to drive it:
 `docs/how-it-works.md` is the routing mechanism, `docs/account-panel.md` is what
 the panel does, `docs/panel-internals.md` is how it attaches, and
 `docs/patching-conductor.md` is what the app bundle does and does not allow.
+`docs/mobile-setup.md` is how someone sets phone access up from nothing, and
 `docs/mobile-internals.md` is the mobile architecture and the failure modes that
 its security, delivery and reconnect rules prevent.
 

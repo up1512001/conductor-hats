@@ -100,17 +100,45 @@ use an end-to-end VPN while preserving stable HTTPS and WebSockets.
 
 ## Snapshot and reconnect protocol
 
-One authenticated WebSocket carries full snapshots and commands in both
-directions. A snapshot includes the chat hierarchy, active transcript, accounts,
-Conductor's current model catalog, queue receipts, new-chat receipts, and a
-source label.
+One authenticated WebSocket carries snapshots and commands in both directions.
+The state is the chat hierarchy, active transcript, accounts, Conductor's
+current model catalog, queue receipts, new-chat receipts, and a source label.
+
+Snapshots are **partial**. Each section carries its own stamp and only the
+sections that moved are sent; a section absent from a message means the phone
+keeps what it holds. `active` is the trap: it is legitimately `null` when no
+chat is open, so absent and null must stay distinguishable end to end. Two tests
+pin that, because collapsing them either strands the phone on a chat it closed
+or throws away a transcript still being read.
+
+A single stamp over everything was the original design and it was wrong in a way
+that only shows up under load. It included `places::revision()`, the size and
+mtime of `conductor.db` and its write-ahead log, and that changes on any
+Conductor write anywhere on the machine. An agent streaming in an unrelated
+workspace resent the entire chat list and the entire open transcript, measured
+at 257 KB, roughly three times a second, over a tunnel, to a phone.
+
+Two things fell out of splitting it. The database probe became one `sqlite3`
+invocation covering both sections rather than one per tick, and it is skipped
+entirely while the filesystem revision is unchanged, so an idle phone costs no
+query at all rather than one every 350 ms.
+
+A section is recorded as delivered only after the frame is on the wire. Recording
+first and sending second means a dropped frame is a section the phone never sees
+again.
+
+Frames over 4 KB are gzipped and sent as binary. Compression runs outward only.
+Decompressing anything a client sends would let a paired but hostile phone hand
+over a small frame that expands into an enormous one, and the incoming message
+cap would then be measuring the compressed size rather than the real one.
 
 The client treats the socket as replaceable:
 
 - reconnect uses bounded backoff
 - the active session is subscribed again after reconnect
 - a pending new-chat target is also restored
-- full snapshots preserve the reader's scroll position and expanded tool rows
+- an incoming snapshot preserves the reader's scroll position and expanded tool
+  rows, whether it carried every section or only one
 - the first active-chat snapshot says it is loading instead of claiming the
   conversation is empty
 - a removed or foreign chat disables and hides the composer
@@ -287,3 +315,33 @@ forbids starting servers, compile them with the suite but skip their execution:
 
 All other static, queue, protocol, panel-source, authentication, and database
 tests can run without opening Conductor or starting the listener.
+
+## Two failures that hide themselves
+
+Both cost most of an afternoon, and neither produced anything in a log.
+
+**A tunnel forwards a body-less POST as chunked.** The HTTP parser refused any
+request carrying `Transfer-Encoding`, which is a reasonable request-smuggling
+guard until you notice that Cloudflare Tunnel forwards `POST /api/pair` to the
+origin as `chunked` with no `Content-Length`. Every phone pairing through the
+public hostname got `400`, while `curl` against `127.0.0.1` paired perfectly,
+because a direct client sends `Content-Length: 0`. The browser only ever showed
+`This pairing link expired or was already used`. What actually has to be refused
+is the disagreement a smuggler needs: both framings on one request, or a
+transfer coding this does not implement. Chunked bodies are decoded and held to
+the same ceiling a declared length is.
+
+**Stop mobile access unpairs the app.** It calls `auth::invalidate_all`, which
+clears `serve-source` along with the pairing and the catalog. After that the
+listener cannot start at all: `mobile_scope::adopt` fails in milliseconds, the
+child exits before reporting ready, `start()` kills it at the two second mark,
+and `private_log()` truncates `error.log` on the next attempt so the reason is
+gone before anyone reads it. The panel only polls status and never tries to
+start anything, so the phone shows `Reconnecting` forever with no message
+anywhere. `mobile-pair` is the only caller of `mobile_scope::bind`, which makes
+**Create pairing code** the sole recovery. Read `error.log` before retrying.
+
+Related, and the reason a listener once died mid-session: `hats install` used
+`std::fs::copy`, which truncates the target in place, and that target is the
+running router as well as any `hats serve` the panel started. It stages and
+renames now, so anything already running keeps the image it started with.

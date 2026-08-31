@@ -94,69 +94,55 @@ Cloudflare Access policy for the hostname as a useful second gate. If that
 trust model is unacceptable, use an end-to-end VPN instead; it must preserve a
 stable HTTPS origin and WebSockets.
 
+## How updates reach the phone
+
+The socket does not resend everything whenever anything moves. State is split
+into sections, each with its own stamp: the chat list, the open chat, and the
+accounts. Only sections that changed are sent, and one that is absent from a
+message means the phone should keep what it already holds. `active` is the one
+to watch: it is legitimately `null` when no chat is open, so absent and null
+have to stay distinguishable, on the wire and in the client.
+
+This matters more than it sounds. The old single stamp included
+`places::revision()`, which covers the write-ahead log, and that changes on any
+Conductor write anywhere on the machine. An agent streaming in an unrelated
+workspace therefore pushed the whole chat list and the whole open transcript
+down the tunnel about three times a second.
+
+Snapshots over 4 KB are gzipped and sent as binary frames, which the phone
+decodes with `DecompressionStream`. Compression runs **one direction only**:
+nothing a client sends is ever decompressed, so a paired but hostile phone
+cannot hand the Mac a small frame that expands into an enormous one, and the
+incoming size cap keeps measuring the number it is meant to.
+
+Measured on a 167-line transcript and 192 open chats:
+
+| what changed | before | after |
+|---|---|---|
+| nothing visible, write-ahead log churn only | 257 KB | nothing sent |
+| an unrelated workspace | 257 KB | 18 KB |
+| the chat you are reading, streaming | 257 KB | 53 KB |
+
+The database probe behind those stamps is a single `sqlite3` invocation for both
+sections rather than one per tick, and it is skipped entirely while the
+filesystem revision is unchanged, so an idle phone costs no query at all.
+
 ## Public internet setup
 
-Use a named tunnel. Quick Tunnels have random hostnames and cannot supply the
-stable origin used by the secure browser cookie and permanent QR entry point.
+[mobile-setup.md](mobile-setup.md) is the step by step: tunnel, DNS, Access,
+pairing, verification and troubleshooting.
 
-```sh
-brew install cloudflared
-cloudflared tunnel login
-cloudflared tunnel create conductor
-cloudflared tunnel route dns conductor conductor.example.com
-```
+Two constraints worth knowing before you follow it. Use a **named** tunnel;
+Quick Tunnels have random hostnames and cannot supply the stable origin the
+secure browser cookie and the permanent QR entry point are pinned to. And every
+pairing URL has the form
+`https://conductor.example.com/<64-hex-path>#token=<one-use-secret>`, where the
+named tunnel forwards every path on the hostname to the same loopback listener,
+so a new QR needs no new DNS record or tunnel rule.
 
-Put the generated tunnel UUID and credentials path in
-`~/.cloudflared/config.yml`:
-
-```yaml
-tunnel: 00000000-0000-0000-0000-000000000000
-credentials-file: /Users/you/.cloudflared/00000000-0000-0000-0000-000000000000.json
-ingress:
-  - hostname: conductor.example.com
-    service: http://127.0.0.1:8787
-  - service: http_status:404
-```
-
-In Cloudflare Zero Trust, create a self-hosted Access application for the same
-hostname and allow only your identity. Start the tunnel, then open **Mobile
-access** in the Conductor copy you intend to use, save the hostname and create
-the first pairing code. That explicit action binds the source and starts hats:
-
-```sh
-cloudflared tunnel run conductor
-```
-
-Open the pairing link printed by `hats serve` on the phone. It works on mobile
-data and any other internet connection; the phone does not need to share the
-Mac's Wi-Fi.
-
-Every pairing URL has the form
-`https://conductor.example.com/<64-hex-path>#token=<one-use-secret>`. The named
-tunnel forwards every path on the hostname to the same loopback listener, so a
-new QR does not need a new DNS record or tunnel rule.
-
-Alternatively, create and scan the link from **Mobile access** in Conductor.
-Entering the address there saves it owner-only, so later `hats serve`,
-`hats serve --pair`, and `hats serve --revoke` can reuse it without another
-`--origin` argument. The panel starts `hats serve` on `127.0.0.1:8787` when the
-pairing code is created, so no separate Terminal command is needed for that
-flow.
-
-To pair another browser while the server is already running:
-
-```sh
-hats serve --pair --origin https://conductor.example.com
-```
-
-To sign every paired browser out and create a replacement link:
-
-```sh
-hats serve --revoke --origin https://conductor.example.com
-```
-
-`HATS_SERVE_ORIGIN=https://conductor.example.com` can replace repeated
-`--origin` arguments.
+Saving the address in the panel stores it owner-only, so later `hats serve`,
+`hats serve --pair` and `hats serve --revoke` reuse it without `--origin`.
+`HATS_SERVE_ORIGIN` does the same for a terminal.
 
 ## Verification checklist
 

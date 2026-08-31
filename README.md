@@ -122,8 +122,11 @@ to the phone. New chats are created through Conductor's own action and open on
 the phone only after its database reports the exact new session. A fresh 64-hex path plus a one-use pairing
 secret protects the browser,
 and a named outbound HTTPS tunnel makes it reachable away from Wi-Fi without
-opening a router port. See [docs/mobile.md](docs/mobile.md) for setup and the
-security model.
+opening a router port. Updates are sent section by section and gzipped, so an
+agent running in an unrelated workspace no longer pushes the whole chat list and
+transcript to the phone several times a second. Setting one up start to finish is
+[docs/mobile-setup.md](docs/mobile-setup.md);
+[docs/mobile.md](docs/mobile.md) is what it does and the security model.
 
 Pairing has its own phone button beside the account control in the toolbar.
 Enter the stable HTTPS tunnel address once,
@@ -178,6 +181,7 @@ attaches.
 | [docs/how-it-works.md](docs/how-it-works.md) | how credentials are namespaced, the router, precedence |
 | [docs/account-panel.md](docs/account-panel.md) | the panel: layout, masking, signing in and out |
 | [docs/panel-internals.md](docs/panel-internals.md) | how the panel attaches, and the update path |
+| [docs/mobile-setup.md](docs/mobile-setup.md) | setting up phone access start to finish: tunnel, pairing, verification, troubleshooting |
 | [docs/mobile.md](docs/mobile.md) | private, bidirectional access from a phone over the public internet |
 | [docs/mobile-internals.md](docs/mobile-internals.md) | mobile architecture, security invariants and implementation learnings |
 | [docs/patching-conductor.md](docs/patching-conductor.md) | what the app bundle allows, with the evidence |

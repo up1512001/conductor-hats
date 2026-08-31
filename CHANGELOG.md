@@ -10,6 +10,13 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **[docs/mobile-setup.md](docs/mobile-setup.md)**, phone access from nothing:
+  prerequisites, patching a copy, the named tunnel, Cloudflare Access, pairing,
+  a verification command, and a troubleshooting table for the failures that hide
+  themselves. Both of the ones that cost an afternoon are in it: a tunnel
+  forwarding a body-less POST as chunked, and Stop mobile access unpairing the
+  app so the listener dies silently until a pairing code is created.
+
 - **`hats serve`, bidirectional Conductor access from a phone.** The mobile UI
   mirrors Conductor's open chats, transcripts, tools, status, model, context and
   account in a project → workspace → chat hierarchy, then follows laptop changes
