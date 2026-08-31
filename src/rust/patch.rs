@@ -207,6 +207,25 @@ pub fn inject(binary: &Path, pristine: &Path) -> Result<Vec<Report>, String> {
     )
 }
 
+/// One frontend asset out of a Conductor copy, decompressed.
+///
+/// The phone screen shows Conductor's own mark, and this reads it from the
+/// installed application at runtime rather than carrying a copy. The repository
+/// is published, and the mark is not ours to redistribute.
+pub fn asset_bytes(app: &Path, pattern: &str) -> Result<Vec<u8>, String> {
+    let macho = MachO::open(&binary_in(app))?;
+    let asset = macho
+        .assets()
+        .into_iter()
+        .find(|asset| asset.key.contains(pattern))
+        .ok_or_else(|| format!("no asset matching {pattern}"))?;
+    let blob = macho
+        .data
+        .get(asset.offset..asset.offset + asset.length)
+        .ok_or("the asset map points outside the file")?;
+    decompress(blob)
+}
+
 pub fn list(app: &Path, pattern: Option<&str>, dump: bool) -> Result<(), String> {
     let macho = MachO::open(&binary_in(app))?;
     let mut shown = 0;

@@ -7,11 +7,12 @@
  * identifier.
  */
 
-import { message } from "./cli.js";
+import { acct, message, q } from "./cli.js";
 import { openOnPress } from "./controller.js";
 import { AGENT_ICON, cap, el, effective, primary } from "./dom.js";
 import { icon } from "./icons.js";
 import { loadState } from "./state.js";
+import { fromToolbar } from "./route.js";
 import type { PanelState } from "./state.js";
 
 function findOpenIn(): HTMLElement | null {
@@ -57,6 +58,13 @@ function floatingHost(): HTMLElement {
 }
 
 let missedToolbar = 0;
+let mobileStatusAt = 0;
+let mobileStatusReading = false;
+
+interface MobileService {
+  running: boolean;
+  connections: number;
+}
 
 /**
  * The New Workspace dialog has its own control, next to the model picker, and it
@@ -118,6 +126,50 @@ export function toolbarButton(): void {
   if (before) host.insertBefore(btn, before);
   else host.appendChild(btn);
   refreshToolbarLabel(btn);
+}
+
+export function mobileButton(): void {
+  const account = document.getElementById("cma-toolbar-btn");
+  if (!account?.parentElement) return;
+  const existing = document.getElementById("cma-mobile-btn");
+  if (existing?.parentElement === account.parentElement) return;
+  existing?.remove();
+  const button = el("button", "cma-mobile-btn");
+  button.id = "cma-mobile-btn";
+  button.setAttribute("aria-label", "Mobile access");
+  button.setAttribute("aria-expanded", "false");
+  button.append(icon("phone", 14), el("span", "cma-mobile-indicator"));
+  openOnPress(button);
+  account.parentElement.insertBefore(button, account);
+  refreshMobileTrigger(true);
+}
+
+export function refreshMobileTrigger(force = false): void {
+  const button = document.getElementById("cma-mobile-btn") as HTMLButtonElement | null;
+  if (!button || mobileStatusReading || (!force && Date.now() - mobileStatusAt < 5000)) return;
+  const workspace = fromToolbar().workspace;
+  if (!workspace) return;
+  mobileStatusReading = true;
+  acct("remote mobile-status " + q(workspace))
+    .then((raw) => {
+      if (!button.isConnected) return;
+      const status = JSON.parse(raw) as { service: MobileService };
+      const service = status.service;
+      button.classList.toggle("is-connected", service.connections > 0);
+      button.classList.toggle("is-listening", service.running && service.connections === 0);
+      button.title = service.connections > 0
+        ? `Mobile access: ${service.connections} phone${service.connections === 1 ? "" : "s"} connected`
+        : service.running
+          ? "Mobile access: waiting for phone"
+          : "Mobile access: off";
+    })
+    .catch((error) => {
+      button.title = "Mobile access unavailable: " + message(error);
+    })
+    .then(() => {
+      mobileStatusAt = Date.now();
+      mobileStatusReading = false;
+    });
 }
 
 export function refreshToolbarLabel(btn: HTMLElement, state?: PanelState): void {

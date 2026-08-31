@@ -204,3 +204,19 @@ fn comments_are_docblocks_only() {
         bad.join("\n")
     );
 }
+
+#[test]
+fn browser_source_is_typescript_only() {
+    let javascript: Vec<String> = tracked()
+        .iter()
+        .map(|path| relative(path))
+        .filter(|name| {
+            name.starts_with("src/") && (name.ends_with(".js") || name.ends_with(".jsx"))
+        })
+        .collect();
+    assert!(
+        javascript.is_empty(),
+        "hand-written browser JavaScript found:\n{}",
+        javascript.join("\n")
+    );
+}

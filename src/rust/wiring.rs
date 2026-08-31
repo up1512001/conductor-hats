@@ -20,7 +20,19 @@ pub fn install() -> Result<(), String> {
     let me = std::env::current_exe().map_err(|e| format!("locating this binary: {e}"))?;
     let deployed = bin.join("hats");
     if me != deployed {
-        std::fs::copy(&me, &deployed).map_err(|e| format!("{}: {e}", deployed.display()))?;
+        /* Copying onto the deployed path truncates it in place, and that path is
+         * the running router as well as any `hats serve` the panel started. Doing
+         * it under a live listener killed it mid-session with an empty error log.
+         * A rename swaps the directory entry instead, so anything already running
+         * keeps the image it started with and only the next process sees the new
+         * one. */
+        let staged = bin.join("hats.incoming");
+        let _ = std::fs::remove_file(&staged);
+        std::fs::copy(&me, &staged).map_err(|e| format!("{}: {e}", staged.display()))?;
+        std::fs::rename(&staged, &deployed).map_err(|e| {
+            let _ = std::fs::remove_file(&staged);
+            format!("{}: {e}", deployed.display())
+        })?;
     }
     for name in ["claude-router", "codex-router"] {
         let link = bin.join(name);

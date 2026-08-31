@@ -106,6 +106,7 @@ impl Sandbox {
             .env_remove("CODEX_HOME")
             .env_remove("CONDUCTOR_ACCOUNTS_ROUTING")
             .env_remove("CONDUCTOR_ACCOUNTS_DEPTH")
+            .env_remove("CONDUCTOR_DB")
             .current_dir(&self.root);
         cmd
     }

@@ -6,6 +6,267 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- **[docs/mobile-setup.md](docs/mobile-setup.md)**, phone access from nothing:
+  prerequisites, patching a copy, the named tunnel, Cloudflare Access, pairing,
+  a verification command, and a troubleshooting table for the failures that hide
+  themselves. Both of the ones that cost an afternoon are in it: a tunnel
+  forwarding a body-less POST as chunked, and Stop mobile access unpairing the
+  app so the listener dies silently until a pairing code is created.
+
+- **`hats serve`, bidirectional Conductor access from a phone.** The mobile UI
+  mirrors Conductor's open chats, transcripts, tools, status, model, context and
+  account in a project → workspace → chat hierarchy, then follows laptop changes
+  over one authenticated WebSocket. A phone reply
+  enters a private, durable hats queue; the injected panel submits it through
+  Conductor's real composer, navigating the Mac to its exact project, workspace
+  and session when needed, and acknowledges it only after Conductor's database
+  records the user message. Laptop drafts are never replaced and no private
+  Conductor table is written. Mobile run settings include next account, model,
+  reasoning, permission and fast mode; Conductor's visible controls apply them.
+  A workspace can create a new chat through Conductor's own action; the phone
+  opens it only after database readback identifies the exact new session.
+
+  The browser pairs through a short-lived, one-use secret carried in a URL
+  fragment, exchanged for a separate secure session cookie and removable with
+  `hats serve --revoke`. Requests and bodies are bounded, protected routes
+  authenticate independently, and the page uses a self-only content policy.
+  Loopback remains the default; a named outbound HTTPS tunnel supplies a stable
+  public hostname without a router port. See [docs/mobile.md](docs/mobile.md).
+
+  Pairing has a separate phone control in Conductor's toolbar. Its T3 Code-inspired share
+  view stores the public HTTPS address once, creates the one-use link on demand,
+  assigns every QR a fresh 64-hex path, renders a local high-contrast QR, masks
+  the path and token in visible text, shows the ten-minute expiry, copies the
+  link, and confirms before revoking phones. Opening the view remains read-only;
+  pressing **Create pairing code** idempotently starts the protected loopback
+  listener, reports listening or connected-phone status beside the public
+  address, can stop and revoke the connection, and keeps the
+  spawned process and pairing secret out of Conductor's shell output.
+
+  The server stays on `std::net`; a small pure-Rust WebSocket protocol provides
+  snapshot plus live-tail synchronization through the named tunnel. The secure
+  same-origin cookie authenticates its upgrade, so no credential appears in the
+  socket URL. The mobile source is strict TypeScript and is typechecked and
+  bundled with the injected panel.
+
+- **`hats transcript <session>`**, one chat as JSON, drawn the way Conductor
+  draws it: prose, and the tool calls between it. A `Bash` or `Read` is a row of
+  its own, collapsed to a verb and the one detail worth showing, and thinking is
+  a row too. Keeping only what was said loses the shape of the work, which is
+  most of what a transcript is for. Two
+  encodings share Conductor's `content` column: a user row is plain text, an
+  assistant row is Claude Code's SDK envelope. Most envelopes are tool traffic,
+  and the text of a reply is not reliably the first block of its content array,
+  because thinking and tool-use blocks share it.
+
+- **`hats chats`**, every chat Conductor has open and the account each one is
+  on. The panel answers that for the chat in front of you; this answers it for
+  all of them, which is the question that gets asked once several agents are
+  running and it is no longer obvious which is on what.
+
+  Two accounts per chat, because they are different facts: what the running
+  process took when it spawned, and what the next one will take. The listing
+  counts how many are about to change and says so.
+
+  `--json` prints the same list as an array. Archived workspaces and hidden
+  chats are left out of both forms.
+
+### Fixed
+
+- **The phone stops re-downloading everything.** The socket computed one stamp
+  over all state and resent the whole snapshot when any part of it moved. That
+  stamp included `places::revision()`, which covers the write-ahead log, so an
+  agent streaming in an unrelated workspace pushed the chat list and the open
+  transcript down the tunnel about three times a second: 257 KB a time,
+  measured, uncompressed. Each section carries its own stamp now and only what
+  moved is sent, the database probe is one query for both sections instead of
+  one per tick, and it is skipped entirely while the revision is unchanged, so
+  an idle phone costs no query at all. Snapshots above 4 KB are gzipped, one
+  direction only: nothing a client sends is ever decompressed. Measured on a
+  real 167-line transcript, a streaming update went from 257 KB to 53 KB, an
+  unrelated workspace from 257 KB to 18 KB, and write-ahead-log churn that
+  changed nothing visible from 257 KB to nothing at all.
+
+- **A repository binding now outranks the account chosen at creation time.** The
+  creation choice is one global value that is never cleared, so a choice made
+  for one repository was still being spent days later on the first workspace
+  created in an unrelated one, quietly overriding that repository's own binding.
+  A binding is a deliberate statement about one repository that stays written
+  down, so it wins. The choice still applies wherever no binding has answered
+  the question.
+
+- **Pairing works through the tunnel, not only on loopback.** The request parser
+  refused any request carrying `Transfer-Encoding`, and a Cloudflare Tunnel
+  forwards a body-less `POST /api/pair` to the origin as `chunked` with no
+  `Content-Length`. Every phone that paired through the public hostname got 400
+  and "This pairing link expired or was already used", while curl against
+  `127.0.0.1` paired perfectly, because a direct client sends
+  `Content-Length: 0`. Chunked bodies are now decoded and held to the same
+  64 KB ceiling a declared length is. What gets refused is the disagreement a
+  smuggler actually needs: a request carrying both framings at once, or a
+  transfer coding hats does not implement.
+
+- **Thinking level applies from a phone.** Conductor's composer control for
+  effort is a bar meter bound to `chat.toggleThinking`, so a press advances one
+  level rather than opening a list. The panel was pressing it, which applied
+  whichever level came next, and the phone reported "Conductor did not apply
+  effort=high after 2 attempts" while the level on the Mac moved on its own. The
+  setting now goes through the picker's own apply function, the same one a click
+  on the Mac reaches, and falls back to the picker's Effort submenu. The panel
+  never presses that button again, and a test holds it out of reach.
+
+- **A Codex chat is checked against its own thinking level.** Conductor keeps a
+  Claude effort column and a Codex thinking column on every chat and writes only
+  the one its agent owns, so the other keeps whatever it last held. Reading the
+  first non-empty of the two compared a Codex chat with a stale Claude value:
+  the level applied on the Mac, the check never saw it, and the phone called the
+  setting refused. Both the check and the chat list now pick the column by
+  agent.
+
+- **The phone offers the levels the model actually has.** Effort is per model,
+  not per agent: Sonnet 4.6 has no extra-high, Opus carries Ultracode above Max,
+  Haiku has no effort at all, and gpt-5.6 calls its lowest level Light. The menu
+  now mirrors Conductor's own registry, the control disappears on a model with
+  no levels, and the button draws Conductor's meter, filled to the level in
+  force.
+
+- **Tool rows use Conductor's own icons.** The transcript drew a hand-made set
+  that answered a shape rather than a tool: one padlock, one wrench, a brain
+  nothing else used. Every mark is now the lucide node Conductor draws, matched
+  by the same tool names it matches, so a terminal, a file, a search and an edit
+  read the same on both screens. A call and the result that answered it share
+  one row, as they do on the Mac, a read is named by what came back, a change to
+  a file carries what it added and removed, and the provider's own mark sits on
+  the model control.
+
+- **Thinking and tool activity now read like Conductor.** Thinking uses a brain
+  icon with a quiet inline preview, while consecutive tool calls and results
+  collapse into a count with semantic terminal, file, search, web, edit and
+  agent icons. Expansion preserves full details without filling the transcript
+  with ASCII glyph rows.
+
+- **Model changes now use Conductor's own session-scoped picker handler.** The
+  phone invokes the mounted picker callback that Conductor uses itself and keeps
+  exact visible-menu selection as fallback. Database acknowledgement still
+  decides success, while two short attempts replace the long retry chain that
+  held a queued message on “Waiting for Conductor.”
+
+- **Fresh mobile chats use the title Conductor presents.** Conductor can keep
+  `New Chat` in the session row while its sidebar presents a workspace name or
+  branch. The mobile snapshot now derives that same readable workspace label
+  until Conductor generates a real chat title, and stale placeholder catalog
+  entries can no longer replace it.
+
+- **Mobile now uses Conductor's live chat titles and complete model picker.** A
+  generated sidebar title can lead the persisted `sessions.title` value, so the
+  panel publishes the live session title and the phone applies it by exact
+  session ID. The model menu shows both Claude Code and Codex sections instead
+  of filtering an already-complete catalog down to the current provider.
+
+- **Mobile model changes now select and acknowledge the exact model.** Picker
+  matching no longer confuses “Sonnet 4.6” with “Sonnet 4.6 1M”, and raw IDs
+  such as `opus-5-1m` resolve to their visible Conductor label. Selecting a
+  model from another provider follows Conductor into the new chat and moves the
+  phone there after database readback identifies it.
+
+- **Mobile model and thinking choices now match Conductor.** The model menu
+  reads the ordered IDs that Conductor's own provider APIs supply to its mounted
+  model picker instead of shipping a stale hats catalog. The publication is
+  confined to the paired Conductor database and stored owner-only. Claude now
+  exposes all five thinking levels, including **Extra high**, and model IDs are
+  presented with Conductor-style names.
+
+- **The reported header divider and crowded toolbar cluster are fixed.** The
+  mobile chat header's stray bottom rule is gone, and the injected phone,
+  account and Open in controls have deliberate spacing instead of running
+  together.
+
+- **Reconnects restore the active chat subscription and failed actions stay
+  actionable.** A reconnected socket resubscribes to the chat or new-chat
+  request that was open. Rejected messages return to the composer by request
+  ID, including duplicate text, and run settings that Conductor refuses become
+  visible failure receipts instead of silently disappearing. Setting and
+  new-chat retries check database state before another click, preventing a slow
+  success from being toggled back or duplicated.
+
+- **The account selector is reachable from the mobile composer.** Its data and
+  action path already existed, but no account button rendered beside model,
+  thinking, fast mode and permission, leaving the feature inaccessible.
+
+- **Mobile scope now fails closed.** Queue commands and the public listener
+  refuse to run unless `CONDUCTOR_DB` names one readable database or Mobile
+  access has recorded one paired Conductor copy. A missing or stale binding can
+  no longer fall back to reading every installed copy.
+
+- **A terminal `hats serve` shows one Conductor copy, not all of them.** The
+  pairing already belonged to the app whose panel created it, and the panel
+  started its listener with that app's database selected. A listener started by
+  hand from a terminal had no such selection and read every Conductor copy on
+  the machine at once, so the phone listed the release app's projects while the
+  panel that delivers replies sat in the dev app, and the screen carried
+  whichever name it guessed. `hats serve` now adopts the recorded binding before
+  its first query and prints which copy it is showing; with no pairing yet, it
+  refuses to start rather than exposing all copies.
+
+- **Model and thinking moved off the chat lists and into the composer.** They
+  are settings the next message is sent with, so repeating them on every row and
+  again in the chat header cost three lines of small type per chat and buried
+  the title. The rows carry status, agent and account; the composer carries the
+  controls, and the header no longer repeats what sits directly under it.
+
+- **The phone client is versioned, so a rebuild cannot be served stale.** The
+  page asked for `/mobile.css` and `/mobile.js` at fixed addresses. Responses
+  are `no-store`, which is a privacy rule rather than a freshness one, and a
+  browser that already parsed a script at an address is entitled to keep it.
+  Both references now carry a fingerprint of the bytes behind them, so a new
+  build is a new URL and there is nothing at that address to go stale.
+
+- **A phone message reaches Conductor about a second sooner.** The socket was
+  never the delay; the panel's delivery loop was. It woke every 750 ms, so most
+  of the wait was the loop not having looked yet, and it then polled for
+  Conductor's confirmation every 500 ms after the message had already landed.
+  The two claim commands became one `hats remote take`, which also decides in
+  Rust that a queued run setting is handed over before any message, so halving
+  the interval twice did not double the idle shell traffic. Confirmation now
+  polls tightly at first, and a delivery is followed immediately by the next
+  one rather than waiting for the interval, so a burst drains at the speed
+  Conductor accepts it.
+
+- **The phone composer no longer covers the last message.** It floated over the
+  thread on a reserved strip whose height was guessed, and the guess was wrong
+  once the run settings row existed. Made sticky, it was then pulled up over the
+  transcript whenever the reader was not at the very end. The page is now an app
+  shell: bar, one scrolling pane, composer as a real footer. Nothing overlaps and
+  nothing is measured.
+
+- **Run setting choices read as a scale again.** The current value was moved to
+  the front of every list, so thinking offered `max, low, medium, high`. Lists
+  keep their declared order and an unrecognised running value is appended.
+  `max` joins the Claude thinking levels, which Conductor already sets and the
+  list did not offer.
+
+- **Less noise in the phone's lists.** A workspace holding one chat no longer
+  prints "1 chat" under its own name, rows and headers are tighter, and a
+  `default` agent personality is not shown as a badge.
+
+- **A phone snapshot no longer throws away where the reader was.** Each update
+  replaces the whole transcript, which scrolled the reader to the newest line
+  mid-sentence and closed any tool row they had opened. Position and open rows
+  are now carried across the replacement, a chat still opens at its end, and the
+  space reserved under the last message is measured from the composer rather
+  than assumed, so the taller composer no longer covers it.
+
+- **In-panel account sign-in works again.** The Rust CLI port had dropped the
+  private `login-start`, `login-code`, `login-status` and `login-cancel`
+  commands that the panel still called. They now run the provider login behind
+  an owner-only FIFO, capture the approval URL, accept the code without shell
+  interpolation, report the resulting account, expire after five minutes and
+  only cancel the process recorded for that exact provider and profile.
+
 ## 0.5.0
 
 The release that makes an account a property of a chat rather than of a

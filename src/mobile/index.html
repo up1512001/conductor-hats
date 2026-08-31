@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#141110">
+<meta name="color-scheme" content="dark">
+<title>Conductor</title>
+<link rel="icon" href="/logo.png">
+<link rel="apple-touch-icon" href="/logo.png">
+<link rel="stylesheet" href="/mobile.css">
+<body>
+  <header class="bar">
+    <button class="icon back is-hidden" id="back" aria-label="Back" disabled>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="bar-title">
+      <h1 id="title">Projects</h1>
+      <span id="connection">Connecting</span>
+    </div>
+    <button class="icon settings" id="settings" aria-label="Connection">
+      <img src="/logo.png" alt="" width="20" height="20">
+    </button>
+  </header>
+  <div class="notice" id="notice" role="status" hidden></div>
+  <main id="view" aria-live="polite"><p class="empty">Connecting to your Mac</p></main>
+  <form class="composer" id="composer" hidden>
+    <div class="composer-field">
+      <textarea id="message" rows="1" maxlength="65536" placeholder="Message this chat" aria-label="Message"></textarea>
+      <div class="composer-foot">
+        <div id="composer-tools"></div>
+        <button id="send" type="submit" aria-label="Send">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+      </div>
+    </div>
+    <span id="send-state">Live on your Mac</span>
+  </form>
+  <script src="/mobile.js" defer></script>
+</body>
+</html>

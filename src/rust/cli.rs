@@ -3,7 +3,10 @@
 //! The surface matches the shell CLI it replaces, because the test suite is the
 //! contract and runs against either implementation.
 
-use crate::{id, manage, paths, pending, report, session, store, wiring};
+use crate::{
+    chats, chats_table, id, manage, panel_login, paths, pending, remote_cli, report, serve,
+    session, store, transcript, wiring,
+};
 
 pub fn agent_of(arg: Option<&String>) -> Result<String, String> {
     id::agent(arg.map(String::as_str).unwrap_or("claude")).map(str::to_string)
@@ -46,6 +49,10 @@ pub fn is_account_command(cmd: &str) -> bool {
             | "unassign"
             | "add"
             | "login"
+            | "login-start"
+            | "login-code"
+            | "login-status"
+            | "login-cancel"
             | "logout"
             | "remove"
             | "sessions"
@@ -54,6 +61,10 @@ pub fn is_account_command(cmd: &str) -> bool {
             | "unpin"
             | "install"
             | "uninstall"
+            | "chats"
+            | "remote"
+            | "serve"
+            | "transcript"
             | "doctor"
     )
 }
@@ -153,6 +164,28 @@ pub fn run(cmd: &str, rest: &[String]) -> Result<(), String> {
                 .ok_or("usage: hats login <profile> [agent]")?,
             &agent_of(positional.get(1))?,
         ),
+        "login-start" => panel_login::start(
+            rest.first()
+                .ok_or("usage: hats login-start <profile> [agent]")?,
+            &agent_of(rest.get(1))?,
+        ),
+        "login-code" => panel_login::code(
+            rest.first()
+                .ok_or("usage: hats login-code <profile> <agent> <code>")?,
+            &agent_of(rest.get(1))?,
+            rest.get(2)
+                .ok_or("usage: hats login-code <profile> <agent> <code>")?,
+        ),
+        "login-status" => panel_login::status(
+            rest.first()
+                .ok_or("usage: hats login-status <profile> [agent]")?,
+            &agent_of(rest.get(1))?,
+        ),
+        "login-cancel" => panel_login::cancel(
+            rest.first()
+                .ok_or("usage: hats login-cancel <profile> [agent]")?,
+            &agent_of(rest.get(1))?,
+        ),
         "logout" => manage::logout(
             positional
                 .first()
@@ -215,6 +248,26 @@ pub fn run(cmd: &str, rest: &[String]) -> Result<(), String> {
         }
         "install" => wiring::install(),
         "uninstall" => wiring::uninstall(),
+        "transcript" => {
+            let limit = rest
+                .iter()
+                .position(|a| a == "--limit")
+                .and_then(|i| rest.get(i + 1))
+                .and_then(|l| l.parse().ok())
+                .unwrap_or(60);
+            let session = positional.first().map(String::as_str).unwrap_or("");
+            println!("{}", transcript::as_json(session, limit));
+            Ok(())
+        }
+        "serve" => serve::command(rest),
+        "remote" => remote_cli::run(rest),
+        "chats" => {
+            if rest.iter().any(|a| a == "--json") {
+                chats::as_json()
+            } else {
+                chats_table::run(masked)
+            }
+        }
         "doctor" => store::target_dir(positional.first()).and_then(|d| wiring::doctor(&d)),
         other => Err(format!("unknown command '{other}'")),
     }

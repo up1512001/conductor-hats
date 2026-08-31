@@ -122,3 +122,52 @@ fn unbind_leaves_the_rest_of_the_file() {
     assert!(body.contains("DATABASE_URL"), "{body}");
     assert!(!body.contains("CLAUDE_CONFIG_DIR"), "{body}");
 }
+
+/// A repository binding outranks the account chosen while a workspace was being
+/// created.
+///
+/// The creation choice is one global value that is never cleared, so a choice
+/// made for one repository was still being spent days later on the first
+/// workspace created in an unrelated one, overriding that repository's own
+/// binding. Conductor delivers a binding by setting the config directory before
+/// the router runs, so the router leaving an already-set value alone is what
+/// respecting the binding means.
+#[test]
+fn a_repository_binding_outranks_a_creation_choice() {
+    let s = Sandbox::new();
+    s.hats(&["install"]).ok();
+    s.profile("claude", "personal");
+    s.profile("claude", "work");
+    s.hats(&["next", "personal", "claude"]).ok();
+
+    let bound = s
+        .accounts()
+        .join("claude/work")
+        .to_string_lossy()
+        .to_string();
+    let got = s.route_env(
+        "claude",
+        "ws-a",
+        &["--model", "opus"],
+        &[("CLAUDE_CONFIG_DIR", &bound)],
+    );
+    assert_eq!(
+        got, bound,
+        "the creation choice overrode the repository binding"
+    );
+}
+
+/// The choice still applies where no binding has answered the question.
+#[test]
+fn a_creation_choice_still_applies_without_a_binding() {
+    let s = Sandbox::new();
+    s.hats(&["install"]).ok();
+    s.profile("claude", "personal");
+    s.hats(&["next", "personal", "claude"]).ok();
+
+    let got = s.route("claude", "ws-b", &["--model", "opus"]);
+    assert!(
+        got.ends_with("claude/personal"),
+        "the creation choice was lost: {got}"
+    );
+}
