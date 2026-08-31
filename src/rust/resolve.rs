@@ -10,10 +10,17 @@ use crate::{id, paths, routes, session};
 ///   2. the session pin, so a running conversation never changes account: an
 ///      account change under a live `--resume` would break it
 ///   3. a route naming this exact workspace, which outranks a repository binding
-///   4. an account chosen while this workspace was being created, spent once
-///   5. a repository binding, which Conductor has already applied to the
+///   4. a repository binding, which Conductor has already applied to the
 ///      environment and which has therefore answered the question
+///   5. an account chosen while this workspace was being created
 ///   6. a parent-directory route, then the default
+///
+/// The binding used to sit below the creation choice, and that is the wrong way
+/// round. A binding is a deliberate statement about one repository that is
+/// written down and stays written down. The creation choice is a single global
+/// value that is never cleared, so a choice made for one repository was still
+/// being spent days later on the first workspace created in an unrelated one,
+/// quietly overriding that repository's own binding.
 ///
 /// `env_bound` is true when the agent's config directory is already set, which is
 /// how a repository binding arrives.
@@ -55,12 +62,12 @@ pub fn decide(agent: &str, dir: &Path, session: Option<&str>, env_bound: bool) -
             crate::pending::peek(agent).unwrap_or_else(|| "none".into())
         ));
     }
+    if env_bound {
+        return None;
+    }
     if let Some(chosen) = crate::pending::take(agent, dir) {
         remember(agent, session, &chosen);
         return Some(chosen);
-    }
-    if env_bound {
-        return None;
     }
     let profile = found.map(|m| m.profile)?;
     remember(agent, session, &profile);

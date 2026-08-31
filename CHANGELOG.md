@@ -70,6 +70,14 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A repository binding now outranks the account chosen at creation time.** The
+  creation choice is one global value that is never cleared, so a choice made
+  for one repository was still being spent days later on the first workspace
+  created in an unrelated one, quietly overriding that repository's own binding.
+  A binding is a deliberate statement about one repository that stays written
+  down, so it wins. The choice still applies wherever no binding has answered
+  the question.
+
 - **Pairing works through the tunnel, not only on loopback.** The request parser
   refused any request carrying `Transfer-Encoding`, and a Cloudflare Tunnel
   forwards a body-less `POST /api/pair` to the origin as `chunked` with no
