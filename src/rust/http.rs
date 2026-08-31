@@ -12,6 +12,9 @@ use std::net::TcpStream;
 const MAX_HEAD: usize = 32 * 1024;
 const MAX_BODY: usize = 64 * 1024;
 
+/// Enough for any real trailer section, few enough to bound a hostile one.
+const MAX_TRAILERS: usize = 64;
+
 pub struct Request {
     pub method: String,
     pub path: String,
@@ -20,6 +23,43 @@ pub struct Request {
     /// the one the page pairs with, but keeping them all costs nothing.
     pub headers: std::collections::HashMap<String, String>,
     pub body: Vec<u8>,
+}
+
+/// A chunked body, held to the same ceiling a declared length is.
+///
+/// The size line is hexadecimal and may carry extensions after a semicolon.
+/// Trailers are drained rather than kept, and both loops are bounded so a peer
+/// cannot hold the connection open with an endless stream of them.
+fn chunked_body(reader: &mut BufReader<TcpStream>) -> Option<Vec<u8>> {
+    let mut body = Vec::new();
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line).ok()? == 0 {
+            return None;
+        }
+        let size = usize::from_str_radix(line.trim().split(';').next()?.trim(), 16).ok()?;
+        if size == 0 {
+            break;
+        }
+        if body.len() + size > MAX_BODY {
+            return None;
+        }
+        let mut chunk = vec![0u8; size];
+        reader.read_exact(&mut chunk).ok()?;
+        body.extend_from_slice(&chunk);
+        let mut ending = [0u8; 2];
+        reader.read_exact(&mut ending).ok()?;
+    }
+    for _ in 0..MAX_TRAILERS {
+        let mut line = String::new();
+        match reader.read_line(&mut line) {
+            Ok(0) => return Some(body),
+            Ok(_) if line.trim().is_empty() => return Some(body),
+            Ok(_) => continue,
+            Err(_) => return None,
+        }
+    }
+    None
 }
 
 /// Reads the request line and drains the headers.
@@ -60,18 +100,34 @@ pub fn read(stream: &TcpStream) -> Option<Request> {
         }
     }
 
-    if headers.contains_key("transfer-encoding") {
+    /* Refusing every chunked request refused every phone that paired through a
+     * Cloudflare Tunnel while loopback worked perfectly: the tunnel forwards a
+     * body-less POST to the origin as `chunked` with no `Content-Length`, and
+     * the browser never sees anything but 400. What has to be refused is the
+     * disagreement a smuggler needs, which is a request carrying both framings
+     * at once, or a transfer coding this does not implement. */
+    let chunked = match headers.get("transfer-encoding") {
+        None => false,
+        Some(value) if value.eq_ignore_ascii_case("chunked") => true,
+        Some(_) => return None,
+    };
+    if chunked && headers.contains_key("content-length") {
         return None;
     }
-    let length = headers
-        .get("content-length")
-        .map(|value| value.parse::<usize>().ok())
-        .unwrap_or(Some(0))?;
-    if length > MAX_BODY {
-        return None;
-    }
-    let mut body = vec![0u8; length];
-    reader.read_exact(&mut body).ok()?;
+    let body = if chunked {
+        chunked_body(&mut reader)?
+    } else {
+        let length = headers
+            .get("content-length")
+            .map(|value| value.parse::<usize>().ok())
+            .unwrap_or(Some(0))?;
+        if length > MAX_BODY {
+            return None;
+        }
+        let mut body = vec![0u8; length];
+        reader.read_exact(&mut body).ok()?;
+        body
+    };
 
     let (path, query) = match target.split_once('?') {
         Some((p, q)) => (p.to_string(), q.to_string()),
@@ -179,3 +235,7 @@ pub fn websocket(stream: &mut TcpStream, accept: &str) -> bool {
     );
     stream.write_all(head.as_bytes()).is_ok() && stream.flush().is_ok()
 }
+
+#[cfg(test)]
+#[path = "http_tests.rs"]
+mod tests;

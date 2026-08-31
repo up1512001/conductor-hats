@@ -70,6 +70,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Pairing works through the tunnel, not only on loopback.** The request parser
+  refused any request carrying `Transfer-Encoding`, and a Cloudflare Tunnel
+  forwards a body-less `POST /api/pair` to the origin as `chunked` with no
+  `Content-Length`. Every phone that paired through the public hostname got 400
+  and "This pairing link expired or was already used", while curl against
+  `127.0.0.1` paired perfectly, because a direct client sends
+  `Content-Length: 0`. Chunked bodies are now decoded and held to the same
+  64 KB ceiling a declared length is. What gets refused is the disagreement a
+  smuggler actually needs: a request carrying both framings at once, or a
+  transfer coding hats does not implement.
+
 - **Thinking level applies from a phone.** Conductor's composer control for
   effort is a bar meter bound to `chat.toggleThinking`, so a press advances one
   level rather than opening a list. The panel was pressing it, which applied
