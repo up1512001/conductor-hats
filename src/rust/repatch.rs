@@ -85,10 +85,7 @@ pub fn run(opts: &Options) -> Result<(), String> {
     } else {
         println!("==> Not relaunching");
         println!("    Scrub the environment when you do, or agents get exit code 70:");
-        println!(
-            "    env -u CONDUCTOR_ACCOUNTS_ROUTING -u CONDUCTOR_ACCOUNTS_DEPTH open -a '{}'",
-            opts.app.display()
-        );
+        println!("    {}", scrubbed_launch(&opts.app));
     }
 
     println!(
@@ -98,6 +95,22 @@ pub fn run(opts: &Options) -> Result<(), String> {
          all means the injection itself did not take."
     );
     Ok(())
+}
+
+/// The launch command to hand someone who is not relaunching now.
+///
+/// Built from `LEAKED` rather than written out, because it was written out and
+/// drifted: the hint named two variables while the relaunch above scrubbed six.
+/// Following the short version from a routed shell leaves `CLAUDE_CONFIG_DIR`
+/// set, which pins the whole copy to one account no matter what its routes and
+/// bindings say.
+fn scrubbed_launch(app: &Path) -> String {
+    let scrub = LEAKED
+        .iter()
+        .map(|key| format!("-u {key}"))
+        .collect::<Vec<String>>()
+        .join(" ");
+    format!("env {scrub} open -a '{}'", app.display())
 }
 
 /// Quits the copy, and nothing else.
@@ -187,3 +200,7 @@ fn pids_under(inner: &Path) -> Vec<String> {
         })
         .collect()
 }
+
+#[cfg(test)]
+#[path = "repatch_tests.rs"]
+mod tests;
