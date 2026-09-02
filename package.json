@@ -17,8 +17,8 @@
   },
   "devDependencies": {
     "esbuild": "0.28.2",
-    "qrcode-generator": "1.4.4",
-    "sass": "1.102.0",
+    "qrcode-generator": "2.0.4",
+    "sass": "1.103.1",
     "typescript": "7.0.2"
   }
 }
