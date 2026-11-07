@@ -24,7 +24,7 @@ import {
 } from "./triggers.js";
 import styles from "./styles.scss";
 
-const VERSION = "0.6.1";
+const VERSION = "0.7.0";
 
 function injectStyles(): void {
   if (document.getElementById("cma-style")) return;
