@@ -6,6 +6,18 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- **A copy rebuilt with `dev-app` and then `patch` opened to a black window.**
+  The pristine backup `patch` starts from is kept by app name, and only
+  `repatch` used to drop it, so after a Conductor update `dev-app` followed by
+  `patch` injected the panel into the previous Conductor's binary and wrote that
+  into the new bundle, beside a sidecar and resources it was never built with.
+  `dev-app` now drops the backup, and `patch` takes it again whenever the copy
+  it is patching carries no panel, which is what a fresh copy looks like.
+
 ## 0.7.0
 
 ### Fixed

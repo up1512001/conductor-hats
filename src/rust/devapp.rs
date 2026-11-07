@@ -108,6 +108,7 @@ pub fn build(opts: &Options) -> Result<(), String> {
         std::fs::remove_dir_all(&opts.dst).map_err(|e| format!("removing the old copy: {e}"))?;
     }
 
+    let _ = std::fs::remove_file(crate::patch::backup_path(&opts.dst));
     println!("==> Copying {}", opts.src.display());
     let ok = Command::new("cp")
         .arg("-R")

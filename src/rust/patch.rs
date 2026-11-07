@@ -144,6 +144,17 @@ pub struct Report {
     pub headroom: usize,
 }
 
+/// Whether the binary's bundle already carries the panel, or None when that
+/// cannot be read.
+pub fn carries_panel(binary: &Path) -> Option<bool> {
+    let macho = MachO::open(binary).ok()?;
+    let asset = pick_bundle(macho.assets()).ok()?;
+    let blob = macho.data.get(asset.offset..asset.offset + asset.length)?;
+    let plain = decompress(blob).ok()?;
+    let marker = MARKER.as_bytes();
+    Some(plain.windows(marker.len()).any(|w| w == marker))
+}
+
 /// One asset, decompressed, by exact key.
 pub fn asset_text(macho: &MachO, key: &str) -> Result<String, String> {
     let asset = macho

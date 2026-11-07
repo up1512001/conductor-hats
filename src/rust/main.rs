@@ -90,8 +90,19 @@ fn guard(app: &Path, i_know: bool) -> Result<(), String> {
 }
 
 /// The pristine copy of the frontend, taken before anything is written to it.
+/// The pristine binary every patch starts from.
+///
+/// Keyed by app name, so after Conductor updates it can hold an older build's
+/// binary. Patching from that writes the old binary into the new bundle, beside
+/// a sidecar and resources it was never built with, and the window paints
+/// black. An unpatched binary is the pristine one by definition, so whenever the
+/// copy carries no panel the backup is taken again from it.
 fn ensure_backup(binary: &Path, app: &Path) -> Result<PathBuf, String> {
     let backup = patch::backup_path(app);
+    if backup.is_file() && patch::carries_panel(binary) == Some(false) {
+        std::fs::remove_file(&backup).map_err(|e| format!("{}: {e}", backup.display()))?;
+        println!("    backup   retaken, the copy is unpatched");
+    }
     if !backup.is_file() {
         if let Some(dir) = backup.parent() {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
