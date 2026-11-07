@@ -37,8 +37,19 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **`hats doctor` reported a different account from the router** when a
   repository binding was set; its dry run now passes the binding along.
 
+### Security
+
+- **`source-map-js` 1.2.2**, pulled in by `sass`, for an event-loop denial of
+  service through indexed source-map section offsets (build-time only; nothing
+  from it ships in the panel).
+
 ### Changed
 
+- **Dependencies:** `sass` 1.105.1, `brotli` 9.1.1 with `brotli-decompressor`
+  6.2.0, `serde_json` 1.0.154, and `actions/setup-node` v7.1.0,
+  `actions/upload-artifact` v7.0.2, `actions/download-artifact` v8.0.2, each
+  pinned to its commit. `brotli-decompressor` stays on 6.2.0 rather than the
+  day-old 6.3.0, the same week-long wait the npm side enforces.
 - **Switching a running chat moves it.** The chat's agent is stopped once
   Conductor marks it idle, and the next message resumes the conversation on the
   new account. Choosing for a whole workspace moves every chat running there
