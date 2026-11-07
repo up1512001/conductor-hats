@@ -164,12 +164,14 @@ pub fn connected() -> Client {
 
 impl Drop for Client {
     fn drop(&mut self) {
-        let count = CLIENTS
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |value| {
-                Some(value.saturating_sub(1))
-            })
-            .unwrap_or(0)
-            .saturating_sub(1);
+        let mut seen = CLIENTS.load(Ordering::SeqCst);
+        let count = loop {
+            let next = seen.saturating_sub(1);
+            match CLIENTS.compare_exchange(seen, next, Ordering::SeqCst, Ordering::SeqCst) {
+                Ok(_) => break next,
+                Err(actual) => seen = actual,
+            }
+        };
         write_clients(count);
     }
 }
