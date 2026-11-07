@@ -70,8 +70,11 @@ export function providerView(state: PanelState, host: HTMLElement, agent: string
       el(
         "div",
         "cma-note",
-        "This conversation is on " + cap(effective(provider)) + " and cannot move. " +
-          "Reopen it, or start a new one, and it comes up on " + cap(moving) + "."
+        provider.agent === "claude"
+          ? "Moving to " + cap(moving) + ". Your next message continues this conversation there, " +
+              "after the current reply if one is running."
+          : "This conversation is on " + cap(effective(provider)) + " and cannot move. " +
+              "Reopen it, or start a new one, and it comes up on " + cap(moving) + "."
       )
     );
   }

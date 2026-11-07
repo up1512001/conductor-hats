@@ -11,6 +11,7 @@
  */
 
 import { anchorFiber, NODES, rootFiber } from "./fiber.js";
+import { WORKSPACE_KEYS } from "./router.js";
 import type { Fiber } from "./fiber.js";
 
 const UUID = /^[0-9a-f-]{8,36}$/i;
@@ -27,13 +28,17 @@ const UUID = /^[0-9a-f-]{8,36}$/i;
 function idIn(props: Record<string, unknown> | null | undefined): Found | null {
   if (!props) return null;
   const params = props.params as Record<string, unknown> | undefined;
-  const routed = params && params.workspaceId;
-  if (typeof routed === "string" && UUID.test(routed)) {
-    return { id: routed, routed: true };
+  for (const key of WORKSPACE_KEYS) {
+    const routed = params && params[key];
+    if (typeof routed === "string" && UUID.test(routed)) {
+      return { id: routed, routed: true };
+    }
   }
-  const direct = props.workspaceId;
-  if (typeof direct === "string" && UUID.test(direct)) {
-    return { id: direct, routed: false };
+  for (const key of WORKSPACE_KEYS) {
+    const direct = props[key];
+    if (typeof direct === "string" && UUID.test(direct)) {
+      return { id: direct, routed: false };
+    }
   }
   return null;
 }
@@ -104,7 +109,8 @@ export function fromToolbar(): Anchored {
     if (props) {
       const params = props.params as Record<string, unknown> | undefined;
       if (!out.workspace) {
-        out.workspace = uuid(params && params.workspaceId) || uuid(props.workspaceId);
+        const found = idIn(props);
+        out.workspace = found ? found.id : null;
       }
       if (!out.session) {
         out.session = uuid(params && params.sessionId) || uuid(props.sessionId);

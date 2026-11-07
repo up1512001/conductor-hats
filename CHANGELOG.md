@@ -6,6 +6,47 @@ reasoning; this is the version-level view.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- **Conductor 0.93 could not be copied, and a failed copy was left behind sharing
+  the real app's data.** 0.93 no longer places the dev URL right after the
+  identifier in Tauri's config, so `dev-app` found no identifier and stopped
+  after copying the bundle. `patch` would then sign that half-built copy, which
+  still opened the real Conductor's database and keychain: a copy that boots and
+  hangs. The identifier is now found by the product name in front of it, and a
+  failed `dev-app` deletes what it copied.
+- **A copy updated itself into stock Conductor.** Conductor downloads updates on
+  its own and installs them on quit, which replaced the copy with the vendor's
+  build: no panel, and the real app's identifier, database and keychain. The
+  copy's update endpoint now points at nothing and the boot guard answers update
+  checks with "no update". `hats repatch` is how a copy is refreshed.
+- **Signing a copy in to Conductor never finished.** The browser returns the code
+  on `conductor://`, which macOS gave to the real app. The copy now becomes the
+  handler for the length of one sign-in, started and ended by the boot guard,
+  restored after ten minutes regardless. `hats signin` does it by hand, and
+  `hats signin --restore` undoes it. The copy itself claims `conductor-dev://`
+  so it never takes the real app's links.
+- **The panel could not tell which workspace was open in 0.93**, which renamed the
+  route parameter to `localWorkspaceId`. It reads Conductor's router first, then
+  the component tree, then the workspace of the open chat from the database, and
+  a toolbar press no longer falls back to a repository matched by name.
+- **`hats patch --help` patched the copy.** `--help` on the patching commands now
+  only prints help.
+- **`hats doctor` reported a different account from the router** when a
+  repository binding was set; its dry run now passes the binding along.
+
+### Changed
+
+- **Switching a running chat moves it.** The chat's agent is stopped once
+  Conductor marks it idle, and the next message resumes the conversation on the
+  new account. Choosing for a whole workspace moves every chat running there
+  that is not set on its own. Claude only.
+- **The New Workspace composer's choice outranks a repository binding** for the
+  workspace it creates, as the precedence in docs/how-it-works.md always said.
+  Workspaces that already existed are unaffected.
+
 ## 0.6.1
 
 ### Fixed

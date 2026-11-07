@@ -7,5 +7,9 @@
  */
 
 import { installMinimumVersionGuard } from "./compat.js";
+import { installSignInHandover } from "./signin.js";
+import { installUpdaterGuard } from "./updater.js";
 
 installMinimumVersionGuard();
+installUpdaterGuard();
+installSignInHandover();

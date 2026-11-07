@@ -2,6 +2,7 @@
 
 import { acct, q } from "./cli.js";
 import { fromToolbar, workspaceId } from "./route.js";
+import { fromRouter } from "./router.js";
 import type { Scan } from "./route.js";
 import type { Placed, Prefer, Target } from "./types.js";
 
@@ -99,10 +100,11 @@ export function note(line: string): void {
 }
 
 export function currentTarget(prefer: Prefer): Promise<Placed> {
+  const routed = prefer === "workspace" ? fromRouter() : { workspace: null, session: null };
   const anchored = prefer === "workspace" ? fromToolbar() : null;
-  const chat = (anchored && anchored.session) || "";
-  let id = (anchored && anchored.workspace) || null;
-  let how = id ? "toolbar" : "none";
+  const chat = routed.session || (anchored && anchored.session) || "";
+  let id = routed.workspace || (anchored && anchored.workspace) || null;
+  let how = routed.workspace ? "router" : id ? "toolbar" : "none";
 
   /* Counting ids across the whole tree is the last resort, and a poor one: every
    * sidebar row carries the id of the workspace it links to, so a busy window
@@ -121,7 +123,11 @@ export function currentTarget(prefer: Prefer): Promise<Placed> {
       " hops=" + (anchored ? anchored.hops : 0) +
       " fibers=" + scan.fibers + " distinctIds=" + scan.distinct
   );
-  const exact: Promise<Target | null> = id ? byId(id) : Promise.resolve(null);
+  const exact: Promise<Target | null> = id
+    ? byId(id)
+    : chat
+      ? byChat(chat)
+      : Promise.resolve(null);
 
   return exact.then((found) => {
     if (found) {
@@ -143,9 +149,22 @@ function base(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
-/** The fallback: match what Conductor knows against what is on screen. */
+/** The workspace a chat belongs to, from Conductor's own database. */
+function byChat(chat: string): Promise<Target | null> {
+  return acct("resolve-session " + q(chat))
+    .then((path) => (path ? ({ kind: "workspace", name: base(path), path } as Target) : null))
+    .catch(() => null);
+}
+
+/**
+ * The fallback: match what Conductor knows against what is on screen.
+ *
+ * The toolbar means a workspace, so only workspaces may answer it. A repository
+ * matched by name there is a guess that has already been wrong once.
+ */
 function byName(prefer: Prefer): Promise<Target> {
-  return places().then((list) => {
+  return places().then((all) => {
+    const list = prefer === "workspace" ? all.filter((p) => p.kind === "workspace") : all;
     const hay = chromeText();
     const ordered = list.slice().sort((a, b) => {
       const rank = (t: Target) => (t.kind === prefer ? 0 : 1);

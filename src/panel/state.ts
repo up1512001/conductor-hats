@@ -132,8 +132,8 @@ export function applyAccount(
  * Every chat in the workspace, which is the other thing someone might mean.
  *
  * The route alone would leave the open chat behind, because a pin beats a route
- * and the open chat is pinned the moment its agent starts. So the pin goes too,
- * and "every chat" means every chat.
+ * and the open chat is pinned the moment its agent starts. So the pin goes
+ * first, and then the route, which moves every chat running here.
  */
 export function applyToWorkspace(
   state: PanelState,
@@ -145,11 +145,8 @@ export function applyToWorkspace(
     return Promise.reject(new Error("no workspace in view"));
   }
   const session = sessionOf(state, agent);
-  return acct(`use ${profile} ${agent} ${q(t.path)}`).then((out) =>
-    session
-      ? acct(`unpin ${agent} ${session}`)
-          .then(() => out)
-          .catch(() => out)
-      : out
-  );
+  const unpinned = session
+    ? acct(`unpin ${agent} ${session}`).catch(() => "")
+    : Promise.resolve("");
+  return unpinned.then(() => acct(`use ${profile} ${agent} ${q(t.path)}`));
 }

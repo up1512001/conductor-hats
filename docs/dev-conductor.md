@@ -125,3 +125,20 @@ Note that `~/.conductor/settings.toml` is user-scoped rather than bundle-scoped,
 so both apps read the same settings, including the account router. That is
 usually convenient, and worth remembering when a change appears in the copy that
 you did not expect.
+
+## Signing in, and updates
+
+The copy signs in to Conductor through the browser like the real app, but the
+code comes back on a `conductor://` link and macOS gives that link to the real
+Conductor, which rejects a sign-in it never started. The patched copy fixes this
+itself: when it opens the sign-in page it runs `hats signin --begin`, which makes
+it the `conductor://` handler, and once the code is exchanged `hats signin --end`
+hands the scheme back. A detached timer restores it after ten minutes in case the
+second step never comes. `hats signin --restore` does it by hand. The web app only
+accepts the production channel, which is why the scheme itself cannot move; the
+copy claims `conductor-dev://` for everything else.
+
+Conductor updates itself. In a copy that would install the vendor's build over
+it, so `dev-app` points the copy's update endpoint at a closed local port and the
+boot guard answers update checks with "no update". `hats verify` checks both.
+Refresh a copy with `hats repatch`.

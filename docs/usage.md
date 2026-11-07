@@ -28,9 +28,11 @@ hats status             # claude  work  you@example.com
 hats which              # the same, with every layer that fed into it
 ```
 
-Open a **new** chat for a switch to take effect. A chat that is already running
-keeps the account its agent process started on, because the account is fixed
-when that process spawns.
+A switch moves chats that are already running as well. The account is fixed when
+an agent process spawns, so hats stops each affected Claude agent once its chat
+is idle, after the current reply if one is running, and Conductor resumes the
+conversation on the new account with your next message. Codex chats move when
+they are reopened.
 
 ### Several accounts at once
 

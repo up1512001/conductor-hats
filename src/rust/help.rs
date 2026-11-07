@@ -50,6 +50,7 @@ The panel inside Conductor
   assets [--app PATH] [PATTERN]      list the frontend assets in a binary
   assets --dump PATTERN              print one asset decompressed, for diagnosis
   verify [--app PATH]                check a patched copy end to end
+  signin [--restore]                 sign the copy in to Conductor
   debug [on|off|status|read|clear]   record what the panel resolved, for diagnosis
   reset-keychain [--app PATH]        forget what the copy stored, signing it out
   panel                              print the panel this binary carries

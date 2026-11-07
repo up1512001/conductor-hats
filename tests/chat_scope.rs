@@ -91,18 +91,23 @@ fn pinning_beats_the_workspace_route_when_the_agent_starts() {
     );
 }
 
-/// A pin cannot move a conversation that is already running, and saying so is
-/// the difference between this feature and the bug it replaces.
+/// With no agent running for the chat there is nothing to move, so a pin says
+/// what the chat uses and promises nothing about a restart.
 #[test]
-fn pinning_says_the_running_conversation_does_not_move() {
+fn pinning_a_chat_with_no_running_agent_says_what_it_uses() {
     let s = Sandbox::new();
     s.profile("claude", "work");
     s.workspace("ws-a");
     s.transcript("ws-a", "abc123");
 
-    s.hats(&["pin", "work", "claude", "abc123"])
-        .ok()
-        .says("stays where it is");
+    let run = s.hats(&["pin", "work", "claude", "abc123"]);
+    let out = run.ok();
+    out.says("now uses 'work'");
+    assert!(
+        !out.stdout.contains("next message"),
+        "promised a move with no agent running: {}",
+        out.stdout
+    );
 }
 
 #[test]

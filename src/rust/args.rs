@@ -79,3 +79,20 @@ fn env_path(key: &str, fallback: &str) -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(fallback))
 }
+
+/// Commands that change or read a copy. `--help` on them must only print help:
+/// `patch --help` used to patch the copy.
+const PATCHING: [&str; 8] = [
+    "dev-app",
+    "patch",
+    "revert",
+    "repatch",
+    "verify",
+    "assets",
+    "signin",
+    "reset-keychain",
+];
+
+pub(crate) fn wants_help(cmd: &str, rest: &[String]) -> bool {
+    PATCHING.contains(&cmd) && rest.iter().any(|a| a == "--help" || a == "-h")
+}
