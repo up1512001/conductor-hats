@@ -185,9 +185,14 @@ pub fn doctor(dir: &Path) -> Result<(), String> {
     }
 
     if store::router_installed() {
-        match resolve::decide("claude", dir, None, false) {
-            Some(name) => println!("dry run:  {} -> {name}", dir.display()),
-            None => println!(
+        let bound = settings::repo_binding("claude", &store::repo_root(dir));
+        match (resolve::decide("claude", dir, None, bound.is_some()), bound) {
+            (Some(name), _) => println!("dry run:  {} -> {name}", dir.display()),
+            (None, Some(binding)) => println!(
+                "dry run:  {} -> {binding} (repository binding)",
+                dir.display()
+            ),
+            (None, None) => println!(
                 "dry run:  {} -> default account (no route, no binding)",
                 dir.display()
             ),

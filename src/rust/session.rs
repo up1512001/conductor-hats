@@ -167,6 +167,14 @@ pub fn record_started(agent: &str, session: &str, name: &str) {
     let _ = crate::lock::write_atomic(&path, &format!("{name}\n"));
 }
 
+/// Drops the record once no agent is running for the chat, so the panel shows
+/// the account the chat continues on rather than one whose process is gone.
+pub fn forget_started(agent: &str, session: &str) {
+    if let Some(session) = id::session(session) {
+        let _ = std::fs::remove_file(started_path(agent, session));
+    }
+}
+
 pub fn pinned(agent: &str, session: &str) -> Option<String> {
     let found = paths::first_line(&pin_path(agent, session))?;
     id::profile_or_none(&found).map(str::to_string)
@@ -175,8 +183,8 @@ pub fn pinned(agent: &str, session: &str) -> Option<String> {
 /// Pins a chat to a profile.
 ///
 /// The agent process for a running chat took its config directory at spawn and
-/// no longer reads anything, so this cannot move the conversation that is on
-/// screen. It decides the next process Conductor starts for that chat.
+/// no longer reads anything, so it is stopped once the chat is idle and
+/// Conductor resumes the conversation under the pin on the next message.
 pub fn pin(name: &str, agent: &str, session: &str) -> Result<(), String> {
     profile::require(agent, name)?;
     let session = id::session(session).ok_or("that is not a session id")?;
@@ -186,10 +194,14 @@ pub fn pin(name: &str, agent: &str, session: &str) -> Result<(), String> {
     }
     crate::lock::write_atomic(&path, &format!("{name}\n"))?;
     println!("This chat now uses '{name}'.");
-    println!();
-    println!("The agent already running took its account when it started, so the");
-    println!("conversation on screen stays where it is. Reopen the chat, or start a new");
-    println!("one, and it comes up on '{name}'.");
+    use crate::respawn::Outcome;
+    match crate::respawn::move_now_or_later(agent, name, session) {
+        Outcome::Restarted => println!("Your next message continues the conversation on '{name}'."),
+        Outcome::AfterTurn => {
+            println!("It moves to '{name}' as soon as the current reply finishes.")
+        }
+        Outcome::AlreadyThere | Outcome::NotRunning => {}
+    }
     Ok(())
 }
 
@@ -225,4 +237,21 @@ pub fn target(agent: &str, dir: &Path, arg: Option<&String>) -> Result<String, S
              you mean is a guess.\nPass the session id explicitly."
         )),
     }
+}
+
+/// Prints the workspace a chat belongs to, for the panel when Conductor's
+/// frontend does not say which workspace is open but does say which chat.
+pub fn print_workspace(chat: &str) -> Result<(), String> {
+    let chat = id::session(chat).ok_or("that is not a session id")?;
+    let sql = format!(
+        "select w.workspace_path from sessions s join workspaces w on w.id = s.workspace_id \
+         where s.id = '{chat}' or s.claude_session_id = '{chat}'"
+    );
+    if let Some(path) = crate::places::rows(&sql)
+        .into_iter()
+        .find(|p| !p.is_empty())
+    {
+        println!("{path}");
+    }
+    Ok(())
 }

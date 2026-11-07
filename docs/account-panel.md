@@ -34,8 +34,8 @@ Workspace: greenfield
   Turn routing off
   agents go back to one account
 
-Applies to the next chat here. A chat already running keeps
-the account it started on.
+Applies to this chat alone, from your next message. The
+conversation carries over.
 ```
 
 **Level two**, after choosing a provider:

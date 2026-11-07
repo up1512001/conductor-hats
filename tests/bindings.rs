@@ -123,17 +123,15 @@ fn unbind_leaves_the_rest_of_the_file() {
     assert!(!body.contains("CLAUDE_CONFIG_DIR"), "{body}");
 }
 
-/// A repository binding outranks the account chosen while a workspace was being
-/// created.
+/// The account chosen while a workspace was being created outranks a repository
+/// binding.
 ///
-/// The creation choice is one global value that is never cleared, so a choice
-/// made for one repository was still being spent days later on the first
-/// workspace created in an unrelated one, overriding that repository's own
-/// binding. Conductor delivers a binding by setting the config directory before
-/// the router runs, so the router leaving an already-set value alone is what
-/// respecting the binding means.
+/// Choosing in the New Workspace composer is an explicit act for the workspace
+/// being made, and a binding written weeks earlier used to overrule it with
+/// nothing on screen saying so. It cannot reach workspaces that already existed:
+/// only one created after the choice may take it.
 #[test]
-fn a_repository_binding_outranks_a_creation_choice() {
+fn a_creation_choice_outranks_a_repository_binding() {
     let s = Sandbox::new();
     s.hats(&["install"]).ok();
     s.profile("claude", "personal");
@@ -145,6 +143,11 @@ fn a_repository_binding_outranks_a_creation_choice() {
         .join("claude/work")
         .to_string_lossy()
         .to_string();
+    let chosen = s
+        .accounts()
+        .join("claude/personal")
+        .to_string_lossy()
+        .to_string();
     let got = s.route_env(
         "claude",
         "ws-a",
@@ -152,8 +155,8 @@ fn a_repository_binding_outranks_a_creation_choice() {
         &[("CLAUDE_CONFIG_DIR", &bound)],
     );
     assert_eq!(
-        got, bound,
-        "the creation choice overrode the repository binding"
+        got, chosen,
+        "the repository binding overrode the account chosen for this workspace"
     );
 }
 

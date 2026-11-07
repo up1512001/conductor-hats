@@ -24,9 +24,11 @@ pub fn use_route(name: &str, agent: &str, dir: &Path) -> Result<(), String> {
         .unwrap_or_default();
     println!("{leaf} now uses '{name}'{suffix}");
     println!("  {}", dir.display());
-    println!();
-    println!("Open a new chat in this workspace for it to take effect. A chat that is");
-    println!("already running keeps the account its agent process started on.");
+    let moving = crate::respawn::move_workspace(agent, name, dir);
+    if moving > 0 {
+        println!();
+        println!("{moving} running chat(s) here continue on '{name}' from their next message.");
+    }
     Ok(())
 }
 

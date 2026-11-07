@@ -100,7 +100,7 @@ export function footText(state: PanelState): string {
     return "Applies to the workspace you create next, and to that one alone.";
   }
   if (openChat(state)) {
-    return "Applies to this chat alone. It comes up on the new account next time you open it; the conversation on screen keeps the one it started with.";
+    return "Applies to this chat alone, from your next message. The conversation carries over.";
   }
   if (state.target.kind === "workspace") {
     return "No chat open, so this sets the workspace. Chats started here use it unless they are set on their own.";

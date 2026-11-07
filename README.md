@@ -98,11 +98,20 @@ same button sets the workspace when no chat is open, and one line under the
 accounts sets every chat in it at once.
 
 Choosing in the New Workspace composer sets the workspace you are about to
-create, and the ones after it until you choose again.
+create, and the ones after it until you choose again. It wins over a repository
+binding: you chose it for that workspace.
 
-A conversation that is already running cannot change account: its agent took one
-when it started and never reads another. The panel says which account it is on
-and which it will come up on next time you open it.
+Switching a chat that is already running moves the conversation too. Its agent
+took an account when it started, so hats stops it once the chat is idle (after
+the current reply, if one is running) and your next message resumes the same
+conversation on the new account. Claude only; a Codex chat moves when it is
+reopened.
+
+Signing the copy in to Conductor works as in the real app: click sign in, then
+"Launch Conductor" in the browser. The code comes back on a `conductor://` link,
+which macOS gives to the real app, so for the length of that one sign-in hats
+makes the copy the app that opens it, then hands it back. `hats signin
+--restore` hands it back by hand.
 
 **6. After a Conductor update**, which replaces the bundle and removes the panel:
 

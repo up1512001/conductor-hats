@@ -42,15 +42,19 @@ mod remote_scan;
 mod repatch;
 mod report;
 mod resolve;
+mod respawn;
 mod router;
 mod routes;
 mod serve;
 mod session;
 mod settings;
 mod sign;
+mod signin;
 mod source;
 mod store;
 mod transcript;
+mod updater;
+mod urlhandler;
 mod verify;
 mod wiring;
 
@@ -114,7 +118,12 @@ pub(crate) fn cmd_patch_app(app: &Path, i_know: bool) -> Result<(), String> {
         );
     }
 
+    if updater::live(&binary) && devapp::bundle_id(app).as_deref() != Some("com.conductor.app") {
+        updater::disable(&binary)?;
+    }
+    devapp::claim_scheme(app)?;
     sign::resign(app)?;
+    devapp::register(app);
     println!("    signature valid");
     Ok(())
 }
@@ -210,6 +219,11 @@ fn main() {
         .unwrap_or(("help", Vec::new()));
     let args = parse(&rest);
 
+    if args::wants_help(cmd, &rest) {
+        help::usage();
+        return;
+    }
+
     let result = match cmd {
         "dev-app" => devapp::build(&devapp::Options {
             src: args.src.clone(),
@@ -227,11 +241,16 @@ fn main() {
             launch: args.launch,
         }),
         "workspaces" | "repos" => places::run(cmd),
+        "resolve-session" => {
+            session::print_workspace(rest.first().map(String::as_str).unwrap_or(""))
+        }
         "resolve" | "resolve-repo" => {
             places::resolve(cmd, rest.first().map(String::as_str).unwrap_or(""))
         }
         "assets" => patch::list(&args.app, args.pattern.as_deref(), args.dump),
         "verify" => verify::run(&args.app),
+        "signin" => signin::run(&args.app, &rest),
+        "respawn-when-idle" => respawn::run(&rest),
         "debug" => debug::run(&rest),
         "log" => debug::write(&rest),
         "reset-keychain" => {

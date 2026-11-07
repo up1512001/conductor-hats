@@ -8,7 +8,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::{binary_in, macho::MachO, patch, sign};
+use crate::{binary_in, devapp, macho::MachO, patch, sign};
 
 /// The identifier a copy must no longer carry, or it fights the real app over
 /// the same data directory and keychain items.
@@ -173,6 +173,27 @@ pub fn run(app: &Path) -> Result<(), String> {
         r.pass(
             "identifier rewritten",
             "no trace of the real app's identifier",
+        );
+    }
+
+    if crate::updater::live(&binary) {
+        r.fail(
+            "updater disabled",
+            "the copy can install stock Conductor over itself; run hats repatch",
+        );
+    } else {
+        r.pass("updater disabled", "no route to Conductor's update server");
+    }
+
+    if devapp::url_scheme(app).as_deref() == Some("conductor-dev") {
+        r.pass(
+            "url scheme",
+            "conductor-dev://, leaving conductor:// to the real app",
+        );
+    } else {
+        r.fail(
+            "url scheme",
+            "claims conductor://, the real app's deep links; run hats repatch",
         );
     }
 
